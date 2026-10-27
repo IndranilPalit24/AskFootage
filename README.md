@@ -10,7 +10,7 @@ Built by Team **EdgeCase** (solo, Indie track) for the **Meta Global AI Develope
 
 | Component | Status |
 |---|---|
-| Relation layer: carrying, region traversal, dwell (`relations.py`) | Implemented, with synthetic-track tests (12 pass, 2 documented known gaps) |
+| Relation layer: carrying, region traversal, dwell (`relations.py`) | Planned |
 | Video preparation and ingest pipeline | Planned |
 | Searchable index (SQLite) | Planned |
 | Track stitching across occlusion | Planned |
@@ -149,6 +149,8 @@ Install these and check each one from a terminal:
 | Node.js (LTS), for the web UI | `node --version` |
 | ffmpeg, on your PATH | `ffmpeg -version` |
 
+Tested on Python 3.14.4 (Windows).
+
 ### 1. Clone
 
 ```
@@ -176,15 +178,16 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Check the relation layer (works today)
+### 3. Check the relation layer *(Planned)*
 
-The relation tests need no API key, no video and no extra packages:
+The relation tests will need no API key and no video. With the virtual environment activated, install the development tools and run the tests:
 
 ```
-python run_tests.py
+pip install -r requirements-dev.txt
+python -m pytest
 ```
 
-Expected today: 12 passing, 2 marked as known gaps (a track that changes ID behind an obstacle, and a trolley being pushed). The two known gaps are listed under [Known limitations](#known-limitations).
+No tests exist yet, so today pytest reports "no tests ran". Planned: 12 passing, 2 marked as known gaps (a track that changes ID behind an obstacle, and a trolley being pushed). The two known gaps are listed under [Known limitations](#known-limitations).
 
 ### 4. Run the full pipeline *(Planned)*
 
@@ -206,7 +209,7 @@ These steps describe the intended interface and will work as each component land
    ```
 6. **Start the API and the web UI**
    ```
-   uvicorn askfootage.api:app --port 8000
+   uvicorn askfootage.interfaces.api.app:app --port 8000
    cd web
    npm install
    npm run dev
@@ -297,26 +300,60 @@ Accuracy will be measured against hand-labelled ground truth on footage filmed f
 
 ## Project layout
 
-*Planned. Today the repo holds the relation layer and its tests at the top level.*
+*Skeleton only, no application code yet. Folder purposes come from [docs/architecture.md](docs/architecture.md).*
 
 ```
-askfootage/
-  askfootage/
-    relations.py      relation layer (implemented)
-    ingest.py         video prep, SAM requests, raw response saving
-    stitch.py         match track IDs across chunk overlaps
-    index.py          SQLite schema and queries
-    interpret.py      question to fixed structure (Muse Spark)
-    verify.py         optional frame check (Muse Spark)
-    api.py            search API
-    evaluate.py       precision and recall against labels
-  web/                React UI
-  demo/               sample clip and saved responses
-  labels/             ground-truth files
-  tests/              tests
-  run_tests.py        runs the tests without extra packages
-  .env.example        variable names only
+AskFootage/
+  .github/              CI workflows (tests, secret scan)
+    workflows/
+  .vscode/              editor settings (LF line endings)
+  askfootage/           backend: domain, ports, application, adapters, interfaces
+    adapters/
+      media/
+      meta/
+      sqlite/
+      storage/
+    application/
+    domain/
+    interfaces/
+      api/
+      cli/
+    ports/
+  contract/             openapi.yaml, the single source of truth for the API
+    examples/
+  demo/                 demo material
+  docs/                 architecture notes and decision records
+    adr/
+    wireframes/
+  labels/               ground-truth labels for evaluation
+  scripts/              one-off scripts, such as the API spike and the synthetic video
+  tests/                tests, including architecture tests and contract tests
+    architecture/
+    contract/
+    e2e/
+    fixtures/
+    unit/
+  web/                  the UI, built first on mock data that matches the contract
+    src/
+      api/
+        generated/
+      components/
+      features/
+        evidence/
+        indexing/
+        player/
+        search/
+        timeline/
+        zones/
+      hooks/
+      styles/
+  .env.example
+  .gitattributes
+  .gitignore
+  pyproject.toml
   README.md
+  requirements-dev.txt
+  requirements.txt
 ```
 
 ## Built during the hackathon

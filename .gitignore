@@ -218,3 +218,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- AskFootage: never commit footage, data or model responses ---
+videos/
+data/
+raw_responses/
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.sqlite
+*.db
+
+# --- AskFootage: tooling caches ---
+node_modules/
+web/dist/
