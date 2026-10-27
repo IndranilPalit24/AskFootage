@@ -165,7 +165,7 @@ A virtual environment is a private folder of Python packages for this project on
 Windows (PowerShell):
 
 ```
-py -3.11 -m venv .venv
+py -3 -m venv .venv
 .venv\Scripts\Activate.ps1
 ```
 
@@ -197,7 +197,7 @@ These steps describe the intended interface and will work as each component land
    ```
    pip install -r requirements.txt
    ```
-2. **Add your own Meta Model API key.** Copy `.env.example` to `.env` and fill in your key. See [Configuration and secrets](#configuration-and-secrets). Never commit `.env`.
+2. **Add your own Meta Model API key.** Run `copy .env.example .env`, then put your own Meta key after `META_API_KEY=` in `.env`. See [Configuration and secrets](#configuration-and-secrets). Never commit `.env`.
 3. **Put a video in `videos/`.** Use a fixed camera, MP4 with H.264. Only use footage you have the right to use, with the consent of anyone who appears in it.
 4. **Preview the cost before spending anything**
    ```

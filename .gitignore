@@ -233,6 +233,3 @@ raw_responses/
 # --- AskFootage: tooling caches ---
 node_modules/
 web/dist/
-
-# --- AskFootage: env template stays local ---
-/.env.example
