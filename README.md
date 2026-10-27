@@ -61,7 +61,7 @@ You give AskFootage a video from a **fixed camera**. It watches the video once, 
 | Region traversal | Something enters and leaves a zone you drew | A person crosses the doorway |
 | Dwell | Something stays in a zone longer than a set time | A pallet sits in the exit zone |
 
-**Objects it looks for (current vocabulary):** person, cardboard box, bag, crate. More can be added later; each new object type costs one extra processing pass over the video (see [Cost](#cost-and-api-limits)).
+**Objects it looks for (current vocabulary):** person, cardboard box, bag, crate. More can be added later; each new object type costs one extra processing pass over the video
 
 AskFootage does **not** identify who anyone is. It has no face recognition and no names.
 
