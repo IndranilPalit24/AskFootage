@@ -325,10 +325,6 @@ Everything in this repository was created between **Oct 27 and Nov 4, 2026** for
 
 The only external components are the models and API of Meta Model API and standard open-source libraries listed in `requirements.txt` and `web/package.json`.
 
-## License
-
-MIT. See `LICENSE`.
-
 ## References
 
 - [Pricing and rate limits, Meta Model API](https://dev.meta.ai/docs/pricing-rate-limits)
