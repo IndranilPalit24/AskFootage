@@ -1,0 +1,634 @@
+{
+  "today": "2026-10-30",
+  "cameras": [
+    {
+      "id": "loading-dock",
+      "name": "Loading dock"
+    }
+  ],
+  "recordings": [
+    {
+      "id": "rec-1024-0800",
+      "camera": "loading-dock",
+      "day": "2026-10-24",
+      "startTime": "08:00:00",
+      "lengthSeconds": 14400,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1026-0600",
+      "camera": "loading-dock",
+      "day": "2026-10-26",
+      "startTime": "06:00:00",
+      "lengthSeconds": 14400,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1026-1000",
+      "camera": "loading-dock",
+      "day": "2026-10-26",
+      "startTime": "10:00:00",
+      "lengthSeconds": 14400,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1027-0600",
+      "camera": "loading-dock",
+      "day": "2026-10-27",
+      "startTime": "06:00:00",
+      "lengthSeconds": 14400,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1027-1000",
+      "camera": "loading-dock",
+      "day": "2026-10-27",
+      "startTime": "10:00:00",
+      "lengthSeconds": 10800,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1028-0600",
+      "camera": "loading-dock",
+      "day": "2026-10-28",
+      "startTime": "06:00:00",
+      "lengthSeconds": 7200,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1028-0800",
+      "camera": "loading-dock",
+      "day": "2026-10-28",
+      "startTime": "08:00:00",
+      "lengthSeconds": 7200,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1028-1000",
+      "camera": "loading-dock",
+      "day": "2026-10-28",
+      "startTime": "10:00:00",
+      "lengthSeconds": 7200,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1029-0600",
+      "camera": "loading-dock",
+      "day": "2026-10-29",
+      "startTime": "06:00:00",
+      "lengthSeconds": 1860,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1029-0705",
+      "camera": "loading-dock",
+      "day": "2026-10-29",
+      "startTime": "07:05:00",
+      "lengthSeconds": 1440,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1029-0912",
+      "camera": "loading-dock",
+      "day": "2026-10-29",
+      "startTime": "09:12:00",
+      "lengthSeconds": 1080,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1029-1030",
+      "camera": "loading-dock",
+      "day": "2026-10-29",
+      "startTime": "10:30:00",
+      "lengthSeconds": 1620,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1029-1300",
+      "camera": "loading-dock",
+      "day": "2026-10-29",
+      "startTime": "13:00:00",
+      "lengthSeconds": 1320,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1029-1610",
+      "camera": "loading-dock",
+      "day": "2026-10-29",
+      "startTime": "16:10:00",
+      "lengthSeconds": 720,
+      "status": "indexing"
+    },
+    {
+      "id": "rec-1030-0600",
+      "camera": "loading-dock",
+      "day": "2026-10-30",
+      "startTime": "06:00:00",
+      "lengthSeconds": 7200,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1030-0800",
+      "camera": "loading-dock",
+      "day": "2026-10-30",
+      "startTime": "08:00:00",
+      "lengthSeconds": 7200,
+      "status": "ready"
+    },
+    {
+      "id": "rec-1030-1000",
+      "camera": "loading-dock",
+      "day": "2026-10-30",
+      "startTime": "10:00:00",
+      "lengthSeconds": 7200,
+      "status": "preparing"
+    },
+    {
+      "id": "rec-1030-1200",
+      "camera": "loading-dock",
+      "day": "2026-10-30",
+      "startTime": "12:00:00",
+      "lengthSeconds": 3600,
+      "status": "waiting"
+    }
+  ],
+  "clips": [
+    {
+      "id": "clip-1028-064712",
+      "recordingId": "rec-1028-0600",
+      "day": "2026-10-28",
+      "startTime": "06:47:12",
+      "startSeconds": 2832,
+      "endSeconds": 2846,
+      "label": "Person carrying a box through the loading door",
+      "evidence": [
+        {
+          "kind": "carrying",
+          "text": "Carrying · 14 s"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Loading door · 10 s"
+        }
+      ],
+      "zone": "Loading door",
+      "whyMatched": "A person was tracked holding a box for 14 seconds. The box moved together with the person the whole time. They crossed the Loading door zone while carrying it.",
+      "keyFrames": [
+        {
+          "atSeconds": 2832,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 2839,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 2846,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1028-092230",
+      "recordingId": "rec-1028-0800",
+      "day": "2026-10-28",
+      "startTime": "09:22:30",
+      "startSeconds": 4950,
+      "endSeconds": 5130,
+      "label": "Person standing in the loading door for 3 minutes",
+      "evidence": [
+        {
+          "kind": "dwell",
+          "text": "Stayed · 3 min"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Loading door · 3 min"
+        }
+      ],
+      "zone": "Loading door",
+      "whyMatched": "A person stayed inside the Loading door zone for 3 minutes. They moved less than a metre during that time.",
+      "keyFrames": [
+        {
+          "atSeconds": 4950,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 5040,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 5130,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1029-061405",
+      "recordingId": "rec-1029-0600",
+      "day": "2026-10-29",
+      "startTime": "06:14:05",
+      "startSeconds": 845,
+      "endSeconds": 857,
+      "label": "Person carrying a box through the loading door",
+      "evidence": [
+        {
+          "kind": "carrying",
+          "text": "Carrying · 12 s"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Loading door · 9 s"
+        }
+      ],
+      "zone": "Loading door",
+      "whyMatched": "A person was tracked holding a box for 12 seconds. The box moved together with the person the whole time. They walked through the Loading door zone while carrying it.",
+      "keyFrames": [
+        {
+          "atSeconds": 845,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 851,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 857,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1029-070903",
+      "recordingId": "rec-1029-0705",
+      "day": "2026-10-29",
+      "startTime": "07:09:03",
+      "startSeconds": 243,
+      "endSeconds": 263,
+      "label": "Person carrying a box through the loading door",
+      "evidence": [
+        {
+          "kind": "carrying",
+          "text": "Carrying · 20 s"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Loading door · 12 s"
+        }
+      ],
+      "zone": "Loading door",
+      "whyMatched": "A person was tracked holding a box for 20 seconds. The box moved together with the person the whole time. They crossed the Loading door zone while carrying it.",
+      "keyFrames": [
+        {
+          "atSeconds": 243,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 253,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 263,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1029-072140",
+      "recordingId": "rec-1029-0705",
+      "day": "2026-10-29",
+      "startTime": "07:21:40",
+      "startSeconds": 1000,
+      "endSeconds": 1090,
+      "label": "Person waiting by the exit lane",
+      "evidence": [
+        {
+          "kind": "dwell",
+          "text": "Stayed · 1 min 30 s"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Exit lane · 1 min 30 s"
+        }
+      ],
+      "zone": "Exit lane",
+      "whyMatched": "A person stayed inside the Exit lane zone for 1 minute 30 seconds. They hardly moved while they were there.",
+      "keyFrames": [
+        {
+          "atSeconds": 1000,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 1045,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 1090,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1029-091522",
+      "recordingId": "rec-1029-0912",
+      "day": "2026-10-29",
+      "startTime": "09:15:22",
+      "startSeconds": 202,
+      "endSeconds": 220,
+      "label": "Person carrying a large box into the building",
+      "evidence": [
+        {
+          "kind": "carrying",
+          "text": "Carrying · 18 s"
+        }
+      ],
+      "zone": null,
+      "whyMatched": "A person was tracked holding a large box for 18 seconds. The box moved together with the person until both left the frame.",
+      "keyFrames": [
+        {
+          "atSeconds": 202,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 211,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 220,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1029-104215",
+      "recordingId": "rec-1029-1030",
+      "day": "2026-10-29",
+      "startTime": "10:42:15",
+      "startSeconds": 735,
+      "endSeconds": 751,
+      "label": "Person carrying a box through the loading dock",
+      "evidence": [
+        {
+          "kind": "carrying",
+          "text": "Carrying · 16 s"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Loading door · 11 s"
+        }
+      ],
+      "zone": "Loading door",
+      "whyMatched": "A person was tracked holding a box for 16 seconds. The box moved together with the person the whole time. For 11 of those seconds they were inside the Loading door zone.",
+      "keyFrames": [
+        {
+          "atSeconds": 735,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 743,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 751,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1029-104847",
+      "recordingId": "rec-1029-1030",
+      "day": "2026-10-29",
+      "startTime": "10:48:47",
+      "startSeconds": 1127,
+      "endSeconds": 1367,
+      "label": "Person standing in the loading door for 4 minutes",
+      "evidence": [
+        {
+          "kind": "dwell",
+          "text": "Stayed · 4 min"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Loading door · 4 min"
+        }
+      ],
+      "zone": "Loading door",
+      "whyMatched": "A person stayed inside the Loading door zone for 4 minutes. They moved less than a metre during that time.",
+      "keyFrames": [
+        {
+          "atSeconds": 1127,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 1247,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 1367,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1029-130610",
+      "recordingId": "rec-1029-1300",
+      "day": "2026-10-29",
+      "startTime": "13:06:10",
+      "startSeconds": 370,
+      "endSeconds": 384,
+      "label": "Person carrying a box out of the loading dock",
+      "evidence": [
+        {
+          "kind": "carrying",
+          "text": "Carrying · 14 s"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Loading door · 6 s"
+        }
+      ],
+      "zone": "Loading door",
+      "whyMatched": "A person was tracked holding a box for 14 seconds. The box moved together with the person as they left through the Loading door zone.",
+      "keyFrames": [
+        {
+          "atSeconds": 370,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 377,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 384,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1029-131430",
+      "recordingId": "rec-1029-1300",
+      "day": "2026-10-29",
+      "startTime": "13:14:30",
+      "startSeconds": 870,
+      "endSeconds": 945,
+      "label": "Person lingering in the exit lane",
+      "evidence": [
+        {
+          "kind": "dwell",
+          "text": "Stayed · 1 min 15 s"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Exit lane · 1 min 15 s"
+        }
+      ],
+      "zone": "Exit lane",
+      "whyMatched": "A person stayed inside the Exit lane zone for 1 minute 15 seconds. They walked back and forth over a small area.",
+      "keyFrames": [
+        {
+          "atSeconds": 870,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 907,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 945,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1030-065240",
+      "recordingId": "rec-1030-0600",
+      "day": "2026-10-30",
+      "startTime": "06:52:40",
+      "startSeconds": 3160,
+      "endSeconds": 3176,
+      "label": "Person carrying a box through the loading door",
+      "evidence": [
+        {
+          "kind": "carrying",
+          "text": "Carrying · 16 s"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Loading door · 8 s"
+        }
+      ],
+      "zone": "Loading door",
+      "whyMatched": "A person was tracked holding a box for 16 seconds. The box moved together with the person the whole time. They walked through the Loading door zone while carrying it.",
+      "keyFrames": [
+        {
+          "atSeconds": 3160,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 3168,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 3176,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1030-081505",
+      "recordingId": "rec-1030-0800",
+      "day": "2026-10-30",
+      "startTime": "08:15:05",
+      "startSeconds": 905,
+      "endSeconds": 1025,
+      "label": "Person waiting by the exit lane for 2 minutes",
+      "evidence": [
+        {
+          "kind": "dwell",
+          "text": "Stayed · 2 min"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Exit lane · 2 min"
+        }
+      ],
+      "zone": "Exit lane",
+      "whyMatched": "A person stayed inside the Exit lane zone for 2 minutes. They hardly moved while they were there.",
+      "keyFrames": [
+        {
+          "atSeconds": 905,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 965,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 1025,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    }
+  ],
+  "zones": [
+    {
+      "id": "zone-loading-door",
+      "camera": "loading-dock",
+      "name": "Loading door",
+      "points": [
+        [
+          0.08,
+          0.22
+        ],
+        [
+          0.42,
+          0.2
+        ],
+        [
+          0.44,
+          0.86
+        ],
+        [
+          0.06,
+          0.9
+        ]
+      ]
+    },
+    {
+      "id": "zone-exit-lane",
+      "camera": "loading-dock",
+      "name": "Exit lane",
+      "points": [
+        [
+          0.62,
+          0.55
+        ],
+        [
+          0.94,
+          0.52
+        ],
+        [
+          0.97,
+          0.95
+        ],
+        [
+          0.6,
+          0.97
+        ]
+      ]
+    }
+  ],
+  "savedClips": []
+}
