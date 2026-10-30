@@ -20,5 +20,4 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: ruff check .
       - run: ruff format --check .
-      # pytest exits with code 5 when no tests exist yet. Remove the tolerance once tests exist.
-      - run: python -m pytest -q || [ $? -eq 5 ]
+      - run: python -m pytest -q

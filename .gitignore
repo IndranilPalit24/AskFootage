@@ -14,8 +14,9 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Anchored to the repo root: an unanchored lib/ would also hide web/src/lib/.
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -233,3 +234,6 @@ raw_responses/
 # --- AskFootage: tooling caches ---
 node_modules/
 web/dist/
+
+# Claude Code project files (agents, settings): local only, never pushed
+/.claude/

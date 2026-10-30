@@ -1,0 +1,183 @@
+{
+  "question": "someone carrying a box",
+  "day": "2026-10-29",
+  "clips": [
+    {
+      "id": "clip-1029-061405",
+      "recordingId": "rec-1029-0600",
+      "day": "2026-10-29",
+      "startTime": "06:14:05",
+      "startSeconds": 845,
+      "endSeconds": 857,
+      "label": "Person carrying a box through the loading door",
+      "evidence": [
+        {
+          "kind": "carrying",
+          "text": "Carrying · 12 s"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Loading door · 9 s"
+        }
+      ],
+      "zone": "Loading door",
+      "whyMatched": "A person was tracked holding a box for 12 seconds. The box moved together with the person the whole time. They walked through the Loading door zone while carrying it.",
+      "keyFrames": [
+        {
+          "atSeconds": 845,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 851,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 857,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1029-070903",
+      "recordingId": "rec-1029-0705",
+      "day": "2026-10-29",
+      "startTime": "07:09:03",
+      "startSeconds": 243,
+      "endSeconds": 263,
+      "label": "Person carrying a box through the loading door",
+      "evidence": [
+        {
+          "kind": "carrying",
+          "text": "Carrying · 20 s"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Loading door · 12 s"
+        }
+      ],
+      "zone": "Loading door",
+      "whyMatched": "A person was tracked holding a box for 20 seconds. The box moved together with the person the whole time. They crossed the Loading door zone while carrying it.",
+      "keyFrames": [
+        {
+          "atSeconds": 243,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 253,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 263,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1029-091522",
+      "recordingId": "rec-1029-0912",
+      "day": "2026-10-29",
+      "startTime": "09:15:22",
+      "startSeconds": 202,
+      "endSeconds": 220,
+      "label": "Person carrying a large box into the building",
+      "evidence": [
+        {
+          "kind": "carrying",
+          "text": "Carrying · 18 s"
+        }
+      ],
+      "zone": null,
+      "whyMatched": "A person was tracked holding a large box for 18 seconds. The box moved together with the person until both left the frame.",
+      "keyFrames": [
+        {
+          "atSeconds": 202,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 211,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 220,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1029-104215",
+      "recordingId": "rec-1029-1030",
+      "day": "2026-10-29",
+      "startTime": "10:42:15",
+      "startSeconds": 735,
+      "endSeconds": 751,
+      "label": "Person carrying a box through the loading dock",
+      "evidence": [
+        {
+          "kind": "carrying",
+          "text": "Carrying · 16 s"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Loading door · 11 s"
+        }
+      ],
+      "zone": "Loading door",
+      "whyMatched": "A person was tracked holding a box for 16 seconds. The box moved together with the person the whole time. For 11 of those seconds they were inside the Loading door zone.",
+      "keyFrames": [
+        {
+          "atSeconds": 735,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 743,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 751,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1029-130610",
+      "recordingId": "rec-1029-1300",
+      "day": "2026-10-29",
+      "startTime": "13:06:10",
+      "startSeconds": 370,
+      "endSeconds": 384,
+      "label": "Person carrying a box out of the loading dock",
+      "evidence": [
+        {
+          "kind": "carrying",
+          "text": "Carrying · 14 s"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Loading door · 6 s"
+        }
+      ],
+      "zone": "Loading door",
+      "whyMatched": "A person was tracked holding a box for 14 seconds. The box moved together with the person as they left through the Loading door zone.",
+      "keyFrames": [
+        {
+          "atSeconds": 370,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 377,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 384,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    }
+  ],
+  "note": "1 recording on this day is still being indexed, so it was not searched."
+}

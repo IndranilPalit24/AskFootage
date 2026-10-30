@@ -1,0 +1,37 @@
+[
+  {
+    "day": "2026-10-24",
+    "recordings": 1,
+    "ready": 1
+  },
+  {
+    "day": "2026-10-25",
+    "recordings": 0,
+    "ready": 0
+  },
+  {
+    "day": "2026-10-26",
+    "recordings": 2,
+    "ready": 2
+  },
+  {
+    "day": "2026-10-27",
+    "recordings": 2,
+    "ready": 2
+  },
+  {
+    "day": "2026-10-28",
+    "recordings": 3,
+    "ready": 3
+  },
+  {
+    "day": "2026-10-29",
+    "recordings": 6,
+    "ready": 5
+  },
+  {
+    "day": "2026-10-30",
+    "recordings": 4,
+    "ready": 2
+  }
+]
