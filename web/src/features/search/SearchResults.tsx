@@ -8,22 +8,23 @@ interface SearchResultsProps {
   /** The day picked now; when the results are for another day, the count line says which. */
   selectedDay: string | null;
   onRetry: () => void;
+  /** Camera id -> name, for each card's time line. */
+  cameraNames: ReadonlyMap<string, string>;
 }
-
-// Static, created once.
-const idleHint = <p className="muted">Ask about anything the camera saw. Each result shows the clip and why it matched.</p>;
 
 function countLine(count: number, day: string, selectedDay: string | null): string {
   const clips = count === 1 ? '1 clip' : `${count} clips`;
   return day === selectedDay ? clips : `${clips} on ${formatShortDay(day)}`;
 }
 
-/** Status line (in a polite live region) and the result cards. */
-export function SearchResults({ state, selectedDay, onRetry }: SearchResultsProps) {
-  let status: ReactNode;
+/**
+ * Status line (in a polite live region) and the result cards. Before the first search the live region is
+ * there but empty (so later lines are announced), and it takes no space.
+ */
+export function SearchResults({ state, selectedDay, onRetry, cameraNames }: SearchResultsProps) {
+  let status: ReactNode = null;
   switch (state.phase) {
     case 'idle':
-      status = idleHint;
       break;
     case 'loading':
       status = <p className="muted">Searching {formatShortDay(state.day)}&apos;s footage…</p>;
@@ -65,7 +66,7 @@ export function SearchResults({ state, selectedDay, onRetry }: SearchResultsProp
       {clips.length > 0 ? (
         <ul className="clip-list" aria-label="Results">
           {clips.map((clip) => (
-            <ClipCard key={clip.id} clip={clip} />
+            <ClipCard key={clip.id} clip={clip} cameraName={cameraNames.get(clip.camera) ?? clip.camera} />
           ))}
         </ul>
       ) : null}

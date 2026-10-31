@@ -455,14 +455,6 @@ a:hover {
   padding-left: 0;
 }
 
-.drawer__footer {
-  margin-top: auto;
-  padding: 0 var(--space-3);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-12);
-  white-space: nowrap;
-}
-
 .main {
   flex: 1;
   min-width: 0;
@@ -642,23 +634,101 @@ a:hover {
 
 /* ---------- Find Footage ---------- */
 
+/* Start screen (no search yet): the column fills the space under the topbar and the group sits in its
+   middle, like a chat app. Once a search starts, .find--start goes and the group moves to the top. */
+.main:has(> .main__inner > .find--start) {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - var(--topbar-height));
+  min-height: calc(100dvh - var(--topbar-height));
+  /* Same space above and below, so the group sits in the true middle (the page bottom pad is larger). */
+  padding-top: var(--space-6);
+  padding-bottom: var(--space-6);
+}
+
+.main:has(> .main__inner > .find--start) > .main__inner {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+}
+
+.find--start {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+}
+
+/* The empty live region stays in the DOM (so the first status line is announced) but takes no space. */
+.find--start > .results-status {
+  margin: 0;
+}
+
+.find--start .find__group {
+  text-align: center;
+}
+
+.find--start .find__head {
+  justify-content: center;
+}
+
+.find--start .examples,
+.find--start .scope {
+  justify-content: center;
+}
+
 .ask {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
 }
 
-.ask__row {
+.ask__box {
   display: flex;
-  align-items: flex-end;
-  gap: var(--space-3);
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--color-field-border);
+  border-radius: 12px;
+  background: var(--color-page);
+  text-align: left;
+}
+
+/* The whole box shows focus (2px accent ring); the bare textarea inside it needs no ring of its own. */
+.ask__box:focus-within {
+  border-color: var(--color-accent);
+  outline: 1px solid var(--color-accent);
 }
 
 .ask__textarea {
-  flex: 1;
+  display: block;
+  width: 100%;
   min-height: 96px;
+  padding: var(--space-3) var(--space-4) 0;
+  border: 0;
+  background: transparent;
   font-size: var(--font-size-16);
+  resize: none;
+}
+
+.ask__textarea:focus-visible {
+  outline: none;
+}
+
+.ask__textarea::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+.ask__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-2);
+}
+
+.ask__submit {
+  width: var(--control-height);
+  padding: 0;
 }
 
 .examples {
@@ -670,19 +740,23 @@ a:hover {
   list-style: none;
 }
 
+/* Long examples wrap instead of pushing the page sideways on a phone. */
+.examples .btn {
+  max-width: 100%;
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+}
+
 .scope {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-5);
+  gap: var(--space-2);
   color: var(--color-text-muted);
   font-size: var(--font-size-13);
-}
-
-.scope__item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
 }
 
 .results-status {

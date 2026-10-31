@@ -6,15 +6,19 @@ import { SaveClipButton } from '../../components/SaveClipButton';
 import { formatClipRange } from '../../lib/time';
 import { EvidenceChips } from '../evidence/EvidenceChips';
 
-/** One result: the still, the time range, the label, the evidence, and Open / Save clip. */
-export const ClipCard = memo(function ClipCard({ clip }: { clip: Clip }) {
+/** One result: the still, the time range and camera, the label, the evidence, and Open / Save clip. */
+export const ClipCard = memo(function ClipCard({ clip, cameraName }: { clip: Clip; cameraName: string }) {
   const labelId = `clip-label-${clip.id}`;
   return (
     <li>
       <article className="card clip-card" aria-labelledby={labelId}>
         <ClipThumb url={clip.thumbnailUrl} />
         <div className="clip-card__body">
-          <p className="clip-card__time">{formatClipRange(clip)}</p>
+          <p className="clip-card__time">
+            {formatClipRange(clip)}
+            {/* Search spans every camera, so each result says which one. */}
+            <span className="clip-card__camera"> · {cameraName}</span>
+          </p>
           <h2 className="clip-card__label" id={labelId} title={clip.label}>
             {clip.label}
           </h2>

@@ -4,10 +4,25 @@
 import seedJson from '../../../contract/examples/demo-seed.json';
 import statusJson from '../../../contract/examples/status.json';
 import { addDays, isIsoDay } from '../lib/dates';
+import {
+  byCameraId,
+  CAMERA_DETAIL_MAX,
+  CAMERA_NAME_MAX,
+  cameraIdFor,
+  cameraIdNumber,
+  isCameraStatus,
+  isValidCameraHost,
+  maskedRtspUrl,
+  STREAM_PASSWORD_MAX,
+  STREAM_USERNAME_MAX,
+} from './cameraRules';
 import type { ApiClient } from './client';
 import { ApiError } from './errors';
 import type {
   Camera,
+  CameraCreate,
+  CameraStatus,
+  CameraUpdate,
   Clip,
   DaySummary,
   IsoDay,
@@ -25,11 +40,35 @@ import type {
   ZoneUpdate,
 } from './generated/types';
 
-/** demo-seed.json: the full demo dataset. Its recordings carry the extra field camera. */
+/**
+ * A camera as the demo stores it. The seed holds the stream username (to build the masked URL); the
+ * stream password is never kept, here or anywhere.
+ */
+interface CameraRecord {
+  id: string;
+  name: string;
+  location: string | null;
+  department: string | null;
+  ip: string;
+  username: string;
+  status: CameraStatus;
+  createdAt: string;
+}
+
+/** demo-seed.json: the full demo dataset. Its clips get their camera from their recording. */
 export interface DemoSeed {
   today: IsoDay;
-  cameras: Camera[];
-  recordings: Array<Recording & { camera: string }>;
+  cameras: CameraRecord[];
+  recordings: Recording[];
+  clips: Array<Omit<Clip, 'camera'> & { camera?: string }>;
+  zones: Zone[];
+  savedClips: SavedClip[];
+}
+
+interface DemoData {
+  today: IsoDay;
+  cameras: CameraRecord[];
+  recordings: Recording[];
   clips: Clip[];
   zones: Zone[];
   savedClips: SavedClip[];
@@ -44,7 +83,6 @@ export interface MockApiClientOptions {
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
-const DEFAULT_CAMERA = 'loading-dock';
 
 const CARRY_WORDS = new Set(['carry', 'carrying', 'carried', 'carries', 'box', 'boxes', 'package', 'packages', 'parcel', 'parcels']);
 const DWELL_WORDS = new Set([
@@ -120,13 +158,73 @@ function checkZoneFields(name: unknown, points: unknown): { name: string; points
   return { name: trimmed, points: clone(points as Point[]) };
 }
 
-function stripCamera(recording: Recording & { camera: string }): Recording {
-  const { id, day, startTime, lengthSeconds, status } = recording;
-  return { id, day, startTime, lengthSeconds, status };
+/** Optional text: trimmed, and blank means null. */
+function optionalText(value: unknown, field: string): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') throw validation(`${field} must be text.`);
+  const trimmed = value.trim();
+  if (trimmed.length > CAMERA_DETAIL_MAX) throw validation(`${field} must be at most ${CAMERA_DETAIL_MAX} characters.`);
+  return trimmed.length > 0 ? trimmed : null;
 }
 
-function byStartTime(a: { startTime: string; id: string }, b: { startTime: string; id: string }): number {
-  return a.startTime.localeCompare(b.startTime) || a.id.localeCompare(b.id);
+/** CameraCreate's rules. The stream password is checked for length only, then dropped. */
+function checkCameraCreate(body: CameraCreate): Omit<CameraRecord, 'id' | 'status' | 'createdAt'> {
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  if (name.length === 0) throw validation('name must not be blank.');
+  if (name.length > CAMERA_NAME_MAX) throw validation(`name must be at most ${CAMERA_NAME_MAX} characters.`);
+  if (typeof body.ip !== 'string' || !isValidCameraHost(body.ip)) {
+    throw validation('ip must be an IPv4 address or a host name.');
+  }
+  const { username } = body;
+  if (typeof username !== 'string' || username.length === 0 || username.length > STREAM_USERNAME_MAX) {
+    throw validation(`username must be 1 to ${STREAM_USERNAME_MAX} characters.`);
+  }
+  const secretLength = typeof body.password === 'string' ? body.password.length : 0;
+  if (secretLength === 0 || secretLength > STREAM_PASSWORD_MAX) {
+    throw validation(`password must be 1 to ${STREAM_PASSWORD_MAX} characters.`);
+  }
+  if (body.acknowledgeCost !== true) throw validation('acknowledgeCost must be true.');
+  return {
+    name,
+    ip: body.ip,
+    username,
+    location: optionalText(body.location, 'location'),
+    department: optionalText(body.department, 'department'),
+  };
+}
+
+interface Ordered {
+  startTime: string;
+  camera: string;
+  id: string;
+}
+
+/** Recordings and clips: by start time, then camera, then id. */
+function byStartTime(a: Ordered, b: Ordered): number {
+  return a.startTime.localeCompare(b.startTime) || a.camera.localeCompare(b.camera) || a.id.localeCompare(b.id);
+}
+
+function countBy<T>(items: readonly T[], key: (item: T) => string): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const id = key(item);
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** The seed as the demo's data: every clip gets the camera of its recording. */
+function fromSeed(seed: DemoSeed): DemoData {
+  const cameraOfRecording = new Map(seed.recordings.map((recording) => [recording.id, recording.camera]));
+  const withCamera = (clip: DemoSeed['clips'][number]): Clip => ({
+    ...clip,
+    camera: clip.camera ?? cameraOfRecording.get(clip.recordingId) ?? '',
+  });
+  return {
+    ...seed,
+    clips: seed.clips.map(withCamera),
+    savedClips: seed.savedClips.map((saved) => ({ ...saved, clip: withCamera(saved.clip) })),
+  };
 }
 
 const MILLISECONDS = /\.\d{3}Z$/;
@@ -136,16 +234,19 @@ function nowUtc(): string {
 }
 
 export class MockApiClient implements ApiClient {
-  private readonly data: DemoSeed;
+  private readonly data: DemoData;
   private readonly status: Status;
   private readonly latencyMs: number;
   private sequence = 0;
+  /** The number of the last camera id given out. It never goes down, so no id is reused after a delete. */
+  private lastCameraNumber: number;
 
   constructor(options: MockApiClientOptions = {}) {
-    this.data = clone(seedJson as unknown as DemoSeed);
+    this.data = fromSeed(clone(seedJson as unknown as DemoSeed));
     this.status = clone(statusJson as Status);
     if (options.demoMode !== undefined) this.status.demoMode = options.demoMode;
     this.latencyMs = options.latencyMs ?? 0;
+    this.lastCameraNumber = this.data.cameras.reduce((max, camera) => Math.max(max, cameraIdNumber(camera.id)), 0);
   }
 
   /** Runs fn after the configured latency and hands back a copy, so callers never share internal state. */
@@ -161,43 +262,119 @@ export class MockApiClient implements ApiClient {
     return `${prefix}-m${String(this.sequence).padStart(4, '0')}`;
   }
 
-  private requireCamera(camera: string): Camera {
+  private requireCamera(camera: string): CameraRecord {
     checkId(camera, 'camera');
     const found = this.data.cameras.find((item) => item.id === camera);
     if (!found) throw notFound('Camera not found.');
     return found;
   }
 
-  private recordingsOf(camera: string, day: IsoDay): Array<Recording & { camera: string }> {
-    return this.data.recordings.filter((item) => item.camera === camera && item.day === day);
+  /** An optional camera parameter: left out (or null) means all cameras; an unknown id is 404. */
+  private optionalCamera(camera: string | null | undefined): string | undefined {
+    if (camera === undefined || camera === null) return undefined;
+    return this.requireCamera(camera).id;
+  }
+
+  /** One day's recordings, of one camera or (camera undefined) of every camera. */
+  private recordingsOf(camera: string | undefined, day: IsoDay): Recording[] {
+    return this.data.recordings.filter((item) => item.day === day && (camera === undefined || item.camera === camera));
+  }
+
+  /** The contract's Camera for each record, with the counts computed from the data (one pass per kind). */
+  private cameraViews(records: readonly CameraRecord[]): Camera[] {
+    const zones = countBy(this.data.zones, (zone) => zone.camera);
+    const recordings = countBy(this.data.recordings, (recording) => recording.camera);
+    const saved = countBy(this.data.savedClips, (item) => item.clip.camera);
+    return records.map((record) => ({
+      id: record.id,
+      name: record.name,
+      location: record.location,
+      department: record.department,
+      ip: record.ip,
+      status: record.status,
+      rtspUrlMasked: maskedRtspUrl(record.username, record.ip),
+      zoneCount: zones.get(record.id) ?? 0,
+      recordingCount: recordings.get(record.id) ?? 0,
+      savedClipCount: saved.get(record.id) ?? 0,
+      createdAt: record.createdAt,
+    }));
   }
 
   getStatus(): Promise<Status> {
     return this.answer(() => this.status);
   }
 
-  listDays(camera: string): Promise<DaySummary[]> {
+  listCameras(): Promise<Camera[]> {
+    return this.answer(() => this.cameraViews(this.data.cameras.toSorted(byCameraId)));
+  }
+
+  getCamera(id: string): Promise<Camera> {
+    return this.answer(() => this.cameraViews([this.requireCamera(id)])[0]);
+  }
+
+  addCamera(body: CameraCreate): Promise<Camera> {
     return this.answer(() => {
-      this.requireCamera(camera);
+      const fields = checkCameraCreate(body);
+      const lower = fields.name.toLowerCase();
+      if (this.data.cameras.some((camera) => camera.name.toLowerCase() === lower)) {
+        throw new ApiError(409, 'camera_name_taken', `A camera called ${fields.name} already exists.`);
+      }
+      this.lastCameraNumber += 1;
+      const record: CameraRecord = {
+        id: cameraIdFor(this.lastCameraNumber),
+        ...fields,
+        status: 'online',
+        createdAt: nowUtc(),
+      };
+      this.data.cameras.push(record);
+      return this.cameraViews([record])[0];
+    });
+  }
+
+  updateCamera(id: string, body: CameraUpdate): Promise<Camera> {
+    return this.answer(() => {
+      const record = this.requireCamera(id);
+      if (!isCameraStatus(body.status)) throw validation('status must be online, standby or offline.');
+      record.status = body.status;
+      return this.cameraViews([record])[0];
+    });
+  }
+
+  deleteCamera(id: string): Promise<void> {
+    return this.answer(() => {
+      this.requireCamera(id);
+      const { data } = this;
+      // Cascade: the camera's recordings (with their clips and saved clips) and its zones go too.
+      data.cameras = data.cameras.filter((camera) => camera.id !== id);
+      data.recordings = data.recordings.filter((recording) => recording.camera !== id);
+      data.clips = data.clips.filter((clip) => clip.camera !== id);
+      data.savedClips = data.savedClips.filter((saved) => saved.clip.camera !== id);
+      data.zones = data.zones.filter((zone) => zone.camera !== id);
+      return undefined;
+    });
+  }
+
+  listDays(camera?: string): Promise<DaySummary[]> {
+    return this.answer(() => {
+      const scope = this.optionalCamera(camera);
       const days: DaySummary[] = [];
       for (let back = 6; back >= 0; back -= 1) {
         const day = addDays(this.data.today, -back);
-        const recordings = this.recordingsOf(camera, day);
+        const recordings = this.recordingsOf(scope, day);
         days.push({ day, recordings: recordings.length, ready: recordings.filter((r) => r.status === 'ready').length });
       }
       return days;
     });
   }
 
-  listRecordings(day: IsoDay, camera: string): Promise<Recording[]> {
+  listRecordings(day: IsoDay, camera?: string): Promise<Recording[]> {
     return this.answer(() => {
       checkDay(day);
-      this.requireCamera(camera);
-      return this.recordingsOf(camera, day).toSorted(byStartTime).map(stripCamera);
+      return this.recordingsOf(this.optionalCamera(camera), day).toSorted(byStartTime);
     });
   }
 
-  addRecording(file: File, day: IsoDay, camera: string = DEFAULT_CAMERA): Promise<RecordingAccepted> {
+  addRecording(file: File, day: IsoDay, camera: string): Promise<RecordingAccepted> {
     return this.answer(() => {
       checkDay(day);
       this.requireCamera(camera);
@@ -226,9 +403,9 @@ export class MockApiClient implements ApiClient {
       if (question.length === 0) throw validation('question must not be blank.');
       if (question.length > 300) throw validation('question must be at most 300 characters.');
       checkDay(request.day);
-      this.requireCamera(request.camera);
+      const camera = this.optionalCamera(request.camera);
 
-      const recordings = this.recordingsOf(request.camera, request.day);
+      const recordings = this.recordingsOf(camera, request.day);
       const readyIds = new Set(recordings.filter((r) => r.status === 'ready').map((r) => r.id));
       const notReady = recordings.filter((r) => r.status !== 'ready');
 
@@ -236,10 +413,15 @@ export class MockApiClient implements ApiClient {
       const phrase = ` ${tokens.join(' ')} `;
       const wantsCarrying = tokens.some((token) => CARRY_WORDS.has(token));
       const wantsDwell = tokens.some((token) => DWELL_WORDS.has(token));
-      const zoneNames = this.data.zones
-        .filter((zone) => zone.camera === request.camera)
-        .map((zone) => zone.name)
-        .filter((name) => phrase.includes(` ${words(name).join(' ')} `));
+      // A Set: cameras may have zones with the same name.
+      const zoneNames = [
+        ...new Set(
+          this.data.zones
+            .filter((zone) => camera === undefined || zone.camera === camera)
+            .map((zone) => zone.name)
+            .filter((name) => phrase.includes(` ${words(name).join(' ')} `)),
+        ),
+      ];
       const generic = tokens.some((token) => GENERIC_WORDS.has(token));
       const recognised = wantsCarrying || wantsDwell || zoneNames.length > 0 || generic;
 
@@ -285,9 +467,9 @@ export class MockApiClient implements ApiClient {
 
   listZones(camera?: string): Promise<Zone[]> {
     return this.answer(() => {
-      if (camera !== undefined) checkId(camera, 'camera');
+      const scope = this.optionalCamera(camera);
       return this.data.zones
-        .filter((zone) => camera === undefined || zone.camera === camera)
+        .filter((zone) => scope === undefined || zone.camera === scope)
         .toSorted((a, b) => a.name.localeCompare(b.name));
     });
   }

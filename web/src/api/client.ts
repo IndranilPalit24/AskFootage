@@ -1,5 +1,8 @@
 import { ApiError, apiErrorFromResponse, NETWORK_ERROR_MESSAGE } from './errors';
 import type {
+  Camera,
+  CameraCreate,
+  CameraUpdate,
   Clip,
   DaySummary,
   IsoDay,
@@ -20,9 +23,19 @@ import { MockApiClient } from './mockClient';
 /** One method per operation in contract/openapi.yaml. */
 export interface ApiClient {
   getStatus(): Promise<Status>;
-  listDays(camera: string): Promise<DaySummary[]>;
-  listRecordings(day: IsoDay, camera: string): Promise<Recording[]>;
-  addRecording(file: File, day: IsoDay, camera?: string): Promise<RecordingAccepted>;
+  /** In id order. */
+  listCameras(): Promise<Camera[]>;
+  getCamera(id: string): Promise<Camera>;
+  /** 201 with the new camera; 409 camera_name_taken when the name is in use, ignoring case. */
+  addCamera(body: CameraCreate): Promise<Camera>;
+  updateCamera(id: string, body: CameraUpdate): Promise<Camera>;
+  /** Also removes the camera's recordings, zones and saved clips. */
+  deleteCamera(id: string): Promise<void>;
+  /** Without camera: the counts cover all cameras. */
+  listDays(camera?: string): Promise<DaySummary[]>;
+  /** Without camera: every camera's recordings. */
+  listRecordings(day: IsoDay, camera?: string): Promise<Recording[]>;
+  addRecording(file: File, day: IsoDay, camera: string): Promise<RecordingAccepted>;
   /** getRecordingVideo: the URL a <video> element can stream from, or null when no footage can be served. */
   recordingVideoUrl(recordingId: string): string | null;
   search(request: SearchRequest): Promise<SearchResponse>;
@@ -105,19 +118,39 @@ export class FetchApiClient implements ApiClient {
     return this.request('GET', '/api/status');
   }
 
-  listDays(camera: string): Promise<DaySummary[]> {
+  listCameras(): Promise<Camera[]> {
+    return this.request('GET', '/api/cameras');
+  }
+
+  getCamera(id: string): Promise<Camera> {
+    return this.request('GET', `/api/cameras/${encodeURIComponent(id)}`);
+  }
+
+  addCamera(body: CameraCreate): Promise<Camera> {
+    return this.request('POST', '/api/cameras', { json: body });
+  }
+
+  updateCamera(id: string, body: CameraUpdate): Promise<Camera> {
+    return this.request('PATCH', `/api/cameras/${encodeURIComponent(id)}`, { json: body });
+  }
+
+  deleteCamera(id: string): Promise<void> {
+    return this.request('DELETE', `/api/cameras/${encodeURIComponent(id)}`);
+  }
+
+  listDays(camera?: string): Promise<DaySummary[]> {
     return this.request('GET', '/api/days', { query: { camera } });
   }
 
-  listRecordings(day: IsoDay, camera: string): Promise<Recording[]> {
+  listRecordings(day: IsoDay, camera?: string): Promise<Recording[]> {
     return this.request('GET', '/api/recordings', { query: { day, camera } });
   }
 
-  addRecording(file: File, day: IsoDay, camera?: string): Promise<RecordingAccepted> {
+  addRecording(file: File, day: IsoDay, camera: string): Promise<RecordingAccepted> {
     const form = new FormData();
     form.append('file', file);
     form.append('day', day);
-    if (camera) form.append('camera', camera);
+    form.append('camera', camera);
     return this.request('POST', '/api/recordings', { form });
   }
 

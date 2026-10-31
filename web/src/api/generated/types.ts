@@ -1,4 +1,4 @@
-// Hand-written TypeScript types for every schema in contract/openapi.yaml (v1.0.0).
+// Hand-written TypeScript types for every schema in contract/openapi.yaml (v1.1.0).
 // The contract is the source of truth: keep these in step with it, field for field.
 
 /** A calendar date, YYYY-MM-DD. */
@@ -7,9 +7,12 @@ export type IsoDay = string;
 export type TimeOfDay = string;
 
 export interface ErrorDetail {
-  /** validation_error, not_found, already_saved, zone_name_taken, file_too_large, unsupported_media_type or internal_error */
+  /**
+   * validation_error, not_found, method_not_allowed, already_saved, zone_name_taken, camera_name_taken,
+   * file_too_large, unsupported_media_type or internal_error
+   */
   code: string;
-  /** Plain-English explanation, safe to show to a person. */
+  /** Plain-English explanation, safe to show to a person; never contains a submitted password. */
   message: string;
 }
 
@@ -17,14 +20,46 @@ export interface ErrorBody {
   error: ErrorDetail;
 }
 
-export interface Camera {
-  id: string;
-  name: string;
+export interface Status {
+  /** True when the app serves the seeded demo data. Not shown in the UI. */
+  demoMode: boolean;
 }
 
-export interface Status {
-  demoMode: boolean;
-  camera: Camera;
+/** online: streaming; standby: reachable but not recording; offline: not reachable. */
+export type CameraStatus = 'online' | 'standby' | 'offline';
+
+export interface Camera {
+  /** CAM-001, CAM-002, ... given by the server in order; never reused. */
+  id: string;
+  name: string;
+  location: string | null;
+  department: string | null;
+  /** IPv4 address or host name. */
+  ip: string;
+  status: CameraStatus;
+  /** rtsp://<percent-encoded username>:****@<ip>:554/cam/realmonitor?channel=1&subtype=1. Never the password. */
+  rtspUrlMasked: string;
+  zoneCount: number;
+  recordingCount: number;
+  savedClipCount: number;
+  /** UTC date-time ending in Z. */
+  createdAt: string;
+}
+
+export interface CameraCreate {
+  name: string;
+  ip: string;
+  username: string;
+  /** Write-only: checked by the server, then dropped. Never stored, returned or logged. */
+  password: string;
+  location?: string | null;
+  department?: string | null;
+  /** Must be true: the user accepts that searching footage uses their Meta credits. */
+  acknowledgeCost: true;
+}
+
+export interface CameraUpdate {
+  status: CameraStatus;
 }
 
 export interface DaySummary {
@@ -37,6 +72,8 @@ export type RecordingStatus = 'waiting' | 'preparing' | 'indexing' | 'ready';
 
 export interface Recording {
   id: string;
+  /** The id of the camera that made it. */
+  camera: string;
   day: IsoDay;
   startTime: TimeOfDay;
   lengthSeconds: number;
@@ -65,6 +102,8 @@ export interface KeyFrame {
 export interface Clip {
   id: string;
   recordingId: string;
+  /** The id of the camera that made the recording. */
+  camera: string;
   day: IsoDay;
   startTime: TimeOfDay;
   /** Seconds from the start of the recording. */
@@ -82,7 +121,8 @@ export interface Clip {
 export interface SearchRequest {
   question: string;
   day: IsoDay;
-  camera: string;
+  /** A camera id; null or left out searches every camera. */
+  camera?: string | null;
 }
 
 export interface SearchResponse {
