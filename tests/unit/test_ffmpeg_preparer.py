@@ -182,7 +182,7 @@ def test_the_probe_command_is_this_exact_argument_list(source: Path, dest: Path)
         "-select_streams",
         "v:0",
         "-show_entries",
-        "stream=nb_frames,duration:format=duration",
+        "stream=nb_frames,duration,width,height:format=duration",
         "-of",
         "json",
         str((dest / "prepared.mp4").resolve()),

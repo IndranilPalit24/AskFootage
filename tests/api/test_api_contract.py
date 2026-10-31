@@ -269,7 +269,7 @@ def test_the_contract_has_the_twenty_one_operations_the_api_serves() -> None:
 
 
 def test_the_app_serves_the_contracts_version(app_spec: Spec) -> None:
-    assert CONTRACT["info"]["version"] == "1.2.0"
+    assert CONTRACT["info"]["version"] == "1.3.0"
     assert app_spec["info"]["version"] == API_VERSION == CONTRACT["info"]["version"]
 
 
