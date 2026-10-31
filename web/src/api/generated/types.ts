@@ -1,4 +1,4 @@
-// Hand-written TypeScript types for every schema in contract/openapi.yaml (v1.1.0).
+// Hand-written TypeScript types for every schema in contract/openapi.yaml (v1.3.0).
 // The contract is the source of truth: keep these in step with it, field for field.
 
 /** A calendar date, YYYY-MM-DD. */
@@ -130,6 +130,44 @@ export interface SearchResponse {
   day: IsoDay;
   clips: Clip[];
   note: string | null;
+  /** Measured proof for clips found from stored object tracks, one per such clip; empty otherwise. */
+  proofs: ClipProof[];
+}
+
+export type ProofRelation = 'carrying' | 'in_zone' | 'dwell';
+
+export interface ProofMeasure {
+  /** For example frames_together, motion_agreement, frames_inside or coverage. */
+  name: string;
+  value: number;
+}
+
+export interface ProofBox {
+  frame: number;
+  trackId: number;
+  /** A neutral object noun, such as person or cardboard box. */
+  label: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+export interface ClipProof {
+  /** The clip in clips this proves. */
+  clipId: string;
+  relation: ProofRelation;
+  startFrame: number;
+  /** Inclusive. */
+  endFrame: number;
+  /** Seconds from the start of the recording. */
+  startSeconds: number;
+  endSeconds: number;
+  trackIds: number[];
+  trackLabels: string[];
+  measures: ProofMeasure[];
+  /** First, middle and last box of each track. */
+  boxes: ProofBox[];
 }
 
 /** [x, y] as fractions (0..1) of the frame's width and height, from the top-left corner. */

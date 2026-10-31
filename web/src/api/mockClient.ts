@@ -452,7 +452,7 @@ export class MockApiClient implements ApiClient {
             : `${notReady.length} recordings on this day are ${state}, so they were not searched.`,
         );
       }
-      return { question, day: request.day, clips, note: notes.length > 0 ? notes.join(' ') : null };
+      return { question, day: request.day, clips, note: notes.length > 0 ? notes.join(' ') : null, proofs: [] };
     });
   }
 

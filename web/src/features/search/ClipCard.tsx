@@ -1,13 +1,14 @@
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
-import type { Clip } from '../../api/generated/types';
+import type { Clip, ClipProof } from '../../api/generated/types';
 import { ClipThumb } from '../../components/ClipThumb';
 import { SaveClipButton } from '../../components/SaveClipButton';
 import { formatClipRange } from '../../lib/time';
 import { EvidenceChips } from '../evidence/EvidenceChips';
+import { ProofPanel } from '../evidence/ProofPanel';
 
 /** One result: the still, the time range and camera, the label, the evidence, and Open / Save clip. */
-export const ClipCard = memo(function ClipCard({ clip, cameraName }: { clip: Clip; cameraName: string }) {
+export const ClipCard = memo(function ClipCard({ clip, cameraName, proof }: { clip: Clip; cameraName: string; proof?: ClipProof }) {
   const labelId = `clip-label-${clip.id}`;
   return (
     <li>
@@ -23,6 +24,7 @@ export const ClipCard = memo(function ClipCard({ clip, cameraName }: { clip: Cli
             {clip.label}
           </h2>
           <EvidenceChips evidence={clip.evidence} />
+          {proof ? <ProofPanel proof={proof} /> : null}
           <div className="btn-row clip-card__actions">
             <Link to={`/clip/${encodeURIComponent(clip.id)}`} className="btn btn--sm" aria-describedby={labelId}>
               Open

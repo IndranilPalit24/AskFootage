@@ -58,6 +58,7 @@ export function SearchResults({ state, selectedDay, onRetry, cameraNames }: Sear
   }
 
   const clips = state.phase === 'done' ? state.response.clips : [];
+  const proofs = state.phase === 'done' ? state.response.proofs : [];
   return (
     <>
       <div className="results-status" aria-live="polite">
@@ -66,7 +67,12 @@ export function SearchResults({ state, selectedDay, onRetry, cameraNames }: Sear
       {clips.length > 0 ? (
         <ul className="clip-list" aria-label="Results">
           {clips.map((clip) => (
-            <ClipCard key={clip.id} clip={clip} cameraName={cameraNames.get(clip.camera) ?? clip.camera} />
+            <ClipCard
+              key={clip.id}
+              clip={clip}
+              cameraName={cameraNames.get(clip.camera) ?? clip.camera}
+              proof={proofs.find((p) => p.clipId === clip.id)}
+            />
           ))}
         </ul>
       ) : null}
