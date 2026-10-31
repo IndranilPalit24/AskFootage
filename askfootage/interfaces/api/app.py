@@ -25,15 +25,18 @@ from starlette.types import Receive, Scope, Send
 from askfootage.application.ingest_video import IndexingPipeline
 from askfootage.application.library import IdFactory, Library, new_id
 from askfootage.application.search import Interpreter, QuestionInterpreter
+from askfootage.application.search_relations import FrameSizeSource, frame_size_source_of
 from askfootage.interfaces.api.body_limit import BodyLimitMiddleware
 from askfootage.interfaces.api.context import ApiContext, JobScheduler, run_after_reply
 from askfootage.interfaces.api.errors import InternalErrorMiddleware, install_error_handlers
 from askfootage.interfaces.api.footage import DemoFootageSource
 from askfootage.interfaces.api.routes import router
 from askfootage.interfaces.api.upload import MAX_UPLOAD_BYTES
+from askfootage.ports.language_model import QuestionParser
+from askfootage.ports.track_store import TrackStore
 from askfootage.settings import Settings, load_settings
 
-API_VERSION = "1.2.0"
+API_VERSION = "1.3.0"
 """The contract version this app serves (info.version in contract/openapi.yaml)."""
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_VIDEOS_DIR = REPO_ROOT / "videos"
@@ -60,6 +63,9 @@ def create_app(
     max_upload_bytes: int = MAX_UPLOAD_BYTES,
     indexing: IndexingPipeline | None = None,
     schedule_after_reply: JobScheduler = run_after_reply,
+    tracks: TrackStore | None = None,
+    question_parser: QuestionParser | None = None,
+    frame_size: FrameSizeSource | None = None,
 ) -> FastAPI:
     """Build the AskFootage API.
 
@@ -67,6 +73,13 @@ def create_app(
     from load_settings(), the demo database is settings.data_dir/demo.sqlite (seeded from
     contract/examples/demo-seed.json when empty), "today" is the demo dataset's today and
     footage is <repo>/videos/clip1.mp4.
+
+    `tracks` is the store search reads object tracks from (default: the indexing
+    pipeline's store, if any; in demo mode, the JSON track store under settings.data_dir,
+    where a recording's tracks live in <data_dir>/<recording id>/tracks.json);
+    `question_parser` reads questions before the keyword reader; `frame_size` gives a
+    recording's pixel size so zone questions can run (default: the track store's own
+    frame_size method, when it has one). Without tracks, search is the demo keyword matcher.
 
     `indexing` is the pipeline POST /api/recordings/{id}/index runs. It is None by
     default: this build has no perception yet, so that route answers 503
@@ -83,6 +96,9 @@ def create_app(
         if settings is None:
             settings = load_settings()
         library = open_demo_library(settings)
+        if tracks is None and indexing is None:
+            tracks = open_track_store(settings)
+    store_of_tracks = tracks if tracks is not None else (indexing.tracks if indexing else None)
     app = FastAPI(
         title="AskFootage API",
         version=API_VERSION,
@@ -106,6 +122,9 @@ def create_app(
         max_upload_bytes=max_upload_bytes,
         indexing=indexing,
         schedule_after_reply=schedule_after_reply,
+        tracks=store_of_tracks,
+        question_parser=question_parser,
+        frame_size=frame_size if frame_size is not None else frame_size_source_of(store_of_tracks),
     )
     install_error_handlers(app)
     app.include_router(router)
@@ -136,6 +155,17 @@ def open_demo_library(settings: Settings) -> Library:
     store = SqliteLibraryStore(settings.data_dir / DEMO_DATABASE_NAME)
     seed_demo_data(store, DEMO_SEED_FILE)
     return Library.from_store(store)
+
+
+def open_track_store(settings: Settings) -> TrackStore:
+    """The JSON track store the command-line tools write, rooted at settings.data_dir.
+
+    Imported lazily, like the SQLite adapter, so tests that inject stores never load it.
+    """
+    from askfootage.adapters.storage.json_tracks import JsonTrackStore
+    from askfootage.adapters.storage.local_files import LocalVideoFiles
+
+    return JsonTrackStore(LocalVideoFiles(settings.data_dir))
 
 
 def read_demo_today(seed_file: Path = DEMO_SEED_FILE) -> date:

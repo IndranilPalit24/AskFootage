@@ -1,19 +1,16 @@
-"""Behaviour of scripts/api_spike.py, the API spike, tested fully offline.
+"""Behaviour of scripts/api_spike.py (check-key and sam), tested fully offline.
 
 Every test hands main() a Settings built directly with the fake key "test-key-not-real",
-a data directory under tmp_path, and an offline transport: either a FakeTransport that
-answers by path, or a MetaHttpClient wired to httpx.MockTransport. Nothing reaches the
-network and nothing reads the real settings.
+a data directory under tmp_path and an offline transport: a FakeTransport that answers by
+path, or a MetaHttpClient wired to httpx.MockTransport. Nothing reaches the network, no
+test passes --live to a real client and nothing reads the real settings.
 """
 
-import base64
 import importlib.util
 import io
 import json
 import subprocess
 import sys
-from collections.abc import Callable
-from decimal import Decimal
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -28,12 +25,13 @@ from askfootage.adapters.meta.transport import (
     MetaRequest,
     RawResponse,
 )
+from askfootage.ports.video_store import PreparedVideo, VideoPreparationError
 from askfootage.settings import ConfigurationError, Settings
 
-SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "api_spike.py"
+ROOT = Path(__file__).resolve().parents[2]
+SCRIPT = ROOT / "scripts" / "api_spike.py"
 FAKE_KEY = "test-key-not-real"
 BASE_URL = "https://api.example.test/v1"
-VIDEO_BYTES = b"fake video bytes"
 FILE_REPLY = '{"id": "file-abc123", "object": "file"}'
 SAM_REPLY = 'event: delta\ndata: {"frame": 0}\n\nevent: delta\ndata: {"frame": 1}\n\n'
 ENV_NAMES = ("META_API_KEY", "META_API_BASE_URL", "MAX_RUN_COST_USD", "DATA_DIR", "ASKFOOTAGE_DEMO")
@@ -66,25 +64,30 @@ class FakeTransport:
         return reply
 
 
-def _ok_transport() -> FakeTransport:
+def _ok_transport(sam_body: str = SAM_REPLY) -> FakeTransport:
     return FakeTransport(
-        {
-            "/files": RawResponse(200, FILE_REPLY),
-            "/responses": RawResponse(200, SAM_REPLY),
-        }
+        {"/files": RawResponse(200, FILE_REPLY), "/responses": RawResponse(200, sam_body)}
     )
 
 
-def _mock_client(settings: Settings, handler: Callable[[httpx.Request], httpx.Response]):
-    """A real MetaHttpClient whose HTTP goes to `handler`, with waits that do not wait."""
-    calls: list[httpx.Request] = []
+class FakePreparer:
+    """Stands in for the ffmpeg preparer: records calls, writes a small prepared.mp4."""
 
-    def record(request: httpx.Request) -> httpx.Response:
-        calls.append(request)
-        return handler(request)
+    def __init__(self, fail: str | None = None, frames: int = 100) -> None:
+        self.calls: list[tuple[Path, Path]] = []
+        self.fail = fail
+        self.frames = frames
 
-    http = httpx.Client(transport=httpx.MockTransport(record))
-    return MetaHttpClient(settings, http=http, sleep=lambda _seconds: None), calls
+    def prepare(self, source: Path, dest_dir: Path) -> PreparedVideo:
+        self.calls.append((source, dest_dir))
+        if self.fail:
+            raise VideoPreparationError(self.fail)
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        out = dest_dir / "prepared.mp4"
+        out.write_bytes(b"prepared bytes")
+        return PreparedVideo(
+            path=out, fps=5.0, duration_seconds=self.frames / 5, frame_count=self.frames
+        )
 
 
 def _settings(tmp_path: Path, *, key: str | None = FAKE_KEY, cap: str = "25") -> Settings:
@@ -113,72 +116,412 @@ def settings(tmp_path: Path) -> Settings:
 @pytest.fixture
 def video(tmp_path: Path) -> Path:
     clip = tmp_path / "clip.mp4"
-    clip.write_bytes(VIDEO_BYTES)
+    clip.write_bytes(b"fake video bytes")
     return clip
 
 
-def run(argv: list[str], settings: Settings, transport: Any = None) -> tuple[int, str]:
-    """Run main() and return its exit code and everything it printed."""
+def run(
+    argv: list[str], settings: Settings, transport: Any = None, **kwargs: Any
+) -> tuple[int, str]:
     out = io.StringIO()
-    code = spike.main(argv, settings=settings, transport=transport, out=out)
+    code = spike.main(argv, settings=settings, transport=transport, out=out, **kwargs)
     return code, out.getvalue()
 
 
-def sam_args(video: Path, *extra: str, duration: str = "10") -> list[str]:
-    return ["sam", "--video", str(video), "--object", "car", "--duration-seconds", duration, *extra]
+def live(video: Path, *extra: str) -> list[str]:
+    return ["sam", "--live", "--video", str(video), *extra]
 
 
-# --- Dry runs ---------------------------------------------------------------------------------
+# --- check-key: one distinct result and exit code per category -------------------------------
 
 
-def test_check_key_dry_run_sends_nothing_and_shows_the_request(settings: Settings) -> None:
-    transport = FakeTransport()
+def test_exit_codes_are_distinct_per_category() -> None:
+    codes = [c for name, c in spike.EXIT_CODES.items() if not name.startswith("OK")]
+    assert len(codes) == len(set(codes))
+    assert spike.EXIT_CODES["OK_KEY_AND_MODEL"] == 0
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "result"),
+    [
+        (401, "unauthorized", "KEY_REJECTED"),
+        (403, "forbidden", "KEY_REJECTED"),
+        (402, "payment required", "NO_CREDITS"),
+        (403, "You exceeded your current quota", "NO_CREDITS"),
+        (429, "insufficient credits on this account", "NO_CREDITS"),
+        (404, "model not found", "MODEL_NOT_FOUND"),
+        (429, "slow down", "RATE_LIMITED"),
+        (500, "boom", "UNEXPECTED"),
+        (400, "input video is required", "OK_KEY_AND_MODEL"),
+        (422, "unprocessable", "OK_KEY_AND_MODEL"),
+        (400, "billing not set up", "NO_CREDITS"),
+    ],
+)
+def test_check_key_error_statuses_raised_by_the_client(
+    settings: Settings, status: int, body: str, result: str
+) -> None:
+    transport = FakeTransport({"/responses": MetaApiError(status, body)})
+    code, output = run(["check-key"], settings, transport)
+    assert f"RESULT: {result}" in output
+    assert f"HTTP status: {status}" in output
+    assert code == spike.EXIT_CODES[result]
+    assert len(transport.requests) == 1
+
+
+def test_check_key_non_2xx_raw_reply_is_classified_too(settings: Settings) -> None:
+    code, output = run(["check-key"], settings, FakeTransport({"/responses": RawResponse(404, "")}))
+    assert "RESULT: MODEL_NOT_FOUND" in output
+    assert code == 13
+
+
+def test_check_key_ok(settings: Settings) -> None:
+    transport = FakeTransport({"/responses": RawResponse(200, '{"output_text": "OK"}')})
     code, output = run(["check-key"], settings, transport)
     assert code == 0
+    assert "RESULT: OK" in output
+    assert "HTTP status: 200" in output
+    (request,) = transport.requests
+    assert request.json_body is not None
+    assert request.json_body == {"model": "sam-3.1", "input": "person"}
+    ledger = settings.data_dir / "spike" / "spend-ledger.jsonl"
+    assert '"estimate": "0.001"' in ledger.read_text("utf-8")
+
+
+def test_check_key_network_error(settings: Settings) -> None:
+    transport = FakeTransport({"/responses": MetaConnectionError("down")})
+    code, output = run(["check-key"], settings, transport)
+    assert "RESULT: NETWORK_ERROR" in output
+    assert code == 15
+
+
+def test_check_key_missing_key_sends_nothing(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    code, output = run(["check-key"], _settings(tmp_path, key=None), transport)
+    assert "RESULT: KEY_MISSING" in output
+    assert code == 10
     assert transport.requests == []
-    assert "POST" in output
-    assert "/responses" in output
-    assert "muse-spark-1.3" in output
-    assert "Reply with the single word OK." in output
-    assert "nothing was sent" in output.lower()
-    assert "--yes" in output
 
 
-@pytest.mark.parametrize("extra", [(), ("--inline",), ("--no-stream",)])
-def test_sam_dry_run_sends_nothing(settings: Settings, video: Path, extra: tuple[str, ...]) -> None:
-    transport = _ok_transport()
-    code, output = run(sam_args(video, *extra), settings, transport)
+def test_check_key_configuration_error_from_the_client_is_key_missing(settings: Settings) -> None:
+    transport = FakeTransport({"/responses": ConfigurationError("no key")})
+    assert run(["check-key"], settings, transport)[0] == 10
+
+
+def test_check_key_dry_run_sends_nothing_and_needs_no_key(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    code, output = run(["check-key", "--dry-run"], _settings(tmp_path, key=None), transport)
     assert code == 0
     assert transport.requests == []
     assert "nothing was sent" in output.lower()
-    assert "sam-3.1" in output
     assert "/responses" in output
+    assert "sam-3.1" in output
 
 
-def test_sam_dry_run_writes_no_recording(settings: Settings, video: Path) -> None:
-    run(sam_args(video), settings, _ok_transport())
-    assert not (settings.data_dir / "recordings").exists()
-
-
-def test_a_dry_run_works_without_a_key(tmp_path: Path, video: Path) -> None:
-    keyless = _settings(tmp_path, key=None)
-    assert run(["check-key"], keyless, FakeTransport())[0] == 0
-    assert run(sam_args(video), keyless, _ok_transport())[0] == 0
-
-
-def test_settings_come_from_load_settings_when_not_given(
-    monkeypatch: pytest.MonkeyPatch, settings: Settings
+def test_check_key_goes_through_the_real_client_with_a_429_that_outlasts_retries(
+    settings: Settings,
 ) -> None:
-    calls: list[str] = []
+    http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(429, text="slow")))
+    client = MetaHttpClient(settings, http=http, sleep=lambda _s: None)
+    code, output = run(["check-key"], settings, client)
+    assert "RESULT: RATE_LIMITED" in output
+    assert code == 14
 
-    def fake_load_settings() -> Settings:
-        calls.append("loaded")
-        return settings
 
-    monkeypatch.setattr(spike, "load_settings", fake_load_settings)
-    out = io.StringIO()
-    assert spike.main(["check-key"], transport=FakeTransport(), out=out) == 0
-    assert calls == ["loaded"]
+def test_check_key_real_client_402(settings: Settings) -> None:
+    http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(402, text="pay")))
+    client = MetaHttpClient(settings, http=http, sleep=lambda _s: None)
+    assert run(["check-key"], settings, client)[0] == 12
+
+
+def test_the_key_and_headers_never_appear_in_check_key_output(settings: Settings) -> None:
+    body = f"echo {FAKE_KEY} Authorization: Bearer {FAKE_KEY}"
+    transport = FakeTransport({"/responses": MetaApiError(401, body)})
+    _, output = run(["check-key"], settings, transport)
+    assert FAKE_KEY not in output
+
+
+def test_old_yes_flag_is_a_harmless_no_op_for_check_key(settings: Settings) -> None:
+    transport = FakeTransport({"/responses": RawResponse(200, "{}")})
+    assert run(["check-key", "--yes"], settings, transport)[0] == 0
+
+
+# --- sam plan (no --live) --------------------------------------------------------------------
+
+
+def test_plan_prints_the_exact_shapes_and_sends_nothing(settings: Settings, video: Path) -> None:
+    transport = _ok_transport()
+    code, output = run(
+        ["sam", "--video", str(video)], settings, transport, probe_duration=lambda _p: 20.0
+    )
+    assert code == 0
+    assert transport.requests == []
+    assert str(video) in output
+    assert "frames at 5 fps: 100" in output
+    assert "estimated cost: $0.02" in output
+    assert "POST" in output and "/files" in output
+    assert "purpose = user_data" in output
+    assert "/responses" in output
+    assert '"model": "sam-3.1"' in output
+    assert '"text": "person"' in output
+    assert '"stream": true' in output
+    assert '"include_confidence": "true"' in output
+
+
+def test_plan_needs_no_key_and_creates_no_files(tmp_path: Path, video: Path) -> None:
+    keyless = _settings(tmp_path, key=None)
+    code, _ = run(["sam", "--video", str(video)], keyless, probe_duration=lambda _p: 1.0)
+    assert code == 0
+    assert not (tmp_path / "data").exists()
+
+
+def test_plan_reports_a_missing_default_video_and_the_synthetic_fallback(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)  # no videos/clip1.mp4 here
+    code, output = run(["sam"], settings, probe_duration=lambda _p: None)
+    assert code == 0
+    assert "NOT FOUND" in output
+    assert "SYNTHETIC" in output
+    assert "frames at 5 fps: 30" in output
+
+
+def test_plan_for_a_missing_named_video_says_live_would_refuse(
+    settings: Settings, tmp_path: Path
+) -> None:
+    code, output = run(["sam", "--video", str(tmp_path / "nope.mp4")], settings)
+    assert code == 0
+    assert "NOT FOUND" in output
+    assert "refuse" in output
+
+
+def test_yes_is_refused_for_sam_and_sends_nothing(settings: Settings, video: Path) -> None:
+    transport = _ok_transport()
+    code, output = run(["sam", "--yes", "--video", str(video)], settings, transport)
+    assert code == 2
+    assert "--live" in output
+    assert transport.requests == []
+
+
+# --- sam --live --------------------------------------------------------------------------------
+
+
+def test_live_uploads_then_asks_with_the_file_id(settings: Settings, video: Path) -> None:
+    transport, preparer = _ok_transport(), FakePreparer()
+    code, output = run(live(video), settings, transport, preparer=preparer)
+    assert code == 0
+    upload, ask = transport.requests
+    assert upload.path == "/files"
+    assert upload.upload is not None
+    assert upload.upload.purpose == "user_data"
+    assert upload.upload.path.name == "prepared.mp4"
+    assert ask.json_body is not None
+    assert ask.json_body["model"] == "sam-3.1"
+    assert ask.json_body["stream"] is True
+    assert ask.json_body["metadata"] == {"include_confidence": "true"}
+    content = ask.json_body["input"][0]["content"]
+    assert content[0] == {"type": "input_text", "text": "person"}
+    assert content[1] == {"type": "input_video", "file_id": "file-abc123"}
+    assert preparer.calls[0][0] == video
+
+
+def test_live_prints_status_and_the_raw_streamed_events_and_saves_them(
+    settings: Settings, video: Path
+) -> None:
+    code, output = run(live(video), settings, _ok_transport(), preparer=FakePreparer())
+    assert code == 0
+    assert "RESULT: OK" in output
+    assert "HTTP status: 200" in output
+    assert "event: delta" in output
+    assert 'data: {"frame": 1}' in output
+    saved = json.loads((settings.data_dir / "spike" / "sam_reply.json").read_text("utf-8"))
+    assert saved["http_status"] == 200
+    assert saved["raw"] == SAM_REPLY
+    assert "file-abc123" in saved["files_reply"]
+
+
+def test_a_long_reply_prints_80_lines_and_the_file_path(settings: Settings, video: Path) -> None:
+    body = "\n".join(f"data: {i}" for i in range(200))
+    _, output = run(live(video), settings, _ok_transport(body), preparer=FakePreparer())
+    assert "data: 79" in output
+    assert "data: 80\n" not in output
+    assert "120 more lines" in output
+    assert "sam_reply.json" in output
+
+
+def test_live_records_spend_and_a_ledger(settings: Settings, video: Path) -> None:
+    _, output = run(live(video), settings, _ok_transport(), preparer=FakePreparer(frames=1000))
+    assert "total spend recorded (all runs): $0.20 of $25 cap" in output
+    ledger = settings.data_dir / "spike" / "spend-ledger.jsonl"
+    lines = [json.loads(x) for x in ledger.read_text("utf-8").splitlines()]
+    assert [x["path"] for x in lines] == ["/files", "/responses"]
+    assert lines[1]["outcome"] == "sent"
+
+
+def test_a_repeat_live_run_is_served_from_the_recording(settings: Settings, video: Path) -> None:
+    run(live(video), settings, _ok_transport(), preparer=FakePreparer())
+    second = _ok_transport()
+    code, output = run(live(video), settings, second, preparer=FakePreparer())
+    assert code == 0
+    assert second.requests == []
+    assert "saved recording" in output
+
+
+def test_live_without_a_video_falls_back_to_a_synthetic_one_and_says_so(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    made: list[Path] = []
+
+    def synthesize(target: Path) -> int:
+        target.write_bytes(b"synthetic")
+        made.append(target)
+        return 0
+
+    preparer = FakePreparer()
+    code, output = run(
+        ["sam", "--live"], settings, _ok_transport(), preparer=preparer, synthesize=synthesize
+    )
+    assert code == 0
+    assert "FALLBACK" in output and "SYNTHETIC" in output
+    assert preparer.calls[0][0] == made[0]
+
+
+def test_live_uses_videos_clip1_when_it_exists(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "videos").mkdir()
+    (tmp_path / "videos" / "clip1.mp4").write_bytes(b"real")
+    synthesized: list[Path] = []
+    preparer = FakePreparer()
+    code, output = run(
+        ["sam", "--live"],
+        settings,
+        _ok_transport(),
+        preparer=preparer,
+        synthesize=lambda t: synthesized.append(t) or 0,
+    )
+    assert code == 0
+    assert synthesized == []
+    assert "FALLBACK" not in output
+    assert preparer.calls[0][0].name == "clip1.mp4"
+
+
+def test_live_with_a_missing_named_video_is_refused_without_fallback(
+    settings: Settings, tmp_path: Path
+) -> None:
+    transport = _ok_transport()
+    code, output = run(
+        ["sam", "--live", "--video", str(tmp_path / "nope.mp4")],
+        settings,
+        transport,
+        preparer=FakePreparer(),
+        synthesize=lambda _t: pytest.fail("must not fall back"),
+    )
+    assert code == 2
+    assert "INVALID" in output
+    assert transport.requests == []
+
+
+def test_live_without_a_key_sends_nothing(tmp_path: Path, video: Path) -> None:
+    transport = _ok_transport()
+    code, output = run(live(video), _settings(tmp_path, key=None), transport)
+    assert code == 10
+    assert "RESULT: KEY_MISSING" in output
+    assert transport.requests == []
+
+
+def test_a_prep_failure_exits_2_and_sends_nothing(settings: Settings, video: Path) -> None:
+    transport = _ok_transport()
+    code, output = run(live(video), settings, transport, preparer=FakePreparer(fail="no ffmpeg"))
+    assert code == 2
+    assert "no ffmpeg" in output
+    assert transport.requests == []
+
+
+def test_the_hard_cap_blocks_the_paid_call(tmp_path: Path, video: Path) -> None:
+    settings = _settings(tmp_path, cap="0.005")
+    transport = _ok_transport()
+    code, output = run(live(video), settings, transport, preparer=FakePreparer())
+    assert code == 2
+    assert "REFUSED" in output
+    assert [r.path for r in transport.requests] == ["/files"]  # the free upload only
+
+
+@pytest.mark.parametrize(
+    ("error", "result"),
+    [
+        (MetaApiError(401, "no"), "KEY_REJECTED"),
+        (MetaApiError(402, "pay"), "NO_CREDITS"),
+        (MetaApiError(404, "gone"), "MODEL_NOT_FOUND"),
+        (MetaApiError(429, "slow"), "RATE_LIMITED"),
+        (MetaConnectionError("down"), "NETWORK_ERROR"),
+    ],
+)
+def test_live_failures_get_the_same_categories(
+    settings: Settings, video: Path, error: Exception, result: str
+) -> None:
+    transport = FakeTransport({"/files": RawResponse(200, FILE_REPLY), "/responses": error})
+    code, output = run(live(video), settings, transport, preparer=FakePreparer())
+    assert f"RESULT: {result}" in output
+    assert code == spike.EXIT_CODES[result]
+
+
+def test_an_upload_reply_without_a_file_id_exits_1(settings: Settings, video: Path) -> None:
+    transport = FakeTransport({"/files": RawResponse(200, "{}")})
+    code, output = run(live(video), settings, transport, preparer=FakePreparer())
+    assert code == 1
+    assert [r.path for r in transport.requests] == ["/files"]
+
+
+def test_the_key_is_scrubbed_from_output_and_the_saved_file(
+    settings: Settings, video: Path
+) -> None:
+    body = f"data: leaked {FAKE_KEY}\n"
+    _, output = run(live(video), settings, _ok_transport(body), preparer=FakePreparer())
+    assert FAKE_KEY not in output
+    saved = (settings.data_dir / "spike" / "sam_reply.json").read_text("utf-8")
+    assert FAKE_KEY not in saved
+    assert "[REDACTED]" in saved
+
+
+def test_invalid_noun_exits_2(settings: Settings, video: Path) -> None:
+    assert run(["sam", "--object", "x" * 41, "--video", str(video)], settings)[0] == 2
+
+
+# --- running the file --------------------------------------------------------------------------
+
+
+def test_python_dash_m_scripts_api_spike_works() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "scripts.api_spike", "--help"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "check-key" in result.stdout
+
+
+def test_the_file_runs_directly_from_any_folder(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "sam", "--help"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--live" in result.stdout
+
+
+def test_importing_the_script_leaves_sys_path_alone() -> None:
+    before = list(sys.path)
+    _load_script()
+    assert sys.path == before
 
 
 def test_invalid_settings_exit_2(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -187,489 +530,17 @@ def test_invalid_settings_exit_2(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(spike, "load_settings", broken)
     out = io.StringIO()
-    transport = FakeTransport()
-    assert spike.main(["check-key", "--yes"], transport=transport, out=out) == 2
-    assert "MAX_RUN_COST_USD" in out.getvalue()
-    assert transport.requests == []
+    assert spike.main(["check-key"], transport=FakeTransport(), out=out) == 2
 
 
-# --- check-key with --yes ---------------------------------------------------------------------
-
-
-def test_check_key_with_yes_sends_exactly_the_documented_body(settings: Settings) -> None:
-    transport = FakeTransport({"/responses": RawResponse(200, '{"output_text": "OK"}')})
-    code, _ = run(["check-key", "--yes"], settings, transport)
-    assert code == 0
-    assert len(transport.requests) == 1
-    request = transport.requests[0]
-    assert request.path == "/responses"
-    assert request.upload is None
-    assert dict(request.json_body or {}) == {
-        "model": "muse-spark-1.3",
-        "input": "Reply with the single word OK.",
-        "max_output_tokens": 16,
-    }
-
-
-def test_check_key_pass_prints_status_length_and_the_start_of_the_reply(
-    settings: Settings,
-) -> None:
-    body = '{"output_text": "OK"}' + "z" * 400
-    transport = FakeTransport({"/responses": RawResponse(200, body)})
-    code, output = run(["check-key", "--yes"], settings, transport)
-    assert code == 0
-    assert "PASS" in output
-    assert "200" in output
-    assert str(len(body)) in output
-    assert body[:200] in output
-    assert body[:201] not in output
-
-
-def test_check_key_goes_through_the_real_client_to_the_base_url(settings: Settings) -> None:
-    client, calls = _mock_client(settings, lambda _r: httpx.Response(200, text='{"ok": 1}'))
-    code, output = run(["check-key", "--yes"], settings, client)
-    assert code == 0
-    assert "PASS" in output
-    assert len(calls) == 1
-    assert str(calls[0].url) == f"{BASE_URL}/responses"
-
-
-HINTS = {
-    400: "body not accepted",
-    401: "key rejected",
-    403: "not allowed or billing",
-    404: "model or path",
-    429: "rate limited",
-}
-
-
-@pytest.mark.parametrize(("status", "hint"), sorted(HINTS.items()))
-def test_each_error_status_gives_its_hint(settings: Settings, status: int, hint: str) -> None:
-    client, _ = _mock_client(settings, lambda _r: httpx.Response(status, text="nope"))
-    code, output = run(["check-key", "--yes"], settings, client)
-    assert code == 1
-    assert "FAIL" in output
-    assert str(status) in output
-    assert hint in output.lower()
-    for other in HINTS.values():
-        if other != hint:
-            assert other not in output.lower()
-
-
-def test_a_connection_error_hints_at_network_or_proxy(settings: Settings) -> None:
-    def refuse(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("no route to host", request=request)
-
-    client, _ = _mock_client(settings, refuse)
-    code, output = run(["check-key", "--yes"], settings, client)
-    assert code == 1
-    assert "FAIL" in output
-    assert "network or proxy" in output.lower()
-
-
-def test_a_missing_key_with_yes_exits_2_and_sends_nothing(tmp_path: Path) -> None:
-    keyless = _settings(tmp_path, key=None)
-    client, calls = _mock_client(keyless, lambda _r: httpx.Response(200))
-    code, output = run(["check-key", "--yes"], keyless, client)
-    assert code == 2
-    assert calls == []
-    assert "META_API_KEY" in output
-
-
-# --- The key, headers and the environment never reach the output -----------------------------
-
-ECHO = f'{{"error": "bad token Bearer {FAKE_KEY}", "authorization": "Bearer {FAKE_KEY}"}}'
-
-
-def _echo_cases(video: Path, settings: Settings) -> list[tuple[list[str], Any]]:
-    client_401, _ = _mock_client(settings, lambda _r: httpx.Response(401, text=ECHO))
-    return [
-        (["check-key"], FakeTransport()),
-        (sam_args(video), _ok_transport()),
-        (["check-key", "--yes"], FakeTransport({"/responses": RawResponse(200, ECHO)})),
-        (["check-key", "--yes"], client_401),
-        (["check-key", "--yes"], FakeTransport({"/responses": MetaApiError(403, ECHO)})),
-        (["check-key", "--yes"], FakeTransport({"/responses": MetaConnectionError(ECHO)})),
-        (
-            sam_args(video, "--yes"),
-            FakeTransport(
-                {"/files": RawResponse(200, FILE_REPLY), "/responses": RawResponse(200, ECHO)}
-            ),
-        ),
-        (sam_args(video, "--yes"), FakeTransport({"/files": RawResponse(200, ECHO)})),
-        (
-            sam_args(video, "--yes", "--inline"),
-            FakeTransport({"/responses": RawResponse(200, ECHO)}),
-        ),
-    ]
-
-
-@pytest.mark.parametrize("case", range(9))
-def test_the_key_never_appears_in_the_output(
-    settings: Settings, video: Path, case: int, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("ASKFOOTAGE_SPIKE_SENTINEL", "sentinel-environment-value")
-    argv, transport = _echo_cases(video, settings)[case]
-    _, output = run(argv, settings, transport)
-    assert output  # something was printed, so the checks below are not vacuous
-    assert FAKE_KEY not in output
-    assert "sentinel-environment-value" not in output
-
-
-def test_no_header_is_printed_on_a_live_run(settings: Settings, video: Path) -> None:
-    client, _ = _mock_client(settings, lambda _r: httpx.Response(200, text="OK"))
-    for argv in (["check-key", "--yes"], sam_args(video, "--yes", "--inline")):
-        _, output = run(argv, settings, client)
-        lowered = output.lower()
-        assert "authorization" not in lowered
-        assert "bearer" not in lowered
-        assert "content-type" not in lowered
-
-
-# --- Cost -------------------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("seconds", "fps", "cost"),
-    [
-        ("30", "30", "0.18"),  # 900 frames
-        ("3", "5", "0.01"),  # 15 frames, billed as the 50-frame minimum
-        ("10.01", "30", "0.0602"),  # 300.3 frames round up to 301
-        ("1", "50", "0.01"),  # exactly the minimum
-    ],
-)
-def test_cost_estimate(seconds: str, fps: str, cost: str) -> None:
-    estimate = spike.estimate_cost_usd(Decimal(seconds), Decimal(fps))
-    assert isinstance(estimate, Decimal)
-    assert estimate == Decimal(cost)
-
-
-def test_the_dry_run_shows_the_estimated_cost(settings: Settings, video: Path) -> None:
-    _, output = run(sam_args(video, duration="30"), settings, _ok_transport())
-    assert "0.18" in output
-
-
-def test_fps_defaults_to_30(settings: Settings, video: Path) -> None:
-    # 30 s at the default 30 fps costs 0.18, just over a 0.17 limit.
-    code, _ = run(sam_args(video, "--max-cost-usd", "0.17", duration="30"), settings, None)
-    assert code == 2
-
-
-@pytest.mark.parametrize("yes", [(), ("--yes",)])
-def test_a_cost_above_max_cost_usd_is_refused(
-    settings: Settings, video: Path, yes: tuple[str, ...]
-) -> None:
-    transport = _ok_transport()
-    argv = sam_args(video, "--fps", "30", "--max-cost-usd", "0.17", *yes, duration="30")
-    code, output = run(argv, settings, transport)
-    assert code == 2
-    assert transport.requests == []
-    assert "0.18" in output
-    assert "refused" in output.lower()
-
-
-def test_the_default_max_cost_is_fifty_cents(settings: Settings, video: Path) -> None:
-    transport = _ok_transport()
-    # 0.50 is 2500 frames; 84 s at 30 fps is 2520 frames.
-    assert run(sam_args(video, "--yes", duration="84"), settings, transport)[0] == 2
-    assert run(sam_args(video, "--yes", duration="83"), settings, transport)[0] == 0
-    assert len(transport.requests) == 2
-
-
-def test_a_cost_above_the_settings_cap_is_refused(tmp_path: Path, video: Path) -> None:
-    capped = _settings(tmp_path, cap="0.10")
-    transport = _ok_transport()
-    argv = sam_args(video, "--max-cost-usd", "5", "--yes", duration="30")
-    code, output = run(argv, capped, transport)
-    assert code == 2
-    assert transport.requests == []
-    assert "MAX_RUN_COST_USD" in output
-
-
-def test_a_cost_equal_to_the_limit_is_allowed(settings: Settings, video: Path) -> None:
-    transport = _ok_transport()
-    argv = sam_args(video, "--max-cost-usd", "0.18", "--yes", duration="30")
-    assert run(argv, settings, transport)[0] == 0
-    assert len(transport.requests) == 2
-
-
-# --- sam with --yes ---------------------------------------------------------------------------
-
-
-def test_sam_uploads_then_asks_with_the_file_id(settings: Settings, video: Path) -> None:
-    transport = _ok_transport()
-    code, _ = run(sam_args(video, "--yes"), settings, transport)
-    assert code == 0
-    upload, ask = transport.requests
-    assert upload.path == "/files"
-    assert upload.upload is not None
-    assert upload.upload.path == video
-    assert upload.upload.purpose == "user_data"
-    assert ask.path == "/responses"
-    assert dict(ask.json_body or {}) == {
-        "model": "sam-3.1",
-        "input": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "input_text", "text": "car"},
-                    {"type": "input_video", "file_id": "file-abc123"},
-                ],
-            }
-        ],
-        "stream": True,
-        "metadata": {"include_confidence": "true"},
-    }
-
-
-def test_the_object_noun_is_trimmed(settings: Settings, video: Path) -> None:
-    transport = _ok_transport()
-    argv = ["sam", "--video", str(video), "--object", "  red car  ", "--duration-seconds", "5"]
-    assert run([*argv, "--yes"], settings, transport)[0] == 0
-    content = transport.requests[1].json_body["input"][0]["content"]  # type: ignore[index]
-    assert content[0] == {"type": "input_text", "text": "red car"}
-
-
-@pytest.mark.parametrize(("suffix", "mime"), [(".mp4", "video/mp4"), (".MOV", "video/quicktime")])
-def test_inline_sends_a_base64_data_url_and_no_upload(
-    settings: Settings, tmp_path: Path, suffix: str, mime: str
-) -> None:
-    clip = tmp_path / f"clip{suffix}"
-    clip.write_bytes(VIDEO_BYTES)
-    transport = _ok_transport()
-    code, _ = run(sam_args(clip, "--yes", "--inline"), settings, transport)
-    assert code == 0
-    assert [request.path for request in transport.requests] == ["/responses"]
-    part = transport.requests[0].json_body["input"][0]["content"][1]  # type: ignore[index]
-    assert set(part) == {"type", "video_url"}
-    assert part["type"] == "input_video"
-    prefix = f"data:{mime};base64,"
-    assert part["video_url"].startswith(prefix)
-    assert base64.b64decode(part["video_url"][len(prefix) :]) == VIDEO_BYTES
-
-
-def test_no_stream_sends_stream_false(settings: Settings, video: Path) -> None:
-    transport = _ok_transport()
-    run(sam_args(video, "--yes", "--no-stream"), settings, transport)
-    assert transport.requests[1].json_body["stream"] is False  # type: ignore[index]
-
-
-def test_sam_prints_status_length_lines_excerpt_and_recording_path(
-    settings: Settings, video: Path
-) -> None:
-    body = SAM_REPLY + "x" * 400
+def test_a_400_from_a_sam_call_is_not_reported_as_ok(settings: Settings, video: Path) -> None:
     transport = FakeTransport(
-        {"/files": RawResponse(200, FILE_REPLY), "/responses": RawResponse(200, body)}
+        {"/files": RawResponse(200, FILE_REPLY), "/responses": MetaApiError(400, "bad body")}
     )
-    code, output = run(sam_args(video, "--yes"), settings, transport)
-    assert code == 0
-    assert "200" in output
-    assert str(len(body)) in output
-    assert f"lines: {len(body.splitlines())}" in output.lower()
-    assert body[:300] in output
-    assert body[:301] not in output
-    recordings = list((settings.data_dir / "recordings").glob("*.json"))
-    assert len(recordings) == 2  # the upload and the answer
-    assert any(str(path) in output for path in recordings)
-    answer = [p for p in recordings if json.loads(p.read_text("utf-8"))["path"] == "/responses"]
-    assert str(answer[0]) in output
-
-
-def test_sam_does_not_parse_the_reply(settings: Settings, video: Path) -> None:
-    # Whatever comes back is shown raw; a reply that is not JSON or SSE is still a success.
-    transport = FakeTransport(
-        {"/files": RawResponse(200, FILE_REPLY), "/responses": RawResponse(200, "<<not json>>")}
-    )
-    code, output = run(sam_args(video, "--yes"), settings, transport)
-    assert code == 0
-    assert "<<not json>>" in output
-
-
-def test_a_repeat_run_is_served_from_the_recording(settings: Settings, video: Path) -> None:
-    transport = FakeTransport({"/responses": RawResponse(200, SAM_REPLY)})
-    first = run(sam_args(video, "--yes", "--inline"), settings, transport)
-    second = run(sam_args(video, "--yes", "--inline"), settings, transport)
-    assert first[0] == second[0] == 0
-    assert len(transport.requests) == 1  # one live request across both runs
-    assert "recording" in second[1].lower()
-    assert SAM_REPLY[:50] in second[1]
-
-
-def test_a_repeat_upload_run_sends_nothing_new(settings: Settings, video: Path) -> None:
-    transport = _ok_transport()
-    run(sam_args(video, "--yes"), settings, transport)
-    run(sam_args(video, "--yes"), settings, transport)
-    assert [request.path for request in transport.requests] == ["/files", "/responses"]
-
-
-def test_check_key_is_never_recorded(settings: Settings) -> None:
-    # A recorded check would replay a PASS for a key that has since stopped working.
-    transport = FakeTransport({"/responses": RawResponse(200, "OK")})
-    run(["check-key", "--yes"], settings, transport)
-    run(["check-key", "--yes"], settings, transport)
-    assert len(transport.requests) == 2
-    assert not (settings.data_dir / "recordings").exists()
-
-
-@pytest.mark.parametrize(("status", "hint"), [(401, "key rejected"), (429, "rate limited")])
-def test_a_sam_api_failure_exits_1_with_its_hint(
-    settings: Settings, video: Path, status: int, hint: str
-) -> None:
-    transport = FakeTransport(
-        {"/files": RawResponse(200, FILE_REPLY), "/responses": MetaApiError(status, "nope")}
-    )
-    code, output = run(sam_args(video, "--yes"), settings, transport)
+    code, output = run(live(video), settings, transport, preparer=FakePreparer())
+    assert "RESULT: UNEXPECTED" in output
     assert code == 1
-    assert "FAIL" in output
-    assert hint in output.lower()
 
 
-def test_a_sam_connection_failure_exits_1(settings: Settings, video: Path) -> None:
-    transport = FakeTransport({"/files": MetaConnectionError("could not connect")})
-    code, output = run(sam_args(video, "--yes"), settings, transport)
-    assert code == 1
-    assert "network or proxy" in output.lower()
-
-
-@pytest.mark.parametrize("reply", ["not json", '{"object": "file"}', '{"id": ""}', "[1, 2]"])
-def test_an_upload_reply_without_a_file_id_exits_1(
-    settings: Settings, video: Path, reply: str
-) -> None:
-    transport = FakeTransport({"/files": RawResponse(200, reply)})
-    code, output = run(sam_args(video, "--yes"), settings, transport)
-    assert code == 1
-    assert "file id" in output.lower()
-    assert [request.path for request in transport.requests] == ["/files"]
-
-
-# --- Validation -------------------------------------------------------------------------------
-
-
-def _bad_argvs(tmp_path: Path, video: Path) -> dict[str, list[str]]:
-    avi = tmp_path / "clip.avi"
-    avi.write_bytes(VIDEO_BYTES)
-    folder = tmp_path / "folder.mp4"
-    folder.mkdir()
-    base = ["sam", "--duration-seconds", "10", "--yes"]
-    return {
-        "missing-file": [*base, "--video", str(tmp_path / "nope.mp4"), "--object", "car"],
-        "wrong-type": [*base, "--video", str(avi), "--object", "car"],
-        "directory": [*base, "--video", str(folder), "--object", "car"],
-        "empty-noun": [*base, "--video", str(video), "--object", ""],
-        "blank-noun": [*base, "--video", str(video), "--object", "   "],
-        "long-noun": [*base, "--video", str(video), "--object", "x" * 41],
-        "zero-duration": [*sam_args(video, "--yes", duration="0")],
-        "negative-duration": [*sam_args(video, "--yes", duration="-5")],
-        "nan-duration": [*sam_args(video, "--yes", duration="nan")],
-        "word-duration": [*sam_args(video, "--yes", duration="ten")],
-        "zero-fps": [*sam_args(video, "--yes", "--fps", "0")],
-        "infinite-fps": [*sam_args(video, "--yes", "--fps", "inf")],
-        "negative-max-cost": [*sam_args(video, "--yes", "--max-cost-usd", "-1")],
-        "no-video": ["sam", "--object", "car", "--duration-seconds", "10", "--yes"],
-        "no-object": ["sam", "--video", str(video), "--duration-seconds", "10", "--yes"],
-        "no-duration": ["sam", "--video", str(video), "--object", "car", "--yes"],
-        "no-command": [],
-        "unknown-command": ["delete-everything", "--yes"],
-    }
-
-
-BAD_CASES = [
-    "missing-file",
-    "wrong-type",
-    "directory",
-    "empty-noun",
-    "blank-noun",
-    "long-noun",
-    "zero-duration",
-    "negative-duration",
-    "nan-duration",
-    "word-duration",
-    "zero-fps",
-    "infinite-fps",
-    "negative-max-cost",
-    "no-video",
-    "no-object",
-    "no-duration",
-    "no-command",
-    "unknown-command",
-]
-
-
-@pytest.mark.parametrize("case", BAD_CASES)
-def test_invalid_input_exits_2_and_sends_nothing(
-    settings: Settings, tmp_path: Path, video: Path, case: str
-) -> None:
-    transport = _ok_transport()
-    code, _ = run(_bad_argvs(tmp_path, video)[case], settings, transport)
-    assert code == 2
-    assert transport.requests == []
-
-
-def test_a_forty_character_noun_is_accepted(settings: Settings, video: Path) -> None:
-    argv = [
-        "sam",
-        "--video",
-        str(video),
-        "--object",
-        " " + "x" * 40 + " ",
-        "--duration-seconds",
-        "5",
-    ]
-    assert run(argv, settings, _ok_transport())[0] == 0
-
-
-def test_a_video_at_the_size_limit_is_refused(
-    settings: Settings, video: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(spike, "MAX_VIDEO_BYTES", len(VIDEO_BYTES))
-    transport = _ok_transport()
-    code, output = run(sam_args(video, "--yes"), settings, transport)
-    assert code == 2
-    assert transport.requests == []
-    assert "100 MB" in output
-
-
-def test_a_video_just_under_the_size_limit_is_accepted(
-    settings: Settings, video: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(spike, "MAX_VIDEO_BYTES", len(VIDEO_BYTES) + 1)
-    assert run(sam_args(video, "--yes"), settings, _ok_transport())[0] == 0
-
-
-def test_the_size_limit_is_100_mb() -> None:
-    assert spike.MAX_VIDEO_BYTES == 100_000_000
-
-
-def test_a_file_error_during_a_live_run_exits_1_without_a_traceback(
-    settings: Settings, video: Path
-) -> None:
-    transport = FakeTransport({"/files": PermissionError("the video is locked")})
-    code, output = run(sam_args(video, "--yes"), settings, transport)
-    assert code == 1
-    assert "FAIL" in output
-    assert "the video is locked" in output
-
-
-# --- Running the file directly ----------------------------------------------------------------
-
-
-@pytest.mark.parametrize("argv", [["--help"], ["check-key", "--help"]])
-def test_the_file_runs_directly_from_any_folder(tmp_path: Path, argv: list[str]) -> None:
-    # Only --help is used: it exits before the settings (and any .env) are read.
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT), *argv],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    assert "Traceback" not in result.stderr
-    assert "usage:" in result.stdout
-
-
-def test_importing_the_script_leaves_sys_path_alone() -> None:
-    before = list(sys.path)
-    _load_script()
-    assert sys.path == before
+def test_no_muse_model_is_referenced() -> None:
+    assert "muse" not in SCRIPT.read_text("utf-8").lower()

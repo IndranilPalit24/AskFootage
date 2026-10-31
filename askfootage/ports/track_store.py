@@ -35,3 +35,11 @@ class TrackStore(Protocol):
     def delete_video(self, video_id: str) -> int:
         """Remove every track of this video; returns how many tracks were removed."""
         ...
+
+
+class TrackDataError(Exception):
+    """A video's stored track data is unreadable or malformed.
+
+    Callers that work over many videos (search) catch this and skip the video rather than
+    fail. The message is fixed and names no path.
+    """

@@ -22,6 +22,13 @@ recorded), "refused" (over the cap, not sent), "no_estimate" (not sent), "failed
 transport raised; no spend) or "http_<status>" (a non-2xx reply; no spend). The path is
 logged without any query string, and request bodies and headers are never logged.
 
+Spend is cumulative across runs: a new HardCapBudget reads the ledger in its folder and
+starts from the total of every line whose outcome counts as spend ("sent" and "charged"),
+so one cap covers all runs that share a ledger. Lines that are blank, not JSON, not an
+object or carry an unusable estimate are skipped (a damaged ledger never crashes a run and
+never makes spend look lower than the readable lines say). "charged" is a call that failed
+after it may have been paid for; see BudgetedPerception.
+
 Amounts are exact Decimals throughout; floats are refused.
 """
 
@@ -48,6 +55,28 @@ LEDGER_FILE_NAME = "spend-ledger.jsonl"
 
 _LEDGER_METHOD = "POST"  # every Meta API call is a POST (see client.py)
 _ZERO = Decimal(0)
+SPEND_OUTCOMES = frozenset({"sent", "charged"})
+"""Ledger outcomes whose estimate counts as money spent."""
+
+
+def _prior_spend(ledger_path: Path) -> Decimal:
+    """Total estimate of the readable spend lines in an existing ledger."""
+    total = _ZERO
+    try:
+        raw = ledger_path.read_bytes()
+    except OSError:
+        return total
+    for line in raw.split(b"\n"):
+        try:
+            entry = json.loads(line.decode("utf-8"))
+            if not isinstance(entry, dict) or entry.get("outcome") not in SPEND_OUTCOMES:
+                continue
+            amount = Decimal(str(entry["estimate"]))
+        except (ValueError, KeyError, ArithmeticError):  # includes bad UTF-8 and bad JSON
+            continue
+        if _is_usable_amount(amount):
+            total += amount
+    return total
 
 
 def frames_cost(frames: int) -> Decimal:
@@ -63,6 +92,18 @@ def frames_cost(frames: int) -> Decimal:
     return Decimal(max(MIN_FRAMES_PER_REQUEST, frames)) * PRICE_PER_1000_FRAMES_USD / 1000
 
 
+def _lacks_final_newline(path: Path) -> bool:
+    try:
+        with path.open("rb") as handle:
+            handle.seek(0, 2)
+            if handle.tell() == 0:
+                return False
+            handle.seek(-1, 2)
+            return handle.read(1) != b"\n"
+    except OSError:
+        return False
+
+
 def _is_usable_amount(value: object) -> TypeGuard[Decimal]:
     return isinstance(value, Decimal) and value.is_finite() and value >= 0
 
@@ -75,8 +116,9 @@ class HardCapBudget:
     """A thread-safe hard spend cap for one run, with an append-only ledger.
 
     `cap` is the most the run may spend, in dollars, as a finite, non-negative Decimal;
-    the caller supplies it (usually Settings.max_run_cost_usd). Spend starts at zero for
-    each new budget. `ledger_dir` is created if missing, and the ledger file in it is
+    the caller supplies it (usually Settings.max_run_cost_usd). Spend starts at what the
+    ledger in `ledger_dir` already records (zero for a new folder), so the cap covers every
+    run, not each one. `ledger_dir` is created if missing, and the ledger file in it is
     created up front, so an unwritable ledger is found before any call is made.
     """
 
@@ -86,7 +128,6 @@ class HardCapBudget:
         if not _is_usable_amount(cap):
             raise ValueError("cap must be a finite, non-negative amount")
         self._cap = cap
-        self._spent = _ZERO
         self._reserved = _ZERO
         self._lock = threading.Lock()
         self._run_id = uuid.uuid4().hex
@@ -94,6 +135,7 @@ class HardCapBudget:
         self._ledger_path = ledger_dir / LEDGER_FILE_NAME
         with self._ledger_path.open("ab"):
             pass
+        self._spent = _prior_spend(self._ledger_path)
 
     @property
     def cap(self) -> Decimal:
@@ -169,6 +211,8 @@ class HardCapBudget:
             }
             line = json.dumps(entry, ensure_ascii=False) + "\n"
             with self._ledger_path.open("ab") as ledger:
+                if _lacks_final_newline(self._ledger_path):  # a crash cut the last line short
+                    line = "\n" + line
                 ledger.write(line.encode("utf-8"))
 
 

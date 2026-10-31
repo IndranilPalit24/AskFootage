@@ -326,14 +326,23 @@ async def index_recording(
         "Synchronous in v1. Without camera, every camera's footage is searched. Only ready "
         "recordings are searched; note explains anything the answer left out (for example a "
         "recording still being indexed), and is null when there is nothing to add. clips is "
-        "empty when nothing matched."
+        "empty when nothing matched. Clips found from stored object tracks have an entry in "
+        "proofs (relation, interval, track ids, measures, boxes); the rest come from the "
+        "demo keyword search and have none."
     ),
     responses=error_responses(404, 422, 500),
 )
 async def search_footage(body: SearchRequest, context: Context) -> SearchResponse:
     """The clips that answer the question, earliest first."""
     result = search.search_day(
-        context.library, context.interpreter, body.question, body.day, body.camera
+        context.library,
+        context.interpreter,
+        body.question,
+        body.day,
+        body.camera,
+        tracks=context.tracks,
+        parser=context.question_parser,
+        frame_size=context.frame_size,
     )
     return SearchResponse.from_result(result)
 

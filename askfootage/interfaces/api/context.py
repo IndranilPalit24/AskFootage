@@ -13,6 +13,9 @@ from askfootage.application.ingest_video import IndexingPipeline
 from askfootage.application.library import IdFactory, Library
 from askfootage.application.recordings import FootageSource
 from askfootage.application.search import Interpreter
+from askfootage.application.search_relations import FrameSizeSource
+from askfootage.ports.language_model import QuestionParser
+from askfootage.ports.track_store import TrackStore
 
 Job = Callable[[], None]
 """Work to do once the reply has been sent."""
@@ -33,6 +36,8 @@ class ApiContext:
     """The stores, clock, interpreter and limits the routes hand to the use cases.
 
     indexing is None when the build has no way to find objects (POST .../index is 503).
+    tracks, question_parser and frame_size feed search over stored tracks; with tracks
+    None (or a recording without tracks) search uses the demo keyword matcher.
     """
 
     library: Library
@@ -43,6 +48,9 @@ class ApiContext:
     make_id: IdFactory
     max_upload_bytes: int
     indexing: IndexingPipeline | None = None
+    tracks: TrackStore | None = None
+    question_parser: QuestionParser | None = None
+    frame_size: FrameSizeSource | None = None
     schedule_after_reply: JobScheduler = run_after_reply
 
 

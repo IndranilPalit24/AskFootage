@@ -1168,3 +1168,33 @@ a:hover {
     text-align: left;
   }
 }
+
+.proof {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-accent-tint-border);
+  background: var(--color-accent-tint);
+  border-radius: 6px;
+  color: var(--color-text);
+}
+
+.proof__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.proof__range {
+  margin: 0.25rem 0 0;
+  color: var(--color-text-muted);
+}
+
+.proof__measures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-muted);
+}

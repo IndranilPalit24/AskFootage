@@ -146,3 +146,13 @@ def test_a_video_folder_that_links_outside_the_data_dir_is_refused(tmp_path: Pat
         with pytest.raises(InvalidVideoIdError, match="outside the data folder"):
             getattr(LocalVideoFiles(data_dir), method)("rec1")
     assert list(outside.iterdir()) == []
+
+
+def test_peek_methods_validate_but_never_create_folders(tmp_path: Path) -> None:
+    files = LocalVideoFiles(tmp_path)
+    assert files.peek_dir("ghost") == tmp_path.resolve() / "ghost"
+    assert files.peek_prepared("ghost") == tmp_path.resolve() / "ghost" / "prepared.mp4"
+    assert list(tmp_path.iterdir()) == []
+    for bad in ("..", "a/b", "con", ""):
+        with pytest.raises(InvalidVideoIdError):
+            files.peek_dir(bad)

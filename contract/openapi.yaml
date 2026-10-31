@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AskFootage API",
-    "version": "1.2.0",
-    "description": "Ask a plain-English question about fixed-camera footage and get the matching clips with the evidence for each match. Every path is under /api. Every error has the body {\"error\": {\"code\": \"...\", \"message\": \"...\"}} with a matching HTTP status, and never contains a stack trace, a key, a password or a server path. JSON field names are camelCase. Days are calendar dates (YYYY-MM-DD) and times of day are HH:MM:SS in the camera's local time. Cameras are identified by ids the server gives out in order (CAM-001, CAM-002, ...); a camera's stream password is checked when the camera is added and then dropped: it is never stored, returned or logged. Wherever a camera query parameter is optional, leaving it out means all cameras. Lists are not paginated in v1: days, recordings and search results are bounded by the 7-day window and one day; cameras, zones and saved clips are bounded only by what the single user of the v1 demo creates. Versioning: /api is unversioned because the UI and the API ship together; once released, changes are additive only, and a breaking change (such as paging cameras, zones or saved clips) moves to /api/v2. Still pre-release: 1.1.0 added cameras, made camera ids CAM-NNN and dropped the camera from Status; 1.2.0 adds POST /api/recordings/{id}/index. This file is written in JSON syntax, which is valid YAML 1.2, so it can be read without a YAML library."
+    "version": "1.3.0",
+    "description": "Ask a plain-English question about fixed-camera footage and get the matching clips with the evidence for each match. Every path is under /api. Every error has the body {\"error\": {\"code\": \"...\", \"message\": \"...\"}} with a matching HTTP status, and never contains a stack trace, a key, a password or a server path. JSON field names are camelCase. Days are calendar dates (YYYY-MM-DD) and times of day are HH:MM:SS in the camera's local time. Cameras are identified by ids the server gives out in order (CAM-001, CAM-002, ...); a camera's stream password is checked when the camera is added and then dropped: it is never stored, returned or logged. Wherever a camera query parameter is optional, leaving it out means all cameras. Lists are not paginated in v1: days, recordings and search results are bounded by the 7-day window and one day; cameras, zones and saved clips are bounded only by what the single user of the v1 demo creates. Versioning: /api is unversioned because the UI and the API ship together; once released, changes are additive only, and a breaking change (such as paging cameras, zones or saved clips) moves to /api/v2. Still pre-release: 1.1.0 added cameras, made camera ids CAM-NNN and dropped the camera from Status; 1.2.0 adds POST /api/recordings/{id}/index; 1.3.0 adds proofs to SearchResponse (measured proof for clips found from stored object tracks). This file is written in JSON syntax, which is valid YAML 1.2, so it can be read without a YAML library."
   },
   "paths": {
     "/api/status": {
@@ -611,12 +611,57 @@
       },
       "SearchResponse": {
         "type": "object",
-        "required": ["question", "day", "clips", "note"],
+        "required": ["question", "day", "clips", "note", "proofs"],
         "properties": {
           "question": { "type": "string", "description": "The question as received, trimmed" },
           "day": { "type": "string", "format": "date" },
           "clips": { "type": "array", "items": { "$ref": "#/components/schemas/Clip" } },
-          "note": { "type": ["string", "null"], "description": "What the answer left out and why, or null" }
+          "note": { "type": ["string", "null"], "description": "What the answer left out and why, or null" },
+          "proofs": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ClipProof" },
+            "description": "Measured proof for clips found from stored object tracks, one per such clip; empty when every clip came from the demo keyword search"
+          }
+        }
+      },
+      "ProofMeasure": {
+        "type": "object",
+        "required": ["name", "value"],
+        "properties": {
+          "name": { "type": "string", "description": "For example frames_together, motion_agreement, frames_inside or coverage" },
+          "value": { "type": "number" }
+        }
+      },
+      "ProofBox": {
+        "type": "object",
+        "required": ["frame", "trackId", "label", "x1", "y1", "x2", "y2"],
+        "properties": {
+          "frame": { "type": "integer", "minimum": 0 },
+          "trackId": { "type": "integer", "minimum": 0 },
+          "label": { "type": "string", "description": "A neutral object noun, such as person or cardboard box" },
+          "x1": { "type": "number" },
+          "y1": { "type": "number" },
+          "x2": { "type": "number" },
+          "y2": { "type": "number" }
+        }
+      },
+      "ClipProof": {
+        "type": "object",
+        "required": [
+          "clipId", "relation", "startFrame", "endFrame", "startSeconds", "endSeconds",
+          "trackIds", "trackLabels", "measures", "boxes"
+        ],
+        "properties": {
+          "clipId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "The clip in clips this proves" },
+          "relation": { "type": "string", "enum": ["carrying", "in_zone", "dwell"] },
+          "startFrame": { "type": "integer", "minimum": 0 },
+          "endFrame": { "type": "integer", "minimum": 0, "description": "Inclusive" },
+          "startSeconds": { "type": "number", "minimum": 0, "description": "Seconds from the start of the recording" },
+          "endSeconds": { "type": "number", "minimum": 0, "description": "End of the last frame, in the same unit" },
+          "trackIds": { "type": "array", "items": { "type": "integer" }, "description": "Track ids used, such as [person, box]" },
+          "trackLabels": { "type": "array", "items": { "type": "string" }, "description": "The label of each track, in the same order" },
+          "measures": { "type": "array", "items": { "$ref": "#/components/schemas/ProofMeasure" } },
+          "boxes": { "type": "array", "items": { "$ref": "#/components/schemas/ProofBox" }, "description": "First, middle and last box of each track" }
         }
       },
       "Point": {

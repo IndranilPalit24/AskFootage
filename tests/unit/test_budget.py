@@ -429,7 +429,7 @@ def test_ledger_is_append_only_across_budgets(tmp_path: Path) -> None:
     lines = _ledger_lines(tmp_path)
     assert len(lines) == 3
     assert lines[1]["run"] != lines[2]["run"]
-    assert second_budget.spent == Decimal("0.01")  # a new run starts from zero
+    assert second_budget.spent == Decimal("0.02")  # the cap is cumulative across runs
 
 
 def test_ledger_dir_is_created_when_missing(tmp_path: Path) -> None:

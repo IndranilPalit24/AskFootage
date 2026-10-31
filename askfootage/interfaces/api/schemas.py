@@ -31,6 +31,7 @@ from askfootage.application.errors import InvalidInputError
 from askfootage.application.recordings import ServiceStatus
 from askfootage.application.saved_clips import MAX_NOTE_LENGTH
 from askfootage.application.search import MAX_QUESTION_LENGTH, SearchResult
+from askfootage.application.search_relations import ClipProof as ClipProofResult
 from askfootage.application.zones import MAX_ZONE_NAME_LENGTH, MAX_ZONE_POINTS, MIN_ZONE_POINTS
 from askfootage.ports import library_store as ports
 
@@ -411,6 +412,67 @@ class SearchRequest(RequestModel):
     _question_not_blank = field_validator("question")(_not_blank)
 
 
+class ProofMeasure(ResponseModel):
+    """One number a relation rule measured, such as frames_together or motion_agreement."""
+
+    name: str
+    value: float
+
+
+class ProofBox(ResponseModel):
+    """One tracked object's box on one frame, in pixels of the analysed video."""
+
+    frame: int = Field(ge=0)
+    track_id: int = Field(ge=0)
+    label: str = Field(description="A neutral object noun, such as person or cardboard box")
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+
+
+class ClipProof(ResponseModel):
+    """Why a clip matched, measured from stored object tracks."""
+
+    clip_id: str = Field(pattern=ID_PATTERN, description="The clip in clips this proves")
+    relation: ports.EvidenceKind
+    start_frame: int = Field(ge=0)
+    end_frame: int = Field(ge=0, description="Inclusive")
+    start_seconds: float = Field(ge=0, description="Seconds from the start of the recording")
+    end_seconds: float = Field(ge=0, description="End of the last frame, in the same unit")
+    track_ids: list[int] = Field(description="Track ids used, such as [person, box]")
+    track_labels: list[str] = Field(description="The label of each track, in the same order")
+    measures: list[ProofMeasure]
+    boxes: list[ProofBox] = Field(description="First, middle and last box of each track")
+
+    @classmethod
+    def from_result(cls, proof: ClipProofResult) -> ClipProof:
+        """The response model for one proof."""
+        return cls(
+            clip_id=proof.clip_id,
+            relation=proof.relation,
+            start_frame=proof.start_frame,
+            end_frame=proof.end_frame,
+            start_seconds=proof.start_seconds,
+            end_seconds=proof.end_seconds,
+            track_ids=list(proof.track_ids),
+            track_labels=list(proof.track_labels),
+            measures=[ProofMeasure(name=n, value=v) for n, v in proof.measures],
+            boxes=[
+                ProofBox(
+                    frame=b.frame,
+                    track_id=b.track_id,
+                    label=b.label,
+                    x1=b.x1,
+                    y1=b.y1,
+                    x2=b.x2,
+                    y2=b.y2,
+                )
+                for b in proof.boxes
+            ],
+        )
+
+
 class SearchResponse(ResponseModel):
     """The matching clips, earliest first, and what the answer left out."""
 
@@ -418,6 +480,12 @@ class SearchResponse(ResponseModel):
     day: date
     clips: list[Clip]
     note: str | None
+    proofs: list[ClipProof] = Field(
+        description=(
+            "Measured proof for clips found from stored object tracks, one per such clip; "
+            "empty when every clip came from the demo keyword search"
+        )
+    )
 
     @classmethod
     def from_result(cls, result: SearchResult) -> SearchResponse:
@@ -427,6 +495,7 @@ class SearchResponse(ResponseModel):
             day=result.day,
             clips=[Clip.from_port(found.clip, found.camera) for found in result.clips],
             note=result.note,
+            proofs=[ClipProof.from_result(proof) for proof in result.proofs],
         )
 
 
