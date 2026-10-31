@@ -120,7 +120,7 @@ class FfmpegVideoPreparer:
             raise VideoPreparationError("The source video cannot be its own working copy.")
         try:
             self._encode(ffmpeg, source, output)
-            duration, frame_count = self._probe(ffprobe, output)
+            duration, frame_count, size = self._probe(ffprobe, output)
         except BaseException:
             output.unlink(missing_ok=True)
             raise
@@ -129,6 +129,8 @@ class FfmpegVideoPreparer:
             fps=float(PREPARED_FPS),
             duration_seconds=duration,
             frame_count=frame_count,
+            width=None if size is None else size[0],
+            height=None if size is None else size[1],
         )
 
     def _checked_source(self, source: Path) -> Path:
@@ -187,14 +189,16 @@ class FfmpegVideoPreparer:
         if not output.is_file() or output.stat().st_size == 0:
             raise VideoPreparationError("Video conversion produced no output.")
 
-    def _probe(self, ffprobe: str, output: Path) -> tuple[float, int]:
+    def _probe(
+        self, ffprobe: str, output: Path
+    ) -> tuple[float, int, tuple[int, int] | None]:
         stream, container = self._probe_json(
             ffprobe,
             [
                 "-select_streams",
                 "v:0",
                 "-show_entries",
-                "stream=nb_frames,duration:format=duration",
+                "stream=nb_frames,duration,width,height:format=duration",
             ],
             output,
         )
@@ -220,7 +224,9 @@ class FfmpegVideoPreparer:
             frame_count = _positive_int(counted.get("nb_read_frames"))
         if frame_count is None:
             raise VideoPreparationError("The prepared video has no frames.")
-        return duration, frame_count
+        width, height = _positive_int(stream.get("width")), _positive_int(stream.get("height"))
+        size = (width, height) if width is not None and height is not None else None
+        return duration, frame_count, size
 
     def _probe_json(
         self, ffprobe: str, query: list[str], output: Path

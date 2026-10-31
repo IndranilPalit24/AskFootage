@@ -23,12 +23,19 @@ class PreparedVideo:
     fps: float
     duration_seconds: float
     frame_count: int
+    width: int | None = None
+    height: int | None = None
+    """Pixel size of the frames, when the preparer could read it (the unit of box coordinates)."""
 
     def __post_init__(self) -> None:
         if self.fps <= 0:
             raise ValueError("fps must be positive")
         if self.duration_seconds < 0 or self.frame_count < 0:
             raise ValueError("duration_seconds and frame_count must not be negative")
+        if (self.width is None) != (self.height is None) or any(
+            v is not None and v <= 0 for v in (self.width, self.height)
+        ):
+            raise ValueError("width and height must be given together and be positive")
 
 
 class VideoPreparer(Protocol):

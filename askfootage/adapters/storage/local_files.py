@@ -58,6 +58,18 @@ class LocalVideoFiles:
         """Where the prepared working copy goes; its folder exists. Raises InvalidVideoIdError."""
         return self.video_dir(video_id) / PREPARED_FILE_NAME
 
+    def peek_dir(self, video_id: str) -> Path:
+        """The folder this video would use, checked like video_dir but never created.
+
+        For read paths (does it exist, read its files), so looking up an unknown or
+        mistyped id leaves nothing behind. Raises InvalidVideoIdError.
+        """
+        return self._safe_video_dir(video_id)
+
+    def peek_prepared(self, video_id: str) -> Path:
+        """Where the prepared copy is or would be, without creating any folder."""
+        return self.peek_dir(video_id) / PREPARED_FILE_NAME
+
     def _safe_video_dir(self, video_id: str) -> Path:
         if not isinstance(video_id, str) or _VIDEO_ID.fullmatch(video_id) is None:
             raise InvalidVideoIdError("Invalid video id: use 1 to 64 letters, digits, '_' or '-'.")

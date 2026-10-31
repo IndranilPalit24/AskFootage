@@ -36,3 +36,12 @@ class Perception(Protocol):
         list means nothing matched. Raises PerceptionError when it cannot answer.
         """
         ...
+
+
+class PerceptionNotSentError(PerceptionError):
+    """The call failed before anything was sent to the paid service, so nothing was billed.
+
+    An adapter raises this only when it is certain no request left the machine (bad
+    arguments, missing file, refused locally). Any other failure is treated as possibly
+    billed by BudgetedPerception.
+    """

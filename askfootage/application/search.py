@@ -5,6 +5,19 @@ against the clips already found in that day's ready recordings. v1 uses
 QuestionInterpreter, a deliberately simple keyword match. A model-backed interpreter can
 replace it later: anything with the same interpret() method plugs into search_day(), and
 the HTTP API does not change.
+
+When a track store is given, search_day first tries the relation layer
+(askfootage/application/search_relations.py): the question is read into the closed schema
+and run over each ready recording's stored tracks, giving clips with proof. The keyword
+matcher stays as the fallback for a recording with no stored tracks (or no frame size for a
+zone question) and for a question that names no relation. When the relation path could not
+judge a recording for a reason the user should know (a concept never indexed, no frame size,
+an unreadable track file) or found an unknown zone name, the note says so.
+
+Each clip found from tracks is written to the clip store (its id is derived from the
+recording, the relation, the tracks and the interval, so the same finding always has the same
+id). That is what lets GET /clips/{id} and saving work for it. Such clips (ids starting
+"rel-") are never matched by the keyword search, which only sees demo clips.
 """
 
 from __future__ import annotations
@@ -18,7 +31,17 @@ from typing import Protocol
 from askfootage.application.clips import ClipWithCamera
 from askfootage.application.errors import InvalidInputError
 from askfootage.application.library import Library, require_camera_filter
-from askfootage.ports.library_store import Clip, EvidenceKind
+from askfootage.application.search_relations import (
+    RELATION_CLIP_PREFIX,
+    ClipProof,
+    FrameSizeSource,
+    NotJudged,
+    answer_recording,
+    read_question,
+)
+from askfootage.ports.language_model import QuestionParser
+from askfootage.ports.library_store import Clip, DuplicateError, EvidenceKind, MissingReferenceError
+from askfootage.ports.track_store import TrackStore
 
 MAX_QUESTION_LENGTH = 300
 """Longest question accepted, in characters, before trimming."""
@@ -155,6 +178,8 @@ class SearchResult:
     day: date
     clips: list[ClipWithCamera]
     note: str | None
+    proofs: tuple[ClipProof, ...] = ()
+    """Proof for the clips found from stored tracks; demo-matched clips have none."""
 
 
 def check_question(question: str) -> str:
@@ -173,14 +198,22 @@ def search_day(
     question: str,
     day: date,
     camera_id: str | None = None,
+    *,
+    tracks: TrackStore | None = None,
+    parser: QuestionParser | None = None,
+    frame_size: FrameSizeSource | None = None,
 ) -> SearchResult:
     """Answer a question about one day of footage, from one camera or (None) every camera.
 
-    Only ready recordings are searched. The note says what the answer left out: recordings
-    of the searched cameras still being indexed, a day without footage, or a question the
-    interpreter did not understand. Each clip comes with its recording's camera, taken from
-    the day's recordings (no store call per clip). Raises InvalidInputError for a bad
-    question and NotFoundError for an unknown camera.
+    Only ready recordings are searched. With `tracks`, a question that names a relation is
+    run over each recording's stored tracks and the clips come with proofs; a recording
+    with no stored tracks, and any question without a relation, use the keyword
+    `interpreter` over the stored clips instead. `parser` (optional) reads the question
+    before the keyword reader does. The note says what the answer left out: recordings of
+    the searched cameras still being indexed, a day without footage, or a question not
+    understood. Each clip comes with its recording's camera, taken from the day's
+    recordings. Raises InvalidInputError for a bad question and NotFoundError for an
+    unknown camera.
     """
     question = check_question(question)
     require_camera_filter(library, camera_id)
@@ -190,25 +223,65 @@ def search_day(
         return SearchResult(question=question, day=day, clips=[], note=note)
 
     camera_of = {recording.id: recording.camera for recording in recordings}
-    ready_ids = {recording.id for recording in recordings if recording.status == "ready"}
+    ready = [recording for recording in recordings if recording.status == "ready"]
+    ready_ids = {recording.id for recording in ready}
     zone_names = _zone_names(library, camera_id)
-    plan = interpreter.interpret(question, zone_names)
-    clips = sorted(
-        (
-            ClipWithCamera(clip=clip, camera=camera_of[clip.recording_id])
-            for clip in library.clips.list_clips(camera_id, day)
-            if clip.recording_id in ready_ids and plan.matches(clip)
-        ),
-        key=lambda found: (found.clip.start_time, found.clip.id),
-    )
 
-    notes: list[str] = []
-    if not plan.understood:
+    found: list[ClipWithCamera] = []
+    proofs: dict[str, ClipProof] = {}
+    demo_ids = set(ready_ids)
+    relation_used = False  # True once any recording was answered from its tracks
+    relation_notes: list[str] = []
+    if tracks is not None:
+        asked = read_question(question, zone_names, parser)
+        if asked is not None:
+            for recording in ready:
+                zones = library.zones.list_zones(recording.camera)
+                answer = answer_recording(recording, asked, zones, tracks, frame_size)
+                if isinstance(answer, NotJudged):
+                    if answer.note and answer.note not in relation_notes:
+                        relation_notes.append(answer.note)
+                    continue
+                relation_used = True
+                demo_ids.discard(recording.id)
+                if answer.note and answer.note not in relation_notes:
+                    relation_notes.append(answer.note)
+                _remember_clips(library, answer.clips)
+                found.extend(ClipWithCamera(clip, recording.camera) for clip in answer.clips)
+                proofs.update((proof.clip_id, proof) for proof in answer.proofs)
+
+    plan = interpreter.interpret(question, zone_names)
+    found.extend(
+        ClipWithCamera(clip=clip, camera=camera_of[clip.recording_id])
+        for clip in library.clips.list_clips(camera_id, day)
+        if clip.recording_id in demo_ids
+        and not clip.id.startswith(RELATION_CLIP_PREFIX)
+        and plan.matches(clip)
+    )
+    clips = sorted(found, key=lambda item: (item.clip.start_time, item.clip.id))
+
+    notes: list[str] = list(relation_notes)
+    if not plan.understood and not relation_used:
         notes.append(_not_understood_note(zone_names))
     not_ready = len(recordings) - len(ready_ids)
     if not_ready:
         notes.append(_not_ready_note(not_ready))
-    return SearchResult(question=question, day=day, clips=clips, note=" ".join(notes) or None)
+    return SearchResult(
+        question=question,
+        day=day,
+        clips=clips,
+        note=" ".join(notes) or None,
+        proofs=tuple(proofs[item.clip.id] for item in clips if item.clip.id in proofs),
+    )
+
+
+def _remember_clips(library: Library, clips: Sequence[Clip]) -> None:
+    """Write clips found from tracks to the clip store; one that is already there is kept."""
+    for clip in clips:
+        try:
+            library.clips.add_clip(clip)
+        except (DuplicateError, MissingReferenceError):
+            pass  # same finding as an earlier search, or its recording was just deleted
 
 
 def _zone_names(library: Library, camera_id: str | None) -> list[str]:

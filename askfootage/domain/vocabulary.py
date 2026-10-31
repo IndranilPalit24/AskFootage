@@ -9,6 +9,7 @@ a kind of object, never who someone is. Pure data: no I/O.
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
@@ -143,3 +144,120 @@ def parse_question(data: Mapping[str, object]) -> Question:
         zone=data.get("zone"),  # type: ignore[arg-type]
         min_seconds=data.get("min_seconds"),  # type: ignore[arg-type]
     )
+
+
+# --- free-text synonyms ------------------------------------------------------------------
+
+_STRONG_RELATION_PHRASES: dict[RelationKind, tuple[str, ...]] = {
+    "carrying": (
+        "carrying carries carried carry holding holds held hauling hauls hauled lugging "
+        "lugs toting totes"
+    ).split(),
+    "in_zone": [
+        *"enter enters entered entering crosses crossed crossing".split(),
+        *(
+            f"{verb} into"
+            for verb in ("walks walked walking goes went steps stepped moves moved".split())
+        ),
+    ],
+    "dwell": (
+        "stay stays stayed staying dwell dwells dwelled dwelling linger lingers lingered "
+        "lingering loiter loiters loitered loitering waits waited waiting remains remained"
+    ).split(),
+}
+_WEAK_RELATION_WORDS: dict[str, str] = {"zone": "in_zone", "area": "in_zone", "region": "in_zone"}
+
+_NOUN_SYNONYMS: dict[str, ObjectNoun] = {
+    "person": ObjectNoun.PERSON,
+    "people": ObjectNoun.PERSON,
+    "persons": ObjectNoun.PERSON,
+    "worker": ObjectNoun.PERSON,
+    "workers": ObjectNoun.PERSON,
+    "pedestrian": ObjectNoun.PERSON,
+    "pedestrians": ObjectNoun.PERSON,
+    "someone": ObjectNoun.PERSON,
+    "somebody": ObjectNoun.PERSON,
+    "individual": ObjectNoun.PERSON,
+    "bag": ObjectNoun.BAG,
+    "bags": ObjectNoun.BAG,
+    "handbag": ObjectNoun.BAG,
+    "handbags": ObjectNoun.BAG,
+    "backpack": ObjectNoun.BAG,
+    "backpacks": ObjectNoun.BAG,
+    "satchel": ObjectNoun.BAG,
+    "sack": ObjectNoun.BAG,
+    "box": ObjectNoun.CARDBOARD_BOX,
+    "boxes": ObjectNoun.CARDBOARD_BOX,
+    "carton": ObjectNoun.CARDBOARD_BOX,
+    "cartons": ObjectNoun.CARDBOARD_BOX,
+    "parcel": ObjectNoun.CARDBOARD_BOX,
+    "parcels": ObjectNoun.CARDBOARD_BOX,
+    "package": ObjectNoun.CARDBOARD_BOX,
+    "packages": ObjectNoun.CARDBOARD_BOX,
+    "cardboard": ObjectNoun.CARDBOARD_BOX,
+    "crate": ObjectNoun.CRATE,
+    "crates": ObjectNoun.CRATE,
+}
+
+
+@dataclass(frozen=True, slots=True)
+class TextInterpretation:
+    """What free text asked for: a relation (None if unclear) and the nouns it mentioned,
+    in order of first mention without repeats."""
+
+    relation: RelationKind | None
+    nouns: tuple[ObjectNoun, ...]
+
+    @property
+    def subject(self) -> ObjectNoun | None:
+        """The first mentioned non-person noun, else a person, else None."""
+        for noun in self.nouns:
+            if noun is not ObjectNoun.PERSON:
+                return noun
+        return self.nouns[0] if self.nouns else None
+
+
+def _relation_table() -> tuple[dict[tuple[str, ...], RelationKind], int]:
+    table = {
+        tuple(phrase.split()): relation
+        for relation, phrases in _STRONG_RELATION_PHRASES.items()
+        for phrase in phrases
+    }
+    return table, max(len(key) for key in table)
+
+
+_RELATION_TABLE, _MAX_PHRASE = _relation_table()
+
+
+def interpret_text(text: str) -> TextInterpretation:
+    """Map free text to a relation kind and object nouns, deterministically.
+
+    Words are lower-cased and split on non-letters. The relation is the one whose phrase
+    (carrying/holding..., enter/walks into..., stays/dwells/lingers...) appears first; if
+    none does, the weak words zone/area/region give in_zone, else None. Nouns are
+    synonyms (box, parcel, backpack, worker...) mapped to the closed vocabulary. Raises
+    TypeError for non-text.
+    """
+    if not isinstance(text, str):
+        raise TypeError(f"text must be a string; got {type(text).__name__}")
+    words = re.findall(r"[a-z]+", text.casefold())
+    relation: RelationKind | None = None
+    nouns: list[ObjectNoun] = []
+    index = 0
+    while index < len(words):
+        matched = False
+        if relation is None:
+            for size in range(min(_MAX_PHRASE, len(words) - index), 0, -1):
+                found = _RELATION_TABLE.get(tuple(words[index : index + size]))
+                if found is not None:
+                    relation, index, matched = found, index + size, True
+                    break
+        if matched:
+            continue
+        noun = _NOUN_SYNONYMS.get(words[index])
+        if noun is not None and noun not in nouns:
+            nouns.append(noun)
+        index += 1
+    if relation is None and any(w in _WEAK_RELATION_WORDS for w in words):
+        relation = "in_zone"
+    return TextInterpretation(relation, tuple(nouns))

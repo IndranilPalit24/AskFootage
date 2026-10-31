@@ -368,3 +368,22 @@ def dwell(
             )
             intervals.append(Interval(start, end, evidence))
     return _sorted(intervals)
+
+
+def region_entry(
+    tracks: Iterable[Track],
+    polygon: Sequence[Point],
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
+) -> list[Interval]:
+    """Intervals where a track crossed into a zone from outside.
+
+    These are the region_traversal intervals of tracks that were seen outside the zone
+    before going in: start_frame is the entry frame. A track first seen already inside
+    never entered, so it gives nothing. Same evidence as region_traversal (kind "in_zone"),
+    with started_inside always 0.0.
+    """
+    return [
+        interval
+        for interval in region_traversal(tracks, polygon, thresholds)
+        if dict(interval.evidence.measures).get("started_inside") == 0.0
+    ]
