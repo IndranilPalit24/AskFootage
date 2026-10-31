@@ -2,14 +2,14 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AskFootage API",
-    "version": "1.0.0",
-    "description": "Ask a plain-English question about fixed-camera footage and get the matching clips with the evidence for each match. Every path is under /api. Every error has the body {\"error\": {\"code\": \"...\", \"message\": \"...\"}} with a matching HTTP status, and never contains a stack trace, a key or a server path. JSON field names are camelCase. Days are calendar dates (YYYY-MM-DD) and times of day are HH:MM:SS in the camera's local time. Lists are not paginated in v1: days, recordings and search results are bounded by the 7-day window, one day and one camera; zones and saved clips are bounded only by what the single user of the v1 demo creates. Versioning: /api is unversioned because the UI and the API ship together; changes are additive only, and a breaking change (such as paging zones or saved clips) moves to /api/v2. This file is written in JSON syntax, which is valid YAML 1.2, so it can be read without a YAML library."
+    "version": "1.2.0",
+    "description": "Ask a plain-English question about fixed-camera footage and get the matching clips with the evidence for each match. Every path is under /api. Every error has the body {\"error\": {\"code\": \"...\", \"message\": \"...\"}} with a matching HTTP status, and never contains a stack trace, a key, a password or a server path. JSON field names are camelCase. Days are calendar dates (YYYY-MM-DD) and times of day are HH:MM:SS in the camera's local time. Cameras are identified by ids the server gives out in order (CAM-001, CAM-002, ...); a camera's stream password is checked when the camera is added and then dropped: it is never stored, returned or logged. Wherever a camera query parameter is optional, leaving it out means all cameras. Lists are not paginated in v1: days, recordings and search results are bounded by the 7-day window and one day; cameras, zones and saved clips are bounded only by what the single user of the v1 demo creates. Versioning: /api is unversioned because the UI and the API ship together; once released, changes are additive only, and a breaking change (such as paging cameras, zones or saved clips) moves to /api/v2. Still pre-release: 1.1.0 added cameras, made camera ids CAM-NNN and dropped the camera from Status; 1.2.0 adds POST /api/recordings/{id}/index. This file is written in JSON syntax, which is valid YAML 1.2, so it can be read without a YAML library."
   },
   "paths": {
     "/api/status": {
       "get": {
         "operationId": "getStatus",
-        "summary": "Whether the app serves demo data, and the camera it covers",
+        "summary": "Whether the app serves demo data",
         "responses": {
           "200": {
             "description": "Current status",
@@ -19,12 +19,93 @@
         }
       }
     },
+    "/api/cameras": {
+      "get": {
+        "operationId": "listCameras",
+        "summary": "Every camera, in id order (creation order)",
+        "responses": {
+          "200": {
+            "description": "The cameras",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Camera" } }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      },
+      "post": {
+        "operationId": "addCamera",
+        "summary": "Add a camera to the registry",
+        "description": "The server gives the camera the next id (CAM-001, CAM-002, ...; a number is never reused, even after a delete) and status online. There is no limit on how many cameras can be added. The password is checked for length and then dropped: it is not stored, not returned and not logged. A name that another camera already has, ignoring case, returns 409 with code camera_name_taken.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CameraCreate" } } }
+        },
+        "responses": {
+          "201": {
+            "description": "The new camera",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Camera" } } }
+          },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/cameras/{id}": {
+      "get": {
+        "operationId": "getCamera",
+        "summary": "One camera",
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": {
+            "description": "The camera",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Camera" } } }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      },
+      "patch": {
+        "operationId": "updateCamera",
+        "summary": "Change a camera's status",
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CameraUpdate" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "The camera after the change",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Camera" } } }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteCamera",
+        "summary": "Delete a camera and everything recorded on it",
+        "description": "Also removes the camera's recordings (with their clips and saved clips) and its zones. A second delete of the same camera returns 404.",
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "204": { "description": "Deleted" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
     "/api/days": {
       "get": {
         "operationId": "listDays",
         "summary": "Recording counts for the last 7 days, oldest first, ending today",
-        "description": "Always returns exactly 7 entries; a day with no footage has recordings 0 and ready 0. The last entry is today on the server's clock (in demo mode, the demo dataset's today), so a client can use it as the default day.",
-        "parameters": [{ "$ref": "#/components/parameters/CameraQuery" }],
+        "description": "Always returns exactly 7 entries; a day with no footage has recordings 0 and ready 0. Without camera, the counts cover all cameras. The last entry is today on the server's clock (in demo mode, the demo dataset's today), so a client can use it as the default day.",
+        "parameters": [{ "$ref": "#/components/parameters/OptionalCameraQuery" }],
         "responses": {
           "200": {
             "description": "One entry per day",
@@ -43,10 +124,11 @@
     "/api/recordings": {
       "get": {
         "operationId": "listRecordings",
-        "summary": "The recordings of one camera on one day, earliest first",
+        "summary": "The recordings on one day, earliest first",
+        "description": "Without camera, lists every camera's recordings, ordered by startTime, then camera, then id.",
         "parameters": [
           { "$ref": "#/components/parameters/DayQuery" },
-          { "$ref": "#/components/parameters/CameraQuery" }
+          { "$ref": "#/components/parameters/OptionalCameraQuery" }
         ],
         "responses": {
           "200": {
@@ -64,7 +146,7 @@
       },
       "post": {
         "operationId": "addRecording",
-        "summary": "Upload a video file as a new recording",
+        "summary": "Upload a video file as a new recording of one camera",
         "description": "Accepts one MP4 file of at most 200 MiB. The recording is registered with status waiting, startTime 00:00:00 and lengthSeconds 0; processing fills those in later. In v1 (demo mode) the file is checked and registered but not stored or processed. Not idempotent: sending the same file again registers another recording.",
         "requestBody": {
           "required": true,
@@ -72,11 +154,11 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["file", "day"],
+                "required": ["file", "day", "camera"],
                 "properties": {
                   "file": { "type": "string", "contentMediaType": "video/mp4", "description": "The video, MP4 only, at most 200 MiB" },
                   "day": { "type": "string", "format": "date", "description": "The day the footage was recorded" },
-                  "camera": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "default": "loading-dock", "description": "The camera that recorded it" }
+                  "camera": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "The id of the camera that recorded it, for example CAM-001" }
                 }
               }
             }
@@ -116,11 +198,30 @@
         }
       }
     },
+    "/api/recordings/{id}/index": {
+      "post": {
+        "operationId": "indexRecording",
+        "summary": "Start indexing a recording so it becomes searchable",
+        "description": "Only a recording with status waiting can be indexed. On acceptance its status becomes preparing and the work continues after the reply: preparing (making the working copy), then indexing (finding objects), then ready. If the work fails, the status goes back to waiting so it can be retried. No request body. Not idempotent: a second call while the first is still running returns 409. When this build has no indexing backend, the reply is 503 with code indexing_not_configured and nothing changes.",
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "202": {
+            "description": "Accepted; the recording is now being prepared",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IndexAccepted" } } }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/IndexingNotConfigured" }
+        }
+      }
+    },
     "/api/search": {
       "post": {
         "operationId": "search",
-        "summary": "Answer a question about one day of one camera's footage",
-        "description": "Synchronous in v1. Only ready recordings are searched; note explains anything the answer left out (for example a recording still being indexed), and is null when there is nothing to add. clips is empty when nothing matched.",
+        "summary": "Answer a question about one day of footage, from one camera or all of them",
+        "description": "Synchronous in v1. Without camera, every camera's footage is searched. Only ready recordings are searched; note explains anything the answer left out (for example a recording still being indexed), and is null when there is nothing to add. clips is empty when nothing matched.",
         "requestBody": {
           "required": true,
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SearchRequest" } } }
@@ -166,6 +267,7 @@
               }
             }
           },
+          "404": { "$ref": "#/components/responses/NotFound" },
           "422": { "$ref": "#/components/responses/ValidationFailed" },
           "500": { "$ref": "#/components/responses/ServerError" }
         }
@@ -302,19 +404,13 @@
         "required": true,
         "schema": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" }
       },
-      "CameraQuery": {
-        "name": "camera",
-        "in": "query",
-        "required": true,
-        "schema": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
-        "example": "loading-dock"
-      },
       "OptionalCameraQuery": {
         "name": "camera",
         "in": "query",
         "required": false,
+        "description": "A camera id; leave it out for all cameras",
         "schema": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
-        "example": "loading-dock"
+        "example": "CAM-001"
       },
       "DayQuery": {
         "name": "day",
@@ -337,7 +433,7 @@
         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
       },
       "Conflict": {
-        "description": "The change clashes with existing data (code already_saved or zone_name_taken)",
+        "description": "The change clashes with existing data (code already_saved, zone_name_taken or camera_name_taken), or the recording is not waiting to be indexed (code recording_not_waiting)",
         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
       },
       "TooLarge": {
@@ -355,6 +451,10 @@
       "ServerError": {
         "description": "Something went wrong on the server (code internal_error); no details are exposed",
         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "IndexingNotConfigured": {
+        "description": "This build has no indexing backend (code indexing_not_configured, message Indexing is not configured in this build)",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
       }
     },
     "schemas": {
@@ -369,25 +469,56 @@
         "properties": {
           "code": {
             "type": "string",
-            "description": "Stable, machine-readable: validation_error, not_found, method_not_allowed (405, also a refused CORS preflight), already_saved, zone_name_taken, file_too_large, unsupported_media_type or internal_error"
+            "description": "Stable, machine-readable: validation_error, not_found, method_not_allowed (405, also a refused CORS preflight), already_saved, zone_name_taken, camera_name_taken, file_too_large, unsupported_media_type or internal_error"
           },
-          "message": { "type": "string", "description": "Plain-English explanation, safe to show to a person" }
-        }
-      },
-      "Camera": {
-        "type": "object",
-        "required": ["id", "name"],
-        "properties": {
-          "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
-          "name": { "type": "string" }
+          "message": { "type": "string", "description": "Plain-English explanation, safe to show to a person; never contains a submitted password" }
         }
       },
       "Status": {
         "type": "object",
-        "required": ["demoMode", "camera"],
+        "required": ["demoMode"],
         "properties": {
-          "demoMode": { "type": "boolean", "description": "True when the app serves the seeded demo data; the UI then shows a Demo data chip" },
-          "camera": { "$ref": "#/components/schemas/Camera" }
+          "demoMode": { "type": "boolean", "description": "True when the app serves the seeded demo data" }
+        }
+      },
+      "Camera": {
+        "type": "object",
+        "required": [
+          "id", "name", "location", "department", "ip", "status", "rtspUrlMasked",
+          "zoneCount", "recordingCount", "savedClipCount", "createdAt"
+        ],
+        "properties": {
+          "id": { "type": "string", "pattern": "^CAM-[0-9]{3,}$", "description": "Given by the server in order: CAM-001, CAM-002, ... (CAM-1000 after CAM-999); never reused, even after a delete" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "location": { "type": ["string", "null"], "description": "Where the camera is, or null" },
+          "department": { "type": ["string", "null"], "description": "Who looks after it, or null" },
+          "ip": { "type": "string", "description": "IPv4 address or host name of the camera" },
+          "status": { "type": "string", "enum": ["online", "standby", "offline"], "description": "online: streaming; standby: reachable but not recording; offline: not reachable" },
+          "rtspUrlMasked": { "type": "string", "description": "rtsp://<username>:****@<ip>:554/cam/realmonitor?channel=1&subtype=1, where <username> is the stream username percent-encoded (every character except A-Z a-z 0-9 - . _ ~ becomes %XX of its UTF-8 bytes, upper-case hex) and the password is always the four characters ****. The real password is never part of any response." },
+          "zoneCount": { "type": "integer", "minimum": 0 },
+          "recordingCount": { "type": "integer", "minimum": 0 },
+          "savedClipCount": { "type": "integer", "minimum": 0, "description": "Saved clips from this camera's recordings" },
+          "createdAt": { "type": "string", "format": "date-time", "description": "UTC, ending in Z" }
+        }
+      },
+      "CameraCreate": {
+        "type": "object",
+        "required": ["name", "ip", "username", "password", "acknowledgeCost"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 80, "description": "Not blank after trimming (stored trimmed); unique ignoring case (409 camera_name_taken)" },
+          "ip": { "type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$", "description": "An IPv4 address (four numbers 0-255 separated by dots) or a host name (labels of letters, digits and inner hyphens separated by dots). No spaces, scheme, port, user or path. A value made only of digits and dots must be a valid IPv4 address." },
+          "username": { "type": "string", "minLength": 1, "maxLength": 64, "description": "The stream username; shown inside rtspUrlMasked" },
+          "password": { "type": "string", "minLength": 1, "maxLength": 128, "writeOnly": true, "description": "The stream password. Checked for length, then dropped: never stored, returned or logged" },
+          "location": { "type": ["string", "null"], "maxLength": 80, "default": null, "description": "Optional; blank after trimming means null" },
+          "department": { "type": ["string", "null"], "maxLength": 80, "default": null, "description": "Optional; blank after trimming means null" },
+          "acknowledgeCost": { "type": "boolean", "const": true, "description": "Must be true: the user accepts that searching footage uses their Meta credits" }
+        }
+      },
+      "CameraUpdate": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string", "enum": ["online", "standby", "offline"] }
         }
       },
       "DaySummary": {
@@ -401,9 +532,10 @@
       },
       "Recording": {
         "type": "object",
-        "required": ["id", "day", "startTime", "lengthSeconds", "status"],
+        "required": ["id", "camera", "day", "startTime", "lengthSeconds", "status"],
         "properties": {
           "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+          "camera": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "The id of the camera that made it" },
           "day": { "type": "string", "format": "date" },
           "startTime": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$", "description": "Time of day the recording starts" },
           "lengthSeconds": { "type": "integer", "minimum": 0 },
@@ -420,6 +552,14 @@
         "properties": {
           "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
           "status": { "type": "string", "enum": ["waiting"] }
+        }
+      },
+      "IndexAccepted": {
+        "type": "object",
+        "required": ["id", "status"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+          "status": { "type": "string", "enum": ["preparing"] }
         }
       },
       "Evidence": {
@@ -441,12 +581,13 @@
       "Clip": {
         "type": "object",
         "required": [
-          "id", "recordingId", "day", "startTime", "startSeconds", "endSeconds", "label",
+          "id", "recordingId", "camera", "day", "startTime", "startSeconds", "endSeconds", "label",
           "evidence", "zone", "whyMatched", "keyFrames", "thumbnailUrl"
         ],
         "properties": {
           "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
           "recordingId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+          "camera": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "The id of the camera that made the recording" },
           "day": { "type": "string", "format": "date" },
           "startTime": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$", "description": "Time of day the clip starts" },
           "startSeconds": { "type": "integer", "minimum": 0, "description": "Seconds from the start of the recording" },
@@ -461,11 +602,11 @@
       },
       "SearchRequest": {
         "type": "object",
-        "required": ["question", "day", "camera"],
+        "required": ["question", "day"],
         "properties": {
           "question": { "type": "string", "minLength": 1, "maxLength": 300, "description": "Not blank after trimming" },
           "day": { "type": "string", "format": "date" },
-          "camera": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" }
+          "camera": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9_-]{1,64}$", "default": null, "description": "A camera id; null or left out searches every camera" }
         }
       },
       "SearchResponse": {
@@ -490,7 +631,7 @@
         "required": ["id", "camera", "name", "points"],
         "properties": {
           "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
-          "camera": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+          "camera": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "The id of the camera the zone is drawn on" },
           "name": { "type": "string", "minLength": 1, "maxLength": 60 },
           "points": { "type": "array", "minItems": 3, "maxItems": 50, "items": { "$ref": "#/components/schemas/Point" } }
         }
@@ -499,7 +640,7 @@
         "type": "object",
         "required": ["camera", "name", "points"],
         "properties": {
-          "camera": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+          "camera": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "The id of the camera to draw on (404 if unknown)" },
           "name": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Not blank after trimming; unique per camera, ignoring case (409 zone_name_taken)" },
           "points": { "type": "array", "minItems": 3, "maxItems": 50, "items": { "$ref": "#/components/schemas/Point" } }
         }

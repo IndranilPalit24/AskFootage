@@ -5,6 +5,7 @@
     {
       "id": "clip-1029-061405",
       "recordingId": "rec-1029-0600",
+      "camera": "CAM-001",
       "day": "2026-10-29",
       "startTime": "06:14:05",
       "startSeconds": 845,
@@ -41,6 +42,7 @@
     {
       "id": "clip-1029-070903",
       "recordingId": "rec-1029-0705",
+      "camera": "CAM-001",
       "day": "2026-10-29",
       "startTime": "07:09:03",
       "startSeconds": 243,
@@ -77,6 +79,7 @@
     {
       "id": "clip-1029-091522",
       "recordingId": "rec-1029-0912",
+      "camera": "CAM-001",
       "day": "2026-10-29",
       "startTime": "09:15:22",
       "startSeconds": 202,
@@ -109,6 +112,7 @@
     {
       "id": "clip-1029-104215",
       "recordingId": "rec-1029-1030",
+      "camera": "CAM-001",
       "day": "2026-10-29",
       "startTime": "10:42:15",
       "startSeconds": 735,
@@ -145,6 +149,7 @@
     {
       "id": "clip-1029-130610",
       "recordingId": "rec-1029-1300",
+      "camera": "CAM-001",
       "day": "2026-10-29",
       "startTime": "13:06:10",
       "startSeconds": 370,

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "indexing_not_configured",
+    "message": "Indexing is not configured in this build"
+  }
+}

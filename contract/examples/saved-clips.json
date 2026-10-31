@@ -4,6 +4,7 @@
     "clip": {
       "id": "clip-1029-104215",
       "recordingId": "rec-1029-1030",
+      "camera": "CAM-001",
       "day": "2026-10-29",
       "startTime": "10:42:15",
       "startSeconds": 735,

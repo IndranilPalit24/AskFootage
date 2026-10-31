@@ -1,7 +1,3 @@
 {
-  "demoMode": true,
-  "camera": {
-    "id": "loading-dock",
-    "name": "Loading dock"
-  }
+  "demoMode": true
 }

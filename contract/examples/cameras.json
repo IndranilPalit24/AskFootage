@@ -1,0 +1,41 @@
+[
+  {
+    "id": "CAM-001",
+    "name": "Loading dock",
+    "location": "Warehouse, north side",
+    "department": "Logistics",
+    "ip": "192.168.1.101",
+    "status": "online",
+    "rtspUrlMasked": "rtsp://viewer:****@192.168.1.101:554/cam/realmonitor?channel=1&subtype=1",
+    "zoneCount": 2,
+    "recordingCount": 18,
+    "savedClipCount": 0,
+    "createdAt": "2026-10-20T08:00:00Z"
+  },
+  {
+    "id": "CAM-002",
+    "name": "Front gate",
+    "location": "Main entrance",
+    "department": "Security",
+    "ip": "192.168.1.102",
+    "status": "standby",
+    "rtspUrlMasked": "rtsp://viewer:****@192.168.1.102:554/cam/realmonitor?channel=1&subtype=1",
+    "zoneCount": 1,
+    "recordingCount": 3,
+    "savedClipCount": 0,
+    "createdAt": "2026-10-21T09:30:00Z"
+  },
+  {
+    "id": "CAM-003",
+    "name": "Back door",
+    "location": null,
+    "department": "Facilities",
+    "ip": "cam-backdoor.local",
+    "status": "offline",
+    "rtspUrlMasked": "rtsp://admin:****@cam-backdoor.local:554/cam/realmonitor?channel=1&subtype=1",
+    "zoneCount": 0,
+    "recordingCount": 2,
+    "savedClipCount": 0,
+    "createdAt": "2026-10-22T10:15:00Z"
+  }
+]

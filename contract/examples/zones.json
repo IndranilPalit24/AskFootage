@@ -1,7 +1,7 @@
 [
   {
     "id": "zone-exit-lane",
-    "camera": "loading-dock",
+    "camera": "CAM-001",
     "name": "Exit lane",
     "points": [
       [
@@ -24,7 +24,7 @@
   },
   {
     "id": "zone-loading-door",
-    "camera": "loading-dock",
+    "camera": "CAM-001",
     "name": "Loading door",
     "points": [
       [
