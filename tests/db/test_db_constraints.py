@@ -11,11 +11,19 @@ from datetime import UTC, date, datetime, time
 from pathlib import Path
 
 import pytest
-from db_library_helpers import camera, clip, raw_connection, recording, zone
+from db_library_helpers import (
+    CAM_1,
+    CAM_2,
+    clip,
+    new_camera,
+    raw_connection,
+    recording,
+    stored_camera,
+    zone,
+)
 
 from askfootage.adapters.sqlite.store import SqliteLibraryStore
 from askfootage.ports.library_store import (
-    Camera,
     Evidence,
     KeyFrame,
     LibraryError,
@@ -25,7 +33,11 @@ from askfootage.ports.library_store import (
 )
 
 INSERTS = {
-    "cameras": "INSERT INTO cameras (id, name) VALUES (:id, :name)",
+    "cameras": (
+        "INSERT INTO cameras (id, number, name, ip, username, status, location, department, "
+        "created_at) VALUES (:id, :number, :name, :ip, :username, :status, :location, "
+        ":department, :created_at)"
+    ),
     "recordings": (
         "INSERT INTO recordings (id, camera_id, day, start_time, length_seconds, status) "
         "VALUES (:id, :camera_id, :day, :start_time, :length_seconds, :status)"
@@ -56,10 +68,21 @@ INSERTS = {
 
 # One valid new row per table, given the rows the `base` fixture stores.
 GOOD = {
-    "cameras": {"id": "cam-new", "name": "Back door"},
+    # CAM-001 and CAM-002 are taken, so the next number is 3.
+    "cameras": {
+        "id": "CAM-003",
+        "number": 3,
+        "name": "Back door",
+        "ip": "cam-backdoor.local",
+        "username": "admin",
+        "status": "offline",
+        "location": "x" * 80,
+        "department": None,
+        "created_at": "2026-10-30T09:00:00.000000Z",
+    },
     "recordings": {
         "id": "rec-new",
-        "camera_id": "cam-1",
+        "camera_id": CAM_1,
         "day": "2026-10-30",
         "start_time": 0,
         "length_seconds": 0,
@@ -68,7 +91,7 @@ GOOD = {
     "clips": {
         "id": "clip-new",
         "recording_id": "rec-1",
-        "camera_id": "cam-1",
+        "camera_id": CAM_1,
         "day": "2026-10-29",
         "start_time": 86399,
         "start_seconds": 0,
@@ -80,7 +103,7 @@ GOOD = {
     },
     "clip_evidence": {"clip_id": "clip-1", "position": 9, "kind": "dwell", "text": "Stayed"},
     "clip_key_frames": {"clip_id": "clip-1", "position": 9, "at_seconds": 0, "image_url": None},
-    "zones": {"id": "zone-new", "camera_id": "cam-1", "name": "x" * 60},
+    "zones": {"id": "zone-new", "camera_id": CAM_1, "name": "x" * 60},
     "zone_points": {"zone_id": "zone-1", "position": 9, "x": 0.0, "y": 1.0},
     "saved_clips": {
         "id": "saved-new",
@@ -100,11 +123,39 @@ BAD = [
     ("cameras", "id", "café"),
     ("cameras", "id", INJECTION),
     ("cameras", "id", None),
-    ("cameras", "id", "cam-1"),  # taken
+    ("cameras", "id", CAM_1),  # taken (and not number 3's id)
+    ("cameras", "id", "CAM-3"),  # one spelling per number: CAM-003
+    ("cameras", "id", "CAM-0003"),
+    ("cameras", "id", "cam-003"),
+    ("cameras", "number", 2),  # taken, and already handed out
+    ("cameras", "number", 0),
+    ("cameras", "number", None),
+    ("cameras", "number", 3.5),
     ("cameras", "name", ""),
     ("cameras", "name", " \t\n "),
     ("cameras", "name", None),
     ("cameras", "name", b"bytes"),
+    ("cameras", "name", "x" * 81),
+    ("cameras", "name", "FRONT GATE"),  # CAM-001's name in another case
+    ("cameras", "ip", ""),
+    ("cameras", "ip", "  "),
+    ("cameras", "ip", "a" * 254),
+    ("cameras", "ip", None),
+    ("cameras", "username", ""),
+    ("cameras", "username", "x" * 65),
+    ("cameras", "username", None),
+    ("cameras", "status", "deleted"),
+    ("cameras", "status", "ONLINE"),
+    ("cameras", "status", None),
+    ("cameras", "location", ""),
+    ("cameras", "location", " "),
+    ("cameras", "location", "x" * 81),
+    ("cameras", "department", ""),
+    ("cameras", "department", "x" * 81),
+    ("cameras", "created_at", "2026-10-30T09:00:00Z"),
+    ("cameras", "created_at", "2026-10-30T09:00:00.000000+00:00"),
+    ("cameras", "created_at", "2026-02-30T09:00:00.000000Z"),
+    ("cameras", "created_at", None),
     # recordings
     ("recordings", "id", "rec-1"),  # taken
     ("recordings", "id", "rec 2"),
@@ -129,7 +180,7 @@ BAD = [
     ("clips", "id", "clip-1"),  # taken
     ("clips", "recording_id", "no-such-recording"),
     ("clips", "day", "2026-10-30"),  # not rec-1's day
-    ("clips", "camera_id", "cam-2"),  # not rec-1's camera
+    ("clips", "camera_id", CAM_2),  # not rec-1's camera
     ("clips", "start_time", -1),
     ("clips", "start_time", 86400),
     ("clips", "start_seconds", -1),
@@ -155,7 +206,7 @@ BAD = [
     # zones
     ("zones", "id", "zone-1"),  # taken
     ("zones", "camera_id", "no-such-camera"),
-    ("zones", "name", "Gate"),  # cam-1 already has a zone named Gate
+    ("zones", "name", "Gate"),  # CAM-001 already has a zone named Gate
     ("zones", "name", ""),
     ("zones", "name", "   "),
     ("zones", "name", "x" * 61),
@@ -189,9 +240,9 @@ BAD = [
 
 @pytest.fixture
 def base(stocked_store: SqliteLibraryStore, library_path: Path) -> Path:
-    """cam-1 and cam-2; rec-1 on cam-1, 29 Oct; clip-1 (saved as saved-1) and clip-2;
-    zone-1 "Gate" on cam-1."""
-    stocked_store.add_camera(camera("cam-2", "Yard"))
+    """CAM-001 "Front gate" and CAM-002 "Yard"; rec-1 on CAM-001, 29 Oct; clip-1 (saved as
+    saved-1) and clip-2; zone-1 "Gate" on CAM-001."""
+    assert stocked_store.add_camera(new_camera("Yard")).id == CAM_2
     stocked_store.add_clip(clip("clip-2", start_time=time(10, 1), start_seconds=60, end_seconds=70))
     stocked_store.add_zone(zone())
     stocked_store.add_saved_clip("saved-1", "clip-1", "", datetime(2026, 10, 30, 9, tzinfo=UTC))
@@ -217,7 +268,7 @@ def test_each_bad_value_is_refused(base: Path, table: str, column: str, value: o
 
 def test_the_same_zone_name_is_fine_on_another_camera(base: Path) -> None:
     with raw_connection(base) as db:
-        db.execute(INSERTS["zones"], {"id": "zone-2", "camera_id": "cam-2", "name": "Gate"})
+        db.execute(INSERTS["zones"], {"id": "zone-2", "camera_id": CAM_2, "name": "Gate"})
 
 
 def test_a_recordings_camera_or_day_cannot_change_under_its_clips(base: Path) -> None:
@@ -225,7 +276,7 @@ def test_a_recordings_camera_or_day_cannot_change_under_its_clips(base: Path) ->
         with pytest.raises(sqlite3.IntegrityError):
             db.execute("UPDATE recordings SET day = '2026-10-30' WHERE id = 'rec-1'")
         with pytest.raises(sqlite3.IntegrityError):
-            db.execute("UPDATE recordings SET camera_id = 'cam-2' WHERE id = 'rec-1'")
+            db.execute("UPDATE recordings SET camera_id = ? WHERE id = 'rec-1'", (CAM_2,))
 
 
 def test_an_update_cannot_break_a_check_either(base: Path) -> None:
@@ -236,6 +287,25 @@ def test_an_update_cannot_break_a_check_either(base: Path) -> None:
             db.execute("UPDATE zone_points SET x = 1.5 WHERE zone_id = 'zone-1'")
         with pytest.raises(sqlite3.IntegrityError):
             db.execute("UPDATE saved_clips SET note = ? WHERE id = 'saved-1'", ("x" * 501,))
+
+
+def test_the_camera_triggers_keep_numbers_unique_forever(base: Path) -> None:
+    """A deleted camera's number cannot come back, and the sequence only counts up."""
+    reused = {**GOOD["cameras"], "id": CAM_2, "number": 2}
+    with raw_connection(base) as db:
+        db.execute("DELETE FROM cameras WHERE id = ?", (CAM_2,))
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute(INSERTS["cameras"], reused)  # CAM-002 was handed out already
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute("UPDATE camera_sequence SET last_number = 1")
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute("DELETE FROM camera_sequence")
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute("INSERT INTO camera_sequence (only_row, last_number) VALUES (2, 9)")
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute("UPDATE cameras SET id = 'CAM-009', number = 9 WHERE id = ?", (CAM_1,))
+        db.execute(INSERTS["cameras"], GOOD["cameras"])  # CAM-003 moves the sequence on
+        assert db.execute("SELECT last_number FROM camera_sequence").fetchone()[0] == 3
 
 
 # --- The other layer: the store refuses what the dataclasses let through ------------
@@ -279,7 +349,7 @@ def test_store_refuses_a_datetime_where_a_day_belongs(base: Path) -> None:
     with pytest.raises(TypeError):
         store.add_recording(recording("rec-2", day=datetime(2026, 10, 29, 12)))
     with pytest.raises(TypeError):
-        store.list_recordings("cam-1", datetime(2026, 10, 29, 12))
+        store.list_recordings(CAM_1, datetime(2026, 10, 29, 12))
 
 
 def test_store_refuses_a_number_too_large_for_sqlite(base: Path) -> None:
@@ -292,22 +362,24 @@ def test_store_refuses_a_number_too_large_for_sqlite(base: Path) -> None:
 @pytest.mark.parametrize(
     "build",
     [
-        lambda: Camera("bad id", "Gate"),
-        lambda: Camera("cam-9", "  "),
-        lambda: Recording("rec-9", "cam-1", date(2026, 10, 29), time(1), -1, "ready"),
-        lambda: Recording("rec-9", "cam-1", date(2026, 10, 29), time(1), 1, "done"),
+        lambda: stored_camera("bad id", new_camera()),
+        lambda: stored_camera("CAM-1", new_camera()),
+        lambda: new_camera("  "),
+        lambda: Recording("rec-9", CAM_1, date(2026, 10, 29), time(1), -1, "ready"),
+        lambda: Recording("rec-9", CAM_1, date(2026, 10, 29), time(1), 1, "done"),
         lambda: Evidence("face", "Face"),
         lambda: Evidence("dwell", " "),
         lambda: KeyFrame(-1),
         lambda: clip("clip-9", start_seconds=5, end_seconds=5),
         lambda: clip("clip-9", label=" "),
-        lambda: Zone("zone-9", "cam-1", "Gate", ((0, 0), (1, 0))),
-        lambda: Zone("zone-9", "cam-1", "Gate", ((0, 0), (1, 0), (1, 1.5))),
-        lambda: Zone("zone-9", "cam-1", " ", ((0, 0), (1, 0), (1, 1))),
+        lambda: Zone("zone-9", CAM_1, "Gate", ((0, 0), (1, 0))),
+        lambda: Zone("zone-9", CAM_1, "Gate", ((0, 0), (1, 0), (1, 1.5))),
+        lambda: Zone("zone-9", CAM_1, " ", ((0, 0), (1, 0), (1, 1))),
         lambda: SavedClip("saved-9", clip(), "", datetime(2026, 10, 30)),
     ],
     ids=[
         "camera-id",
+        "camera-id-unpadded",
         "camera-name",
         "recording-length",
         "recording-status",

@@ -8,12 +8,16 @@ from pathlib import Path
 
 import pytest
 from db_library_helpers import (
+    CAM_1,
     DEMO_SEED,
     EXAMPLES_DIR,
+    NO_SUCH_CAMERA,
     TABLES,
-    camera,
+    api_clip_json,
+    camera_json,
     clip_json,
     count_rows,
+    new_camera,
     raw_connection,
     recording_json,
     saved_clip_json,
@@ -22,9 +26,11 @@ from db_library_helpers import (
 
 from askfootage.adapters.sqlite import SeedDataError
 from askfootage.adapters.sqlite.store import SqliteLibraryStore, seed_demo_data
-from askfootage.ports.library_store import DaySummary
+from askfootage.ports.library_store import CameraCounts, DaySummary
 
-CAMERA = "loading-dock"
+CAMERA = CAM_1
+"""Loading dock: the camera the design reference shows."""
+CAMERAS = [("CAM-001", "Loading dock"), ("CAM-002", "Front gate"), ("CAM-003", "Back door")]
 THURSDAY = date(2026, 10, 29)
 
 # The design reference for Thu 29 Oct 2026, written out as literals rather than read from
@@ -50,6 +56,9 @@ THURSDAY_CLIPS = [
 ]
 # Recordings and ready recordings per day, Sat 24 to Fri 30; Sun 25 has none.
 WEEK = {24: (1, 1), 26: (2, 2), 27: (2, 2), 28: (3, 3), 29: (6, 5), 30: (4, 2)}
+# The same for all three cameras together: Front gate adds 2 ready on Thu and 1 indexing
+# on Fri; Back door adds 1 ready on Tue and on Wed.
+WEEK_ALL_CAMERAS = {24: (1, 1), 26: (2, 2), 27: (3, 3), 28: (4, 4), 29: (8, 7), 30: (5, 2)}
 
 
 def _example(name: str) -> object:
@@ -76,21 +85,65 @@ def _snapshot(path: Path) -> dict[str, list[tuple[object, ...]]]:
 
 
 def test_seeding_loads_the_whole_demo_library(seeded_store: SqliteLibraryStore) -> None:
-    assert [(c.id, c.name) for c in seeded_store.list_cameras()] == [(CAMERA, "Loading dock")]
-    total = sum(
-        len(seeded_store.list_recordings(CAMERA, date(2026, 10, day))) for day in range(24, 31)
-    )
-    assert total == 18
+    assert [(c.id, c.name) for c in seeded_store.list_cameras()] == CAMERAS
+    week = [date(2026, 10, day) for day in range(24, 31)]
+    assert sum(len(seeded_store.list_recordings(CAMERA, day)) for day in week) == 18
+    assert sum(len(seeded_store.list_recordings(None, day)) for day in week) == 23
     thursday = seeded_store.list_recordings(CAMERA, THURSDAY)
     assert (len(thursday), sum(r.status == "ready" for r in thursday)) == (6, 5)
     friday = seeded_store.list_recordings(CAMERA, date(2026, 10, 30))
     assert (len(friday), sum(r.status == "ready" for r in friday)) == (4, 2)
-    clips_per_day = {
-        day: len(seeded_store.list_clips(CAMERA, date(2026, 10, day))) for day in range(24, 31)
-    }
+    clips_per_day = {day.day: len(seeded_store.list_clips(CAMERA, day)) for day in week}
     assert clips_per_day == {24: 0, 25: 0, 26: 0, 27: 0, 28: 2, 29: 8, 30: 2}
-    assert len(seeded_store.list_zones()) == 2
+    all_clips_per_day = {day.day: len(seeded_store.list_clips(None, day)) for day in week}
+    assert all_clips_per_day == {24: 0, 25: 0, 26: 0, 27: 0, 28: 2, 29: 9, 30: 2}
+    assert len(seeded_store.list_zones()) == 3
+    assert len(seeded_store.list_zones(CAMERA)) == 2
     assert seeded_store.list_saved_clips() == []
+
+
+def test_cameras_and_their_counts_match_the_cameras_example(
+    seeded_store: SqliteLibraryStore,
+) -> None:
+    cameras = _example("cameras.json")
+    assert isinstance(cameras, list)
+    # rtspUrlMasked and the three counts are the API's to add; the store holds the rest.
+    held = ("id", "name", "location", "department", "ip", "status", "createdAt")
+    expected = [{key: camera[key] for key in held} for camera in cameras]
+    assert [camera_json(c) for c in seeded_store.list_cameras()] == expected
+    assert seeded_store.camera_counts() == {
+        camera["id"]: CameraCounts(
+            recordings=camera["recordingCount"],
+            zones=camera["zoneCount"],
+            saved_clips=camera["savedClipCount"],
+        )
+        for camera in cameras
+    }
+
+
+def test_the_next_camera_after_the_seed_matches_the_camera_example(
+    seeded_store: SqliteLibraryStore,
+) -> None:
+    example = _example("camera.json")
+    assert isinstance(example, dict)
+    added = seeded_store.add_camera(
+        new_camera(
+            example["name"],
+            ip=example["ip"],
+            username="yard.viewer",  # the user name shown inside its rtspUrlMasked
+            status=example["status"],
+            location=example["location"],
+            department=example["department"],
+            created_at=datetime(2026, 10, 30, 11, 5, 9, tzinfo=UTC),
+        )
+    )
+    held = ("id", "name", "location", "department", "ip", "status", "createdAt")
+    assert camera_json(added) == {key: example[key] for key in held}
+    assert seeded_store.camera_counts()[added.id] == CameraCounts(
+        recordings=example["recordingCount"],
+        zones=example["zoneCount"],
+        saved_clips=example["savedClipCount"],
+    )
 
 
 def test_thursday_matches_the_design_reference(seeded_store: SqliteLibraryStore) -> None:
@@ -132,29 +185,35 @@ def test_the_seeded_week_runs_saturday_to_friday_with_today_on_friday(
         for day, (count, ready) in WEEK.items()
     ]
     assert sum(count for count, _ in WEEK.values()) == 18
-    # Nothing was seeded outside the week.
-    assert seeded_store.summarise_days(CAMERA, date(2000, 1, 1), date(2026, 10, 23)) == []
-    assert seeded_store.summarise_days(CAMERA, date(2026, 10, 31), date(2100, 1, 1)) == []
+    assert seeded_store.summarise_days(None, first, last) == [
+        DaySummary(day=date(2026, 10, day), recordings=count, ready=ready)
+        for day, (count, ready) in WEEK_ALL_CAMERAS.items()
+    ]
+    assert sum(count for count, _ in WEEK_ALL_CAMERAS.values()) == 23
+    # Nothing was seeded outside the week, on any camera.
+    assert seeded_store.summarise_days(None, date(2000, 1, 1), date(2026, 10, 23)) == []
+    assert seeded_store.summarise_days(None, date(2026, 10, 31), date(2100, 1, 1)) == []
 
 
 def test_every_seeded_clip_lies_inside_a_ready_recording_and_agrees_with_it(
     seeded_store: SqliteLibraryStore,
 ) -> None:
-    zone_names = {z.name for z in seeded_store.list_zones()}
+    zone_names = {
+        camera.id: {z.name for z in seeded_store.list_zones(camera.id)}
+        for camera in seeded_store.list_cameras()
+    }
     clips = [
         found
         for offset in range(7)
-        for found in seeded_store.list_clips(CAMERA, date(2026, 10, 24) + timedelta(days=offset))
+        for found in seeded_store.list_clips(None, date(2026, 10, 24) + timedelta(days=offset))
     ]
-    assert len(clips) == 12
+    assert len(clips) == 13
     for found in clips:
         recording = seeded_store.get_recording(found.recording_id)
         assert recording is not None, found.id
-        assert (recording.camera, recording.day, recording.status) == (
-            CAMERA,
-            found.day,
-            "ready",
-        ), found.id
+        assert (recording.day, recording.status) == (found.day, "ready"), found.id
+        # The clip is listed under its recording's camera, and only there.
+        assert found in seeded_store.list_clips(recording.camera, found.day), found.id
         assert found.end_seconds <= recording.length_seconds, found.id
         # start_time is the wall-clock time at start_seconds into the recording.
         opened = datetime.combine(found.day, recording.start_time)
@@ -162,22 +221,31 @@ def test_every_seeded_clip_lies_inside_a_ready_recording_and_agrees_with_it(
         moments = [frame.at_seconds for frame in found.key_frames]
         assert moments == sorted(moments), found.id
         assert all(found.start_seconds <= at <= found.end_seconds for at in moments), found.id
-        assert found.zone is None or found.zone in zone_names, found.id
+        assert found.zone is None or found.zone in zone_names[recording.camera], found.id
         assert found.evidence, found.id
+    # Each clip is listed under exactly one camera: the per-camera lists add up to the whole.
+    days = {found.day for found in clips}
+    per_camera = [len(seeded_store.list_clips(c, d)) for c, _ in CAMERAS for d in days]
+    assert sum(per_camera) == len(clips)
 
 
 def test_row_counts_after_seeding(seeded_store: SqliteLibraryStore, library_path: Path) -> None:
     counts = {table: count_rows(library_path, table) for table in TABLES}
     assert counts == {
-        "cameras": 1,
-        "recordings": 18,
-        "clips": 12,
-        "clip_evidence": 23,
-        "clip_key_frames": 36,
-        "zones": 2,
-        "zone_points": 8,
+        "camera_sequence": 1,
+        "cameras": 3,
+        "recordings": 23,
+        "clips": 13,
+        "clip_evidence": 25,
+        "clip_key_frames": 39,
+        "zones": 3,
+        "zone_points": 12,
         "saved_clips": 0,
+        "tracks": 0,
+        "track_points": 0,
     }
+    with raw_connection(library_path) as db:
+        assert db.execute("SELECT last_number FROM camera_sequence").fetchone()[0] == 3
 
 
 def test_summarise_days_matches_the_days_example(seeded_store: SqliteLibraryStore) -> None:
@@ -199,29 +267,32 @@ def test_list_recordings_matches_the_recordings_example(seeded_store: SqliteLibr
 def test_get_clip_matches_the_clip_detail_example(seeded_store: SqliteLibraryStore) -> None:
     got = seeded_store.get_clip("clip-1029-104215")
     assert got is not None
-    assert clip_json(got) == _example("clip-detail.json")
+    assert api_clip_json(got, CAMERA) == _example("clip-detail.json")
 
 
-def test_every_seeded_clip_and_recording_reads_back_as_written(
-    seeded_store: SqliteLibraryStore,
-) -> None:
+def test_every_seeded_row_reads_back_as_written(seeded_store: SqliteLibraryStore) -> None:
     document = _seed_document()
+    for written in document["cameras"]:
+        stored = seeded_store.get_camera(written["id"])
+        assert stored is not None
+        assert {**camera_json(stored), "username": stored.username} == written
     for written in document["clips"]:
         stored = seeded_store.get_clip(written["id"])
         assert stored is not None and clip_json(stored) == written
     for written in document["recordings"]:
         stored = seeded_store.get_recording(written["id"])
-        assert stored is not None
-        assert {**recording_json(stored), "camera": stored.camera} == written
+        assert stored is not None and recording_json(stored) == written
 
 
 def test_zones_match_the_zones_example_in_name_order(seeded_store: SqliteLibraryStore) -> None:
-    # zones.json lists "Loading door" first; the Protocol orders zones by name, then id.
+    # zones.json holds CAM-001's zones; the Protocol orders zones by name, then id.
     zones = _example("zones.json")
     assert isinstance(zones, list)
     expected = sorted(zones, key=lambda z: (z["name"], z["id"]))
-    assert [zone_json(z) for z in seeded_store.list_zones()] == expected
     assert [zone_json(z) for z in seeded_store.list_zones(CAMERA)] == expected
+    every = sorted(_seed_document()["zones"], key=lambda z: (z["name"], z["id"]))
+    assert [z["id"] for z in every] == ["zone-exit-lane", "zone-gate-lane", "zone-loading-door"]
+    assert [zone_json(z) for z in seeded_store.list_zones()] == every
 
 
 def test_a_saved_clip_matches_the_saved_clips_example(seeded_store: SqliteLibraryStore) -> None:
@@ -232,8 +303,8 @@ def test_a_saved_clip_matches_the_saved_clips_example(seeded_store: SqliteLibrar
         datetime(2026, 10, 30, 9, 12, 44, tzinfo=UTC),
     )
     expected = _example("saved-clips.json")
-    assert [saved_clip_json(saved)] == expected
-    assert [saved_clip_json(s) for s in seeded_store.list_saved_clips(THURSDAY)] == expected
+    assert [saved_clip_json(saved, CAMERA)] == expected
+    assert [saved_clip_json(s, CAMERA) for s in seeded_store.list_saved_clips(THURSDAY)] == expected
 
 
 def test_seeding_again_returns_false_and_changes_nothing(
@@ -253,12 +324,25 @@ def test_a_restart_does_not_bring_back_a_deleted_zone(
     restarted = SqliteLibraryStore(library_path)
     assert seed_demo_data(restarted, DEMO_SEED) is False
 
-    assert [z.id for z in restarted.list_zones()] == ["zone-loading-door"]
+    assert [z.id for z in restarted.list_zones()] == ["zone-gate-lane", "zone-loading-door"]
 
 
 def test_any_camera_at_all_blocks_seeding(store: SqliteLibraryStore, library_path: Path) -> None:
-    store.add_camera(camera("other-camera", "Other"))
+    store.add_camera(new_camera("Other"))
     assert seed_demo_data(store, DEMO_SEED) is False
+    assert count_rows(library_path, "recordings") == 0
+
+
+def test_a_restart_does_not_bring_back_deleted_cameras(
+    seeded_store: SqliteLibraryStore, library_path: Path
+) -> None:
+    for camera_id, _ in CAMERAS:
+        assert seeded_store.delete_camera(camera_id) is True
+
+    restarted = SqliteLibraryStore(library_path)
+    assert seed_demo_data(restarted, DEMO_SEED) is False
+
+    assert restarted.list_cameras() == []
     assert count_rows(library_path, "recordings") == 0
 
 
@@ -287,6 +371,7 @@ _BAD_VALUES = {
     "recording-length-float": (("recordings", 0, "lengthSeconds"), 14400.5),
     "recording-status": (("recordings", 0, "status"), "done"),
     "recording-camera-unknown": (("recordings", 17, "camera"), "no-such-camera"),
+    "recording-camera-unknown-well-formed": (("recordings", 17, "camera"), NO_SUCH_CAMERA),
     "clip-recording-unknown": (("clips", 11, "recordingId"), "rec-nope"),
     "clip-day-not-its-recordings": (("clips", 11, "day"), "2026-10-29"),
     "clip-end-before-start": (("clips", 0, "endSeconds"), 1),
@@ -301,7 +386,14 @@ _BAD_VALUES = {
     "zone-name-taken-other-case": (("zones", 1, "name"), "LOADING DOOR"),
     "zone-name-too-long": (("zones", 1, "name"), "x" * 61),
     "camera-id": (("cameras", 0, "id"), "loading dock"),
-    "cameras-not-list": (("cameras",), {"id": "loading-dock"}),
+    "camera-id-unpadded": (("cameras", 0, "id"), "CAM-1"),
+    "camera-id-extra-zero": (("cameras", 0, "id"), "CAM-0001"),
+    "camera-id-repeated": (("cameras", 2, "id"), "CAM-002"),
+    "camera-name-taken-other-case": (("cameras", 2, "name"), "LOADING DOCK"),
+    "camera-status": (("cameras", 0, "status"), "deleted"),
+    "camera-location-blank": (("cameras", 0, "location"), " "),
+    "camera-created-at-naive": (("cameras", 0, "createdAt"), "2026-10-20T08:00:00"),
+    "cameras-not-list": (("cameras",), {"id": "CAM-001"}),
     "saved-clip-unknown-clip": (
         ("savedClips",),
         [{"id": "s-1", "clipId": "clip-nope", "note": "", "savedAt": "2026-10-30T09:00:00Z"}],
@@ -326,14 +418,26 @@ def test_a_malformed_seed_raises_and_leaves_the_database_empty(
         seed_demo_data(store, seed_file)
 
     assert str(tmp_path) not in str(refused.value)
-    assert {table: count_rows(library_path, table) for table in TABLES} == dict.fromkeys(TABLES, 0)
+    assert {table: count_rows(library_path, table) for table in TABLES} == {
+        **dict.fromkeys(TABLES, 0),
+        "camera_sequence": 1,  # its one row is always there...
+    }
+    with raw_connection(library_path) as db:  # ...and no number was used up
+        assert db.execute("SELECT last_number FROM camera_sequence").fetchone()[0] == 0
     # Nothing was half-written: the real seed still loads into the same file.
     assert seed_demo_data(store, DEMO_SEED) is True
 
 
 @pytest.mark.parametrize(
     "path",
-    [("cameras",), ("recordings",), ("clips",), ("zones",), ("clips", 0, "whyMatched")],
+    [
+        ("cameras",),
+        ("recordings",),
+        ("clips",),
+        ("zones",),
+        ("clips", 0, "whyMatched"),
+        ("cameras", 0, "createdAt"),
+    ],
     ids=lambda p: ".".join(map(str, p)),
 )
 def test_a_seed_missing_a_required_key_is_refused(

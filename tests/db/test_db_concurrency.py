@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
-from db_library_helpers import camera, clip, raw_connection, recording, zone
+from db_library_helpers import CAM_1, clip, new_camera, raw_connection, recording, zone
 
 from askfootage.adapters.sqlite.store import SqliteLibraryStore
 from askfootage.ports.library_store import DuplicateError
@@ -16,7 +16,7 @@ DAY = date(2026, 10, 29)
 
 
 def _prepare(store: SqliteLibraryStore, clips: int) -> None:
-    store.add_camera(camera())
+    assert store.add_camera(new_camera()).id == CAM_1
     store.add_recording(recording())
     for index in range(clips):
         store.add_clip(
@@ -47,11 +47,11 @@ def test_threads_reading_and_writing_at_once_all_succeed(
                 f"saved-{item}", f"clip-{item}", f"note {item}", base_time + timedelta(seconds=item)
             )
             assert store.update_note(f"saved-{item}", "changed") is not None
-            assert len(store.list_clips("cam-1", DAY)) == THREADS * ROUNDS
+            assert len(store.list_clips(CAM_1, DAY)) == THREADS * ROUNDS
             assert store.get_clip(f"clip-{item}") is not None
-            store.list_zones("cam-1")
+            store.list_zones(CAM_1)
             store.list_saved_clips(DAY)
-            store.summarise_days("cam-1", DAY, DAY)
+            store.summarise_days(CAM_1, DAY, DAY)
             done += 1
         return done
 

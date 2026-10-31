@@ -6,6 +6,8 @@ import { deferred, renderApp } from './ui-test-utils';
 
 const FRI_30_SUMMARY = '4 recordings · 7 h · 2 ready';
 const THU_29_SUMMARY = '6 recordings · 2 h 14 min · 5 ready';
+/** CAM-001 is the Loading dock camera in the demo seed. */
+const RECORDINGS = '/cameras/CAM-001/recordings';
 
 /** The cells of each body row: start time, length, status, action. */
 function rowTexts(): string[][] {
@@ -18,15 +20,16 @@ function dayButton(name: string): HTMLElement {
 }
 
 async function openCamera(client = new MockApiClient()) {
-  const view = renderApp('/camera', client);
+  const view = renderApp(RECORDINGS, client);
   await screen.findByText(FRI_30_SUMMARY);
   return view;
 }
 
-describe('Camera screen', () => {
+describe('Camera recordings screen', () => {
   it('has the reference page head, the seven days with today selected, and the table headers', async () => {
     await openCamera();
-    expect(screen.getByRole('heading', { level: 1, name: 'Camera' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Recordings' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'All cameras' }).getAttribute('href')).toBe('/cameras');
     expect(screen.getByText("Loading dock · each day's recordings")).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Add footage' })).toBeTruthy();
     const days = within(screen.getByRole('group', { name: 'Day' })).getAllByRole('button');
@@ -111,7 +114,7 @@ describe('Camera screen', () => {
       calls += 1;
       return calls === 1 ? first.promise : realList(day, camera);
     };
-    renderApp('/camera', client);
+    renderApp(RECORDINGS, client);
     expect(await screen.findAllByText('Loading recordings…')).toHaveLength(2); // summary line and table row
     first.reject(new Error('offline'));
     expect(await screen.findByText('Something went wrong. Try again.')).toBeTruthy();
@@ -138,7 +141,7 @@ describe('Camera screen', () => {
     const file = new File(['fake'], 'dock.mp4', { type: 'video/mp4' });
     fireEvent.change(screen.getByLabelText('Footage file (MP4)'), { target: { files: [file] } });
 
-    expect(upload).toHaveBeenCalledWith(file, '2026-10-25', 'loading-dock');
+    expect(upload).toHaveBeenCalledWith(file, '2026-10-25', 'CAM-001');
     expect(await screen.findByText('Added dock.mp4. It is waiting to be processed.')).toBeTruthy();
     // A new upload has no length yet, so the summary leaves the length out.
     expect(await screen.findByText('1 recording · 0 ready')).toBeTruthy();

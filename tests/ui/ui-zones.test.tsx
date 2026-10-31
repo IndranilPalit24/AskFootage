@@ -67,7 +67,7 @@ describe('Zones screen', () => {
     await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
     const sent = create.mock.calls[0][0];
     expect(sent).toEqual({
-      camera: 'loading-dock',
+      camera: 'CAM-001',
       name: 'Forklift bay',
       points: [
         [0.1, 0.1],
@@ -101,7 +101,7 @@ describe('Zones screen', () => {
     fireEvent.change(screen.getByLabelText('Zone name'), { target: { value: 'Middle' } });
     fireEvent.click(saveButton());
     await within(list).findByText('Middle');
-    const created = (await client.listZones('loading-dock')).find((zone) => zone.name === 'Middle');
+    const created = (await client.listZones('CAM-001')).find((zone) => zone.name === 'Middle');
     expect(created?.points).toEqual([
       [0.5, 0.5],
       [0.55, 0.5],
@@ -168,7 +168,9 @@ describe('Zones screen', () => {
     fireEvent.click(within(list).getByRole('button', { name: 'Delete Exit lane' }));
     fireEvent.click(within(list).getByRole('button', { name: 'Yes' }));
     await waitFor(() => expect(within(list).queryByText('Exit lane')).toBeNull());
-    expect((await client.listZones()).map((zone) => zone.name)).toEqual(['Loading door']);
+    expect((await client.listZones('CAM-001')).map((zone) => zone.name)).toEqual(['Loading door']);
+    // The other camera's zone is untouched.
+    expect((await client.listZones()).map((zone) => zone.name)).toEqual(['Gate lane', 'Loading door']);
   });
 
   it('normalises points to 0..1, clamps them and rounds to 4 decimals', () => {
