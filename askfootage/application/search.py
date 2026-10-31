@@ -1,4 +1,4 @@
-"""Answer a plain-English question about one day of one camera's footage.
+"""Answer a plain-English question about one day of footage, from one camera or all of them.
 
 The question is turned into a SearchPlan by an interpreter, and the plan is checked
 against the clips already found in that day's ready recordings. v1 uses
@@ -15,14 +15,16 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Protocol
 
+from askfootage.application.clips import ClipWithCamera
 from askfootage.application.errors import InvalidInputError
-from askfootage.application.library import Library, require_camera
+from askfootage.application.library import Library, require_camera_filter
 from askfootage.ports.library_store import Clip, EvidenceKind
 
 MAX_QUESTION_LENGTH = 300
 """Longest question accepted, in characters, before trimming."""
 
 NO_FOOTAGE_NOTE = "There is no footage from this camera on this day."
+NO_FOOTAGE_ANY_CAMERA_NOTE = "There is no footage from any camera on this day."
 
 _CARRYING_WORDS = frozenset(
     {
@@ -107,7 +109,7 @@ class Interpreter(Protocol):
     """Turns a question into a SearchPlan; QuestionInterpreter is v1's implementation."""
 
     def interpret(self, question: str, zone_names: Sequence[str]) -> SearchPlan:
-        """The plan for `question`, given the names of the camera's zones."""
+        """The plan for `question`, given the names of the searched cameras' zones."""
         ...
 
 
@@ -116,7 +118,7 @@ class QuestionInterpreter:
 
     - carry, box, package or parcel (and their forms): clips with carrying evidence.
     - wait, stay, stand, linger, loiter or dwell (and their forms): clips with dwell evidence.
-    - a zone name of the camera, such as "loading door": clips in that zone.
+    - a zone name of a searched camera, such as "loading door": clips in that zone.
     - several of these: a clip must meet all of them.
     - only general words such as person, someone, anyone or people: every clip.
     - nothing recognised: no clips (search_day then explains what it understands).
@@ -125,7 +127,7 @@ class QuestionInterpreter:
     """
 
     def interpret(self, question: str, zone_names: Sequence[str]) -> SearchPlan:
-        """The plan for `question`, given the names of the camera's zones."""
+        """The plan for `question`, given the names of the searched cameras' zones."""
         words = _words(question)
         word_set = set(words)
         kinds: set[EvidenceKind] = set()
@@ -151,7 +153,7 @@ class SearchResult:
 
     question: str
     day: date
-    clips: list[Clip]
+    clips: list[ClipWithCamera]
     note: str | None
 
 
@@ -166,31 +168,38 @@ def check_question(question: str) -> str:
 
 
 def search_day(
-    library: Library, interpreter: Interpreter, question: str, day: date, camera_id: str
+    library: Library,
+    interpreter: Interpreter,
+    question: str,
+    day: date,
+    camera_id: str | None = None,
 ) -> SearchResult:
-    """Answer a question about one camera's footage on one day.
+    """Answer a question about one day of footage, from one camera or (None) every camera.
 
     Only ready recordings are searched. The note says what the answer left out: recordings
-    still being indexed, a day without footage, or a question the interpreter did not
-    understand. Raises InvalidInputError for a bad question and NotFoundError for an
-    unknown camera.
+    of the searched cameras still being indexed, a day without footage, or a question the
+    interpreter did not understand. Each clip comes with its recording's camera, taken from
+    the day's recordings (no store call per clip). Raises InvalidInputError for a bad
+    question and NotFoundError for an unknown camera.
     """
     question = check_question(question)
-    require_camera(library, camera_id)
+    require_camera_filter(library, camera_id)
     recordings = library.recordings.list_recordings(camera_id, day)
     if not recordings:
-        return SearchResult(question=question, day=day, clips=[], note=NO_FOOTAGE_NOTE)
+        note = NO_FOOTAGE_NOTE if camera_id is not None else NO_FOOTAGE_ANY_CAMERA_NOTE
+        return SearchResult(question=question, day=day, clips=[], note=note)
 
+    camera_of = {recording.id: recording.camera for recording in recordings}
     ready_ids = {recording.id for recording in recordings if recording.status == "ready"}
-    zone_names = [zone.name for zone in library.zones.list_zones(camera_id)]
+    zone_names = _zone_names(library, camera_id)
     plan = interpreter.interpret(question, zone_names)
     clips = sorted(
         (
-            clip
+            ClipWithCamera(clip=clip, camera=camera_of[clip.recording_id])
             for clip in library.clips.list_clips(camera_id, day)
             if clip.recording_id in ready_ids and plan.matches(clip)
         ),
-        key=lambda clip: (clip.start_time, clip.id),
+        key=lambda found: (found.clip.start_time, found.clip.id),
     )
 
     notes: list[str] = []
@@ -200,6 +209,11 @@ def search_day(
     if not_ready:
         notes.append(_not_ready_note(not_ready))
     return SearchResult(question=question, day=day, clips=clips, note=" ".join(notes) or None)
+
+
+def _zone_names(library: Library, camera_id: str | None) -> list[str]:
+    """The searched cameras' zone names, ordered by name, each once."""
+    return list(dict.fromkeys(zone.name for zone in library.zones.list_zones(camera_id)))
 
 
 def _not_understood_note(zone_names: Sequence[str]) -> str:

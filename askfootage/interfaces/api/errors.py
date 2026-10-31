@@ -1,7 +1,8 @@
 """One error shape for every failure: {"error": {"code": ..., "message": ...}}.
 
-Codes: validation_error 422, not_found 404, method_not_allowed 405, already_saved and
-zone_name_taken 409, file_too_large 413, unsupported_media_type 415, internal_error 500.
+Codes: validation_error 422, not_found 404, method_not_allowed 405, already_saved,
+zone_name_taken, camera_name_taken and recording_not_waiting 409, file_too_large 413,
+unsupported_media_type 415, internal_error 500, indexing_not_configured 503.
 Messages are fixed or built from our own words: they name the field at fault but never
 repeat the rejected input, an exception's text, a stack trace, a server path or a key.
 """
@@ -20,14 +21,18 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from askfootage.application.cameras import HOST_PROBLEM
 from askfootage.application.errors import (
     AlreadySavedError,
     ApplicationError,
+    CameraNameTakenError,
+    IndexingNotConfiguredError,
     InvalidInputError,
     NotFoundError,
+    RecordingNotWaitingError,
     ZoneNameTakenError,
 )
-from askfootage.interfaces.api.schemas import ID_PATTERN, Error, ErrorDetail
+from askfootage.interfaces.api.schemas import HOST_PATTERN, ID_PATTERN, Error, ErrorDetail
 
 logger = logging.getLogger("askfootage.api")
 
@@ -35,19 +40,33 @@ INTERNAL_ERROR_MESSAGE = "Something went wrong."
 _MAX_REPORTED_PROBLEMS = 5
 _SAFE_FIELD_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]{0,39}")
 _REQUEST_PARTS = {"body", "query", "path", "header", "cookie"}
+_PATTERN_RULES = {
+    ID_PATTERN: "must be 1 to 64 letters, digits, '-' or '_'",
+    HOST_PATTERN: HOST_PROBLEM,
+}
+"""What a pattern means, in words, for the patterns clients send values against."""
 
 RESPONSE_DESCRIPTIONS: dict[int, str] = {
     404: (
         "No such camera, recording, clip, zone or saved clip, or no footage file (code not_found)"
     ),
-    409: "The change clashes with existing data (code already_saved or zone_name_taken)",
+    409: (
+        "The change clashes with existing data "
+        "(code already_saved, zone_name_taken or camera_name_taken), "
+        "or the recording is not waiting to be indexed (code recording_not_waiting)"
+    ),
     413: "The upload is over 200 MiB (code file_too_large)",
     415: "The upload is not an MP4 video (code unsupported_media_type)",
     422: (
         "A parameter or body field is missing or breaks a rule (code validation_error); "
-        "the message names the field"
+        "the message names the field. A JSON body over 64 KiB is refused with the message "
+        "body: is too large"
     ),
     500: "Something went wrong on the server (code internal_error); no details are exposed",
+    503: (
+        "This build has no indexing backend (code indexing_not_configured, "
+        "message Indexing is not configured in this build)"
+    ),
 }
 
 
@@ -145,9 +164,12 @@ def _describe_rule(kind: str, context: Mapping[str, Any], fallback: str) -> str:
         "date_parsing": "must be a valid date written YYYY-MM-DD",
     }
     if kind == "string_pattern_mismatch":
-        if context.get("pattern") == ID_PATTERN:
-            return "must be 1 to 64 letters, digits, '-' or '_'"
-        return "has the wrong format"
+        return _PATTERN_RULES.get(str(context.get("pattern")), "has the wrong format")
+    if kind == "literal_error":
+        # ctx["expected"] lists the schema's own allowed values ("'online', 'standby' or
+        # 'offline'"), never the input; drop pydantic's quotes.
+        allowed = str(context.get("expected", "")).replace("'", "")
+        return f"must be {allowed}" if allowed else "is not one of the allowed values"
     if kind in rules:
         return rules[kind]
     # Our own validators raise ValueError with a safe message; pydantic prefixes it.
@@ -214,6 +236,12 @@ async def _on_application_error(request: Request, exc: Exception) -> JSONRespons
         return error_response(409, "already_saved", exc.message)
     if isinstance(exc, ZoneNameTakenError):
         return error_response(409, "zone_name_taken", exc.message)
+    if isinstance(exc, CameraNameTakenError):
+        return error_response(409, "camera_name_taken", exc.message)
+    if isinstance(exc, RecordingNotWaitingError):
+        return error_response(409, "recording_not_waiting", exc.message)
+    if isinstance(exc, IndexingNotConfiguredError):
+        return error_response(503, "indexing_not_configured", exc.message)
     logger.error("Unmapped application error %s", type(exc).__name__)
     return error_response(500, "internal_error", INTERNAL_ERROR_MESSAGE)
 

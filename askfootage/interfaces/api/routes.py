@@ -1,4 +1,4 @@
-"""The 15 operations of contract/openapi.yaml, all under /api.
+"""The 21 operations of contract/openapi.yaml, all under /api.
 
 Each handler validates its input (path, query and body models), calls one application
 use case and shapes the result into the contract's models. Failures are raised as
@@ -11,24 +11,32 @@ SQLite store is also safe to share between threads, so moving the calls to a thr
 (plain `def` handlers, or run_in_threadpool) is a safe change once any call can be slow,
 for example when real video processing arrives. Until then, the only way a call waits is
 another process holding the database's write lock (up to the store's busy timeout).
+
+Indexing is the one slow job: its route only claims the recording and replies 202; the
+work itself is handed to context.schedule_after_reply, which by default runs it after the
+reply in FastAPI's thread pool.
 """
 
 from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Path, Query, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Path, Query, Request, Response
 
-from askfootage.application import recordings, saved_clips, search, zones
+from askfootage.application import cameras, ingest_video, recordings, saved_clips, search, zones
 from askfootage.application.errors import NotFoundError
 from askfootage.interfaces.api.context import Context
 from askfootage.interfaces.api.errors import error_responses, json_error_responses
 from askfootage.interfaces.api.footage import VideoFileResponse
 from askfootage.interfaces.api.schemas import (
     ID_PATTERN,
+    Camera,
+    CameraCreate,
+    CameraUpdate,
     Clip,
     Day,
     DaySummary,
+    IndexAccepted,
     Recording,
     RecordingAccepted,
     SavedClip,
@@ -46,8 +54,14 @@ from askfootage.interfaces.api.upload import MAX_UPLOAD_BYTES, read_upload
 router = APIRouter(prefix="/api")
 
 IdPath = Annotated[str, Path(pattern=ID_PATTERN)]
-CameraQuery = Annotated[str, Query(pattern=ID_PATTERN, examples=["loading-dock"])]
-OptionalCameraQuery = Annotated[str | None, Query(pattern=ID_PATTERN, examples=["loading-dock"])]
+OptionalCameraQuery = Annotated[
+    str | None,
+    Query(
+        pattern=ID_PATTERN,
+        description="A camera id; leave it out for all cameras",
+        examples=["CAM-001"],
+    ),
+]
 DayQuery = Annotated[Day, Query(examples=["2026-10-29"])]
 OptionalDayQuery = Annotated[Day | None, Query(examples=["2026-10-29"])]
 
@@ -59,7 +73,7 @@ _UPLOAD_BODY: dict[str, Any] = {
         "multipart/form-data": {
             "schema": {
                 "type": "object",
-                "required": ["file", "day"],
+                "required": ["file", "day", "camera"],
                 "properties": {
                     "file": {
                         **_MP4_SCHEMA,
@@ -73,8 +87,9 @@ _UPLOAD_BODY: dict[str, Any] = {
                     "camera": {
                         "type": "string",
                         "pattern": ID_PATTERN,
-                        "default": "loading-dock",
-                        "description": "The camera that recorded it",
+                        "description": (
+                            "The id of the camera that recorded it, for example CAM-001"
+                        ),
                     },
                 },
             }
@@ -83,19 +98,101 @@ _UPLOAD_BODY: dict[str, Any] = {
 }
 
 
-# --- Status, days and recordings --------------------------------------------------------------
+# --- Status -----------------------------------------------------------------------------------
 
 
 @router.get(
     "/status",
     operation_id="getStatus",
     response_description="Current status",
-    summary="Whether the app serves demo data, and the camera it covers",
+    summary="Whether the app serves demo data",
     responses=error_responses(500),
 )
-async def get_status(context: Context) -> Status:
+async def get_status() -> Status:
     """demoMode is always true in v1: the only data source is the seeded demo data."""
-    return Status.from_status(recordings.get_status(context.library))
+    return Status.from_status(recordings.get_status())
+
+
+# --- Cameras ----------------------------------------------------------------------------------
+
+
+@router.get(
+    "/cameras",
+    operation_id="listCameras",
+    response_description="The cameras",
+    summary="Every camera, in id order (creation order)",
+    responses=error_responses(500),
+)
+async def list_cameras(context: Context) -> list[Camera]:
+    """Every camera with its counts; never a password."""
+    return [Camera.from_overview(found) for found in cameras.list_cameras(context.library)]
+
+
+@router.post(
+    "/cameras",
+    operation_id="addCamera",
+    response_description="The new camera",
+    status_code=201,
+    summary="Add a camera to the registry",
+    description=(
+        "The server gives the camera the next id (CAM-001, CAM-002, ...; a number is never "
+        "reused, even after a delete) and status online. There is no limit on how many "
+        "cameras can be added. The password is checked for length and then dropped: it is "
+        "not stored, not returned and not logged. A name that another camera already has, "
+        "ignoring case, returns 409 with code camera_name_taken."
+    ),
+    responses=error_responses(409, 422, 500),
+)
+async def add_camera(body: CameraCreate, context: Context) -> Camera:
+    """Add a camera; its id, status and createdAt are set by the server."""
+    added = cameras.add_camera(context.library, body.to_draft(), context.utc_now())
+    return Camera.from_overview(added)
+
+
+@router.get(
+    "/cameras/{id}",
+    operation_id="getCamera",
+    response_description="The camera",
+    summary="One camera",
+    responses=error_responses(404, 422, 500),
+)
+async def get_camera(id: IdPath, context: Context) -> Camera:
+    """One camera with its counts."""
+    return Camera.from_overview(cameras.get_camera(context.library, id))
+
+
+@router.patch(
+    "/cameras/{id}",
+    operation_id="updateCamera",
+    response_description="The camera after the change",
+    summary="Change a camera's status",
+    responses=error_responses(404, 422, 500),
+)
+async def update_camera(id: IdPath, body: CameraUpdate, context: Context) -> Camera:
+    """Change a camera's status; nothing else about it can change."""
+    return Camera.from_overview(cameras.set_camera_status(context.library, id, body.status))
+
+
+@router.delete(
+    "/cameras/{id}",
+    operation_id="deleteCamera",
+    response_description="Deleted",
+    status_code=204,
+    response_class=Response,
+    summary="Delete a camera and everything recorded on it",
+    description=(
+        "Also removes the camera's recordings (with their clips and saved clips) and its "
+        "zones. A second delete of the same camera returns 404."
+    ),
+    responses=error_responses(404, 422, 500),
+)
+async def delete_camera(id: IdPath, context: Context) -> Response:
+    """Delete a camera and everything recorded on it."""
+    cameras.delete_camera(context.library, id)
+    return Response(status_code=204)
+
+
+# --- Days and recordings ----------------------------------------------------------------------
 
 
 @router.get(
@@ -105,12 +202,14 @@ async def get_status(context: Context) -> Status:
     summary="Recording counts for the last 7 days, oldest first, ending today",
     description=(
         "Always returns exactly 7 entries; a day with no footage has recordings 0 and "
-        "ready 0. The last entry is today (in demo mode, the demo dataset's today)."
+        "ready 0. Without camera, the counts cover all cameras. The last entry is today on "
+        "the server's clock (in demo mode, the demo dataset's today), so a client can use it "
+        "as the default day."
     ),
     responses=error_responses(404, 422, 500),
 )
-async def list_days(camera: CameraQuery, context: Context) -> list[DaySummary]:
-    """Recording counts for the 7 days ending today."""
+async def list_days(context: Context, camera: OptionalCameraQuery = None) -> list[DaySummary]:
+    """Recording counts for the 7 days ending today, for one camera or all of them."""
     days = recordings.list_days(context.library, camera, context.today())
     return [DaySummary.from_port(day) for day in days]
 
@@ -119,11 +218,17 @@ async def list_days(camera: CameraQuery, context: Context) -> list[DaySummary]:
     "/recordings",
     operation_id="listRecordings",
     response_description="Recordings ordered by startTime",
-    summary="The recordings of one camera on one day, earliest first",
+    summary="The recordings on one day, earliest first",
+    description=(
+        "Without camera, lists every camera's recordings, ordered by startTime, then camera, "
+        "then id."
+    ),
     responses=error_responses(404, 422, 500),
 )
-async def list_recordings(day: DayQuery, camera: CameraQuery, context: Context) -> list[Recording]:
-    """One camera's recordings on one day, ordered by startTime."""
+async def list_recordings(
+    day: DayQuery, context: Context, camera: OptionalCameraQuery = None
+) -> list[Recording]:
+    """The recordings on one day, from one camera or all of them, ordered by startTime."""
     found = recordings.list_recordings(context.library, camera, day)
     return [Recording.from_port(recording) for recording in found]
 
@@ -133,12 +238,13 @@ async def list_recordings(day: DayQuery, camera: CameraQuery, context: Context) 
     operation_id="addRecording",
     response_description="Accepted; the recording now waits to be processed",
     status_code=202,
-    summary="Upload a video file as a new recording",
+    summary="Upload a video file as a new recording of one camera",
     description=(
         f"Accepts one MP4 file of at most {_UPLOAD_LIMIT_MIB} MiB. The recording is "
-        "registered with status waiting, startTime 00:00:00 and lengthSeconds 0. In v1 "
-        "(demo mode) the file is checked and registered but not stored or processed. "
-        "Not idempotent: sending the same file again registers another recording."
+        "registered with status waiting, startTime 00:00:00 and lengthSeconds 0; processing "
+        "fills those in later. In v1 (demo mode) the file is checked and registered but not "
+        "stored or processed. Not idempotent: sending the same file again registers another "
+        "recording."
     ),
     responses=error_responses(404, 413, 415, 422, 500),
     openapi_extra={"requestBody": _UPLOAD_BODY},
@@ -158,8 +264,9 @@ async def add_recording(request: Request, context: Context) -> RecordingAccepted
     status_code=200,
     summary="Stream the recording's video",
     description=(
-        "Streams the footage file (in demo mode, videos/clip1.mp4 for every recording), "
-        "with HTTP Range support so a player can seek."
+        "Streams the footage file (in demo mode, videos/clip1.mp4 for every recording). "
+        "Supports HTTP Range requests so a player can seek. Returns 404 with the standard "
+        "error body when the recording is unknown or no footage file is attached."
     ),
     response_class=VideoFileResponse,
     responses={
@@ -181,6 +288,32 @@ async def get_recording_video(id: IdPath, context: Context) -> VideoFileResponse
     return VideoFileResponse(path, stat_result)
 
 
+@router.post(
+    "/recordings/{id}/index",
+    operation_id="indexRecording",
+    response_description="Accepted; the recording is now being prepared",
+    status_code=202,
+    summary="Start indexing a recording so it becomes searchable",
+    description=(
+        "Only a recording with status waiting can be indexed. On acceptance its status "
+        "becomes preparing and the work continues after the reply: preparing (making the "
+        "working copy), then indexing (finding objects), then ready. If the work fails, the "
+        "status goes back to waiting so it can be retried. No request body. Not idempotent: "
+        "a second call while the first is still running returns 409. When this build has no "
+        "indexing backend, the reply is 503 with code indexing_not_configured and nothing "
+        "changes."
+    ),
+    responses=error_responses(404, 409, 422, 500, 503),
+)
+async def index_recording(
+    id: IdPath, context: Context, background: BackgroundTasks
+) -> IndexAccepted:
+    """Claim a waiting recording (now preparing) and index it after the reply."""
+    job = ingest_video.start_indexing(context.library, context.indexing, id)
+    context.schedule_after_reply(background, job.run)
+    return IndexAccepted(id=job.recording.id, status="preparing")
+
+
 # --- Search and clips ---------------------------------------------------------------------------
 
 
@@ -188,10 +321,12 @@ async def get_recording_video(id: IdPath, context: Context) -> VideoFileResponse
     "/search",
     operation_id="search",
     response_description="The matching clips, earliest first",
-    summary="Answer a question about one day of one camera's footage",
+    summary="Answer a question about one day of footage, from one camera or all of them",
     description=(
-        "Synchronous in v1. Only ready recordings are searched; note explains anything the "
-        "answer left out, and is null when there is nothing to add."
+        "Synchronous in v1. Without camera, every camera's footage is searched. Only ready "
+        "recordings are searched; note explains anything the answer left out (for example a "
+        "recording still being indexed), and is null when there is nothing to add. clips is "
+        "empty when nothing matched."
     ),
     responses=error_responses(404, 422, 500),
 )
@@ -211,8 +346,9 @@ async def search_footage(body: SearchRequest, context: Context) -> SearchRespons
     responses=error_responses(404, 422, 500),
 )
 async def get_clip(id: IdPath, context: Context) -> Clip:
-    """One clip with its evidence."""
-    return Clip.from_port(recordings.get_clip(context.library, id))
+    """One clip with its evidence and its camera."""
+    found = recordings.get_clip(context.library, id)
+    return Clip.from_port(found.clip, found.camera)
 
 
 # --- Zones ------------------------------------------------------------------------------------
@@ -223,7 +359,7 @@ async def get_clip(id: IdPath, context: Context) -> Clip:
     operation_id="listZones",
     response_description="The zones",
     summary="All zones, or only one camera's, ordered by name",
-    responses=error_responses(422, 500),
+    responses=error_responses(404, 422, 500),
 )
 async def list_zones(context: Context, camera: OptionalCameraQuery = None) -> list[Zone]:
     """All zones, or only one camera's, ordered by name."""
@@ -236,6 +372,10 @@ async def list_zones(context: Context, camera: OptionalCameraQuery = None) -> li
     response_description="The new zone",
     status_code=201,
     summary="Draw a new zone on a camera's view",
+    description=(
+        "Zone names are unique per camera, ignoring case; sending the same request again "
+        "returns 409 with code zone_name_taken."
+    ),
     responses=error_responses(404, 409, 422, 500),
 )
 async def create_zone(body: ZoneCreate, context: Context) -> Zone:
@@ -265,6 +405,7 @@ async def replace_zone(id: IdPath, body: ZoneUpdate, context: Context) -> Zone:
     status_code=204,
     response_class=Response,
     summary="Delete a zone",
+    description="A second delete of the same zone returns 404.",
     responses=error_responses(404, 422, 500),
 )
 async def delete_zone(id: IdPath, context: Context) -> Response:
@@ -286,7 +427,7 @@ async def delete_zone(id: IdPath, context: Context) -> Response:
 async def list_saved_clips(context: Context, day: OptionalDayQuery = None) -> list[SavedClip]:
     """Saved clips, newest save first."""
     found = saved_clips.list_saved_clips(context.library, day)
-    return [SavedClip.from_port(saved) for saved in found]
+    return [SavedClip.from_found(saved) for saved in found]
 
 
 @router.post(
@@ -303,7 +444,7 @@ async def save_clip(body: SavedClipCreate, context: Context) -> SavedClip:
     saved = saved_clips.save_clip(
         context.library, body.clip_id, body.note, context.utc_now(), make_id=context.make_id
     )
-    return SavedClip.from_port(saved)
+    return SavedClip.from_found(saved)
 
 
 @router.patch(
@@ -315,7 +456,7 @@ async def save_clip(body: SavedClipCreate, context: Context) -> SavedClip:
 )
 async def update_saved_clip(id: IdPath, body: SavedClipUpdate, context: Context) -> SavedClip:
     """Replace a saved clip's note."""
-    return SavedClip.from_port(saved_clips.update_note(context.library, id, body.note))
+    return SavedClip.from_found(saved_clips.update_note(context.library, id, body.note))
 
 
 @router.delete(
@@ -325,6 +466,7 @@ async def update_saved_clip(id: IdPath, body: SavedClipUpdate, context: Context)
     status_code=204,
     response_class=Response,
     summary="Remove a clip from the saved list",
+    description=("The clip itself stays. A second delete of the same saved clip returns 404."),
     responses=error_responses(404, 422, 500),
 )
 async def delete_saved_clip(id: IdPath, context: Context) -> Response:

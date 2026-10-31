@@ -6,7 +6,14 @@ import math
 from collections.abc import Sequence
 
 from askfootage.application.errors import InvalidInputError, NotFoundError, ZoneNameTakenError
-from askfootage.application.library import IdFactory, Library, new_id, require_camera
+from askfootage.application.library import (
+    CAMERA_NOT_FOUND,
+    IdFactory,
+    Library,
+    new_id,
+    require_camera,
+    require_camera_filter,
+)
 from askfootage.ports.library_store import (
     DuplicateError,
     MissingReferenceError,
@@ -56,7 +63,11 @@ def check_zone_points(points: Sequence[Sequence[float]]) -> tuple[ZonePoint, ...
 
 
 def list_zones(library: Library, camera_id: str | None = None) -> list[Zone]:
-    """All zones, or only one camera's, ordered by name, then id."""
+    """All zones, or only one camera's, ordered by name, then id.
+
+    Raises NotFoundError when camera_id is given and there is no such camera.
+    """
+    require_camera_filter(library, camera_id)
     zones = library.zones.list_zones(camera_id)
     return sorted(zones, key=lambda zone: (zone.name, zone.id))
 
@@ -83,7 +94,7 @@ def create_zone(
     try:
         library.zones.add_zone(zone)
     except MissingReferenceError:
-        raise NotFoundError("Camera not found.") from None
+        raise NotFoundError(CAMERA_NOT_FOUND) from None
     except DuplicateError:
         if _name_taken(library, camera_id, name):
             raise ZoneNameTakenError(_NAME_TAKEN) from None

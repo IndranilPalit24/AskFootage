@@ -1,8 +1,10 @@
 """SQLite store for the footage library: cameras, recordings, clips, zones and saved clips.
 
-SqliteLibraryStore implements the four Protocols in askfootage/ports/library_store.py
-(RecordingStore, ClipStore, ZoneStore and SavedClipStore) over one SQLite file, whose
-schema is schema.sql in this package. seed_demo_data loads the demo library into it.
+SqliteLibraryStore implements the five Protocols in askfootage/ports/library_store.py
+(CameraStore, RecordingStore, ClipStore, ZoneStore and SavedClipStore) over one SQLite
+file, whose schema is schema.sql in this package. seed_demo_data loads the demo library
+into it. SqliteTrackStore (tracks.py) keeps object tracks in the same file, through the
+library's connections and transactions.
 
 How the file is kept safe:
 - Each operation opens its own short-lived connection, so one store can be shared by
@@ -14,11 +16,20 @@ How the file is kept safe:
 - Values only ever reach SQL as bound parameters; every statement is a fixed string.
 - A refused write raises DuplicateError, MissingReferenceError or LibraryError with a
   fixed, safe message: never SQLite's own text and never the file path.
+- Camera numbers come from the schema's camera_sequence row, which only counts up, so a
+  camera id is never handed out twice, even after its camera is deleted.
+- No password is stored anywhere: the API checks a camera's stream password and drops it.
+
+Schema versions: SCHEMA_VERSION is 3 (v3 added object tracks and recordings.status_note).
+Demo data only: opening a v1 or v2 database drops every table and recreates the schema;
+the seed then refills it, and uploaded recordings must be added and indexed again (their
+files under data/ are not touched). The drop and the new schema run in the one
+transaction that opens the file, so a failure leaves the old database exactly as it was.
 
 Errors the contract does not cover: a wrong Python type (a datetime where a date is
 expected) raises TypeError; a value of the right type that the library cannot hold exactly
 (a time with microseconds or a time zone, a note over 500 characters, a zone name over 60,
-a clip whose day is not its recording's day) raises LibraryError.
+a camera ip over 253, a clip whose day is not its recording's day) raises LibraryError.
 """
 
 from __future__ import annotations
@@ -34,7 +45,12 @@ from pathlib import Path
 
 from askfootage.adapters.sqlite.seed import DemoSeed, SeedDataError, read_seed
 from askfootage.ports.library_store import (
+    CAMERA_STATUSES,
+    RECORDING_STATUSES,
+    STATUS_NOTE_MAX,
     Camera,
+    CameraCounts,
+    CameraStatus,
     Clip,
     DaySummary,
     DuplicateError,
@@ -42,13 +58,17 @@ from askfootage.ports.library_store import (
     KeyFrame,
     LibraryError,
     MissingReferenceError,
+    NewCamera,
     Recording,
+    RecordingStatus,
     SavedClip,
     Zone,
     ZonePoint,
+    camera_id_for,
+    camera_number,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3
 """The schema version this code writes and reads; schema.sql records it in user_version."""
 
 MAX_NOTE_LENGTH = 500
@@ -57,19 +77,80 @@ MAX_NOTE_LENGTH = 500
 MAX_ZONE_NAME_LENGTH = 60
 """Longest zone name, in characters (as in contract/openapi.yaml)."""
 
+MAX_CAMERA_IP_LENGTH = 253
+"""Longest camera ip or host name, in characters (as in contract/openapi.yaml)."""
+
 _MIN_SQLITE_VERSION = (3, 38, 0)  # STRICT tables need 3.37; built-in json_each needs 3.38
 _BUSY_TIMEOUT_SECONDS = 10.0
 
-# Schema changes after version 1 go here: _MIGRATIONS[n] is the SQL that takes a database
-# from version n to n + 1, ending with "PRAGMA user_version = n + 1;". None exist yet.
+# Schema changes that keep the data go here: _MIGRATIONS[n] is the SQL that takes a
+# database from version n to n + 1, ending with "PRAGMA user_version = n + 1;". None yet.
 _MIGRATIONS: dict[int, str] = {}
+
+# Versions whose rows are thrown away on upgrade, with the SQL that drops their tables.
+# Demo data only: upgrading from v1 or v2 drops and recreates; the seed then refills it.
+# The tables go children first, so no foreign key dangles at any point (their indexes and
+# triggers go with them); schema.sql then creates the current version afresh, all in the
+# one transaction that opens the file. v1 had no camera_sequence; IF EXISTS covers that.
+_DROP_V1_AND_V2_TABLES = """
+    DROP TABLE IF EXISTS saved_clips;
+    DROP TABLE IF EXISTS clip_key_frames;
+    DROP TABLE IF EXISTS clip_evidence;
+    DROP TABLE IF EXISTS zone_points;
+    DROP TABLE IF EXISTS zones;
+    DROP TABLE IF EXISTS clips;
+    DROP TABLE IF EXISTS recordings;
+    DROP TABLE IF EXISTS cameras;
+    DROP TABLE IF EXISTS camera_sequence;
+"""
+_DROP_TABLES_OF_VERSION: dict[int, str] = {1: _DROP_V1_AND_V2_TABLES, 2: _DROP_V1_AND_V2_TABLES}
 
 # --- Fixed SQL. Values are always bound as parameters, never formatted in. ------------
 
-_CAMERAS = "SELECT id, name FROM cameras ORDER BY id"
-_CAMERA_BY_ID = "SELECT id, name FROM cameras WHERE id = ?"
-_ANY_CAMERA = "SELECT 1 FROM cameras LIMIT 1"
-_INSERT_CAMERA = "INSERT INTO cameras (id, name) VALUES (?, ?)"
+_CAMERAS = """
+    SELECT id, name, ip, username, status, location, department, created_at
+    FROM cameras
+    ORDER BY number
+"""
+_CAMERA_BY_ID = """
+    SELECT id, name, ip, username, status, location, department, created_at
+    FROM cameras
+    WHERE id = ?
+"""
+_CAMERA_EXISTS = "SELECT 1 FROM cameras WHERE id = ?"
+# Every camera's name, for the name check. Names clash ignoring case by str.casefold, which
+# SQLite cannot do (lower() folds ASCII only), so the comparison runs in Python, inside the
+# write transaction, whose lock keeps other writers out meanwhile.
+_CAMERA_NAMES = "SELECT name FROM cameras"
+# The last camera number ever handed out; 0 means the library has never had a camera.
+_LAST_CAMERA_NUMBER = "SELECT last_number FROM camera_sequence WHERE only_row = 1"
+_INSERT_CAMERA = """
+    INSERT INTO cameras (id, number, name, ip, username, status, location, department,
+                         created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+_SET_CAMERA_STATUS = "UPDATE cameras SET status = ? WHERE id = ?"
+# The schema cascades this to the camera's recordings (and on to their clips, evidence,
+# key frames and saved clips) and to its zones and their points.
+_DELETE_CAMERA = "DELETE FROM cameras WHERE id = ?"
+# One statement for every camera: each count is one GROUP BY over an index, worked out
+# once and then joined to the cameras, so the cost never becomes one query per camera.
+_CAMERA_COUNTS = """
+    SELECT c.id, coalesce(r.n, 0), coalesce(z.n, 0), coalesce(s.n, 0)
+    FROM cameras AS c
+    LEFT JOIN (SELECT camera_id, count(*) AS n FROM recordings GROUP BY camera_id) AS r
+        ON r.camera_id = c.id
+    LEFT JOIN (SELECT camera_id, count(*) AS n FROM zones GROUP BY camera_id) AS z
+        ON z.camera_id = c.id
+    LEFT JOIN (
+        SELECT k.camera_id, count(*) AS n
+        FROM saved_clips AS v
+        JOIN clips AS k ON k.id = v.clip_id
+        GROUP BY k.camera_id
+    ) AS s
+        ON s.camera_id = c.id
+    ORDER BY c.number
+"""
 
 _DAY_SUMMARIES = """
     SELECT day, count(*), sum(status = 'ready')
@@ -78,21 +159,44 @@ _DAY_SUMMARIES = """
     GROUP BY day
     ORDER BY day
 """
+_DAY_SUMMARIES_ALL_CAMERAS = """
+    SELECT day, count(*), sum(status = 'ready')
+    FROM recordings
+    WHERE day BETWEEN ? AND ?
+    GROUP BY day
+    ORDER BY day
+"""
+# One camera: its id is fixed, so start_time, id is the Protocol's start, camera, id order.
 _RECORDINGS_ON_DAY = """
-    SELECT id, camera_id, day, start_time, length_seconds, status
+    SELECT id, camera_id, day, start_time, length_seconds, status, status_note
     FROM recordings
     WHERE camera_id = ? AND day = ?
     ORDER BY start_time, id
 """
+# Every camera: a camera id is written one way per number (the schema checks it), so
+# length, then text, is number order (CAM-999 before CAM-1000), as in recordings_by_day.
+_RECORDINGS_ON_DAY_ALL_CAMERAS = """
+    SELECT id, camera_id, day, start_time, length_seconds, status, status_note
+    FROM recordings
+    WHERE day = ?
+    ORDER BY start_time, length(camera_id), camera_id, id
+"""
 _RECORDING_BY_ID = """
-    SELECT id, camera_id, day, start_time, length_seconds, status
+    SELECT id, camera_id, day, start_time, length_seconds, status, status_note
     FROM recordings
     WHERE id = ?
 """
 _RECORDING_EXISTS = "SELECT 1 FROM recordings WHERE id = ?"
 _INSERT_RECORDING = """
-    INSERT INTO recordings (id, camera_id, day, start_time, length_seconds, status)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO recordings (id, camera_id, day, start_time, length_seconds, status, status_note)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+"""
+# Set status and note whatever the current status is...
+_SET_RECORDING_STATUS = "UPDATE recordings SET status = ?, status_note = ? WHERE id = ?"
+# ...or only if the current status is the expected one. The test and the change are one
+# statement inside a write transaction, so two callers can never both see the old status.
+_SET_RECORDING_STATUS_IF = """
+    UPDATE recordings SET status = ?, status_note = ? WHERE id = ? AND status = ?
 """
 
 _CLIPS_ON_DAY = """
@@ -100,6 +204,13 @@ _CLIPS_ON_DAY = """
            why_matched, thumbnail_url
     FROM clips
     WHERE camera_id = ? AND day = ?
+    ORDER BY start_time, id
+"""
+_CLIPS_ON_DAY_ALL_CAMERAS = """
+    SELECT id, recording_id, day, start_time, start_seconds, end_seconds, label, zone,
+           why_matched, thumbnail_url
+    FROM clips
+    WHERE day = ?
     ORDER BY start_time, id
 """
 _CLIP_BY_ID = """
@@ -192,8 +303,8 @@ _DELETE_SAVED_CLIP = "DELETE FROM saved_clips WHERE id = ?"
 class SqliteLibraryStore:
     """The footage library in one SQLite file.
 
-    Implements RecordingStore, ClipStore, ZoneStore and SavedClipStore from
-    askfootage/ports/library_store.py, plus add_camera. Safe to share between threads.
+    Implements CameraStore, RecordingStore, ClipStore, ZoneStore and SavedClipStore from
+    askfootage/ports/library_store.py. Safe to share between threads.
     """
 
     def __init__(self, path: Path) -> None:
@@ -223,45 +334,110 @@ class SqliteLibraryStore:
         """Where the library's database file is."""
         return self._path
 
-    # --- RecordingStore ------------------------------------------------------------
+    # --- CameraStore ---------------------------------------------------------------
 
     def list_cameras(self) -> list[Camera]:
-        """Every camera, ordered by id."""
+        """Every camera, in the order of the number in its id (creation order)."""
         with self._transaction(write=False) as db:
             rows = db.execute(_CAMERAS).fetchall()
-        return [Camera(id=row[0], name=row[1]) for row in rows]
+        return [_camera_from_row(row) for row in rows]
 
     def get_camera(self, camera_id: str) -> Camera | None:
         """The camera with this id, or None."""
         with self._transaction(write=False) as db:
             row = db.execute(_CAMERA_BY_ID, (camera_id,)).fetchone()
-        return None if row is None else Camera(id=row[0], name=row[1])
+        return None if row is None else _camera_from_row(row)
 
-    def add_camera(self, camera: Camera) -> None:
-        """Store a new camera; not part of the Protocols.
+    def add_camera(self, camera: NewCamera) -> Camera:
+        """Store a new camera under the next free id and return it as stored.
 
-        Raises DuplicateError if the id is taken.
+        Ids go CAM-001, CAM-002, ... (CAM-1000 after CAM-999); a number is never handed out
+        twice, even after its camera is deleted. created_at comes back in UTC. Raises
+        DuplicateError if another camera has the same name ignoring case (str.casefold),
+        LibraryError if the ip is longer than MAX_CAMERA_IP_LENGTH.
         """
         with self._transaction(write=True) as db:
-            _insert_camera(db, camera)
+            number = db.execute(_LAST_CAMERA_NUMBER).fetchone()[0] + 1
+            stored = Camera(
+                id=camera_id_for(number),
+                name=camera.name,
+                ip=camera.ip,
+                username=camera.username,
+                status=camera.status,
+                location=camera.location,
+                department=camera.department,
+                created_at=_utc_datetime(_utc_text(camera.created_at)),
+            )
+            _insert_camera(db, stored)
+        return stored
 
-    def summarise_days(self, camera_id: str, first_day: date, last_day: date) -> list[DaySummary]:
+    def set_camera_status(self, camera_id: str, status: CameraStatus) -> Camera | None:
+        """Change the camera's status; returns the camera after the change, or None.
+
+        Raises ValueError if status is not one of CAMERA_STATUSES.
+        """
+        if status not in CAMERA_STATUSES:
+            raise ValueError(f"camera status must be one of {', '.join(CAMERA_STATUSES)}")
+        with self._transaction(write=True) as db:
+            if db.execute(_SET_CAMERA_STATUS, (status, camera_id)).rowcount == 0:
+                return None
+            row = db.execute(_CAMERA_BY_ID, (camera_id,)).fetchone()
+        return _camera_from_row(row)
+
+    def delete_camera(self, camera_id: str) -> bool:
+        """Delete the camera and everything recorded on it; False if there was no such camera.
+
+        Its recordings go (with their clips, evidence, key frames and saved clips), and so
+        do its zones, all in one transaction. Other cameras are untouched. Its number is
+        never handed out again.
+        """
+        with self._transaction(write=True) as db:
+            return db.execute(_DELETE_CAMERA, (camera_id,)).rowcount > 0
+
+    def camera_counts(self) -> dict[str, CameraCounts]:
+        """Recordings, zones and saved clips for every camera id, zeros included.
+
+        One query, whatever the number of cameras; the dict is in camera-number order.
+        """
+        with self._transaction(write=False) as db:
+            rows = db.execute(_CAMERA_COUNTS).fetchall()
+        return {
+            row[0]: CameraCounts(recordings=row[1], zones=row[2], saved_clips=row[3])
+            for row in rows
+        }
+
+    # --- RecordingStore ------------------------------------------------------------
+
+    def summarise_days(
+        self, camera_id: str | None, first_day: date, last_day: date
+    ) -> list[DaySummary]:
         """Recording counts per day from first_day to last_day inclusive, oldest first.
 
-        Only days with at least one recording appear; the caller fills in empty days.
+        camera_id None counts every camera's recordings together. Only days with at least
+        one recording appear; the caller fills in empty days.
         """
-        params = (camera_id, _day_text(first_day), _day_text(last_day))
+        days = (_day_text(first_day), _day_text(last_day))
         with self._transaction(write=False) as db:
-            rows = db.execute(_DAY_SUMMARIES, params).fetchall()
+            if camera_id is None:
+                rows = db.execute(_DAY_SUMMARIES_ALL_CAMERAS, days).fetchall()
+            else:
+                rows = db.execute(_DAY_SUMMARIES, (camera_id, *days)).fetchall()
         return [
             DaySummary(day=date.fromisoformat(row[0]), recordings=row[1], ready=row[2])
             for row in rows
         ]
 
-    def list_recordings(self, camera_id: str, day: date) -> list[Recording]:
-        """One camera's recordings on one day, ordered by start_time, then id."""
+    def list_recordings(self, camera_id: str | None, day: date) -> list[Recording]:
+        """Recordings on one day, ordered by start_time, then camera number, then id.
+
+        camera_id None lists every camera's recordings.
+        """
+        day_text = _day_text(day)
         with self._transaction(write=False) as db:
-            rows = db.execute(_RECORDINGS_ON_DAY, (camera_id, _day_text(day))).fetchall()
+            if camera_id is None:
+                rows = db.execute(_RECORDINGS_ON_DAY_ALL_CAMERAS, (day_text,)).fetchall()
+            else:
+                rows = db.execute(_RECORDINGS_ON_DAY, (camera_id, day_text)).fetchall()
         return [_recording_from_row(row) for row in rows]
 
     def get_recording(self, recording_id: str) -> Recording | None:
@@ -279,12 +455,51 @@ class SqliteLibraryStore:
         with self._transaction(write=True) as db:
             _insert_recording(db, recording)
 
+    def set_recording_status(
+        self,
+        recording_id: str,
+        status: RecordingStatus,
+        *,
+        expected: RecordingStatus | None = None,
+        note: str | None = None,
+    ) -> Recording | None:
+        """Set a recording's status and status note (note None clears it), atomically.
+
+        With expected given, the change happens only if the current status equals it
+        (compare-and-set, so two callers cannot both start the same work). Returns the
+        updated recording, or None when the id is unknown or the status was not expected;
+        nothing changes then. Raises ValueError for a status, expected status or note the
+        Recording rules refuse.
+        """
+        _check_recording_status("status", status)
+        if expected is not None:
+            _check_recording_status("expected", expected)
+        _check_status_note(note)
+        with self._transaction(write=True) as db:
+            if expected is None:
+                changed = db.execute(_SET_RECORDING_STATUS, (status, note, recording_id))
+            else:
+                changed = db.execute(
+                    _SET_RECORDING_STATUS_IF, (status, note, recording_id, expected)
+                )
+            if changed.rowcount == 0:
+                return None
+            row = db.execute(_RECORDING_BY_ID, (recording_id,)).fetchone()
+        return _recording_from_row(row)
+
     # --- ClipStore -----------------------------------------------------------------
 
-    def list_clips(self, camera_id: str, day: date) -> list[Clip]:
-        """Every clip in one camera's recordings on one day, ordered by start_time, then id."""
+    def list_clips(self, camera_id: str | None, day: date) -> list[Clip]:
+        """Clips in recordings on one day, ordered by start_time, then id.
+
+        camera_id None lists every camera's clips.
+        """
+        day_text = _day_text(day)
         with self._transaction(write=False) as db:
-            rows = db.execute(_CLIPS_ON_DAY, (camera_id, _day_text(day))).fetchall()
+            if camera_id is None:
+                rows = db.execute(_CLIPS_ON_DAY_ALL_CAMERAS, (day_text,)).fetchall()
+            else:
+                rows = db.execute(_CLIPS_ON_DAY, (camera_id, day_text)).fetchall()
             return _clips_from_rows(db, rows)
 
     def get_clip(self, clip_id: str) -> Clip | None:
@@ -401,12 +616,18 @@ class SqliteLibraryStore:
 
     # --- Seeding -------------------------------------------------------------------
 
-    def _add_all_if_empty(self, seed: DemoSeed) -> bool:
-        """Write a whole seed in one transaction, unless the library already has a camera."""
+    def _add_all_if_new(self, seed: DemoSeed) -> bool:
+        """Write a whole seed in one transaction, unless the library ever had a camera.
+
+        "Ever" is camera_sequence above 0, which only counts up: a library whose cameras
+        were all deleted is not new, so the seed does not bring them back. Seed cameras keep
+        their own ids, written in number order; the schema then moves the sequence past
+        the highest, so the next add_camera gets the number after it.
+        """
         with self._transaction(write=True) as db:
-            if _found(db, _ANY_CAMERA, ()):
+            if db.execute(_LAST_CAMERA_NUMBER).fetchone()[0] > 0:
                 return False
-            for camera in seed.cameras:
+            for camera in sorted(seed.cameras, key=lambda item: camera_number(item.id)):
                 _insert_camera(db, camera)
             for recording in seed.recordings:
                 _insert_recording(db, recording)
@@ -473,6 +694,11 @@ class SqliteLibraryStore:
                         f"the library database uses schema version {version}, newer than "
                         f"this AskFootage reads ({SCHEMA_VERSION}); update AskFootage"
                     )
+                elif version in _DROP_TABLES_OF_VERSION:
+                    # Demo data only: upgrading from v1 drops and recreates; the seed then
+                    # refills it. schema.sql is the current version, so no step follows.
+                    connection.executescript(_DROP_TABLES_OF_VERSION[version])
+                    connection.executescript(_schema_sql())
                 else:
                     for step in range(version, SCHEMA_VERSION):
                         connection.executescript(_MIGRATIONS[step])
@@ -492,17 +718,19 @@ class SqliteLibraryStore:
 
 
 def seed_demo_data(store: SqliteLibraryStore, seed_file: Path) -> bool:
-    """Load the demo library from seed_file into an empty database, in one transaction.
+    """Load the demo library from seed_file into a new database, in one transaction.
 
-    Returns True if it seeded. Returns False, changing nothing, when the database already
-    holds any camera, so restarting the app never brings back zones the user deleted or
-    duplicates rows. Raises SeedDataError, leaving the database as it was, if the file is
-    malformed or its rows break the library's rules (a repeated id, a clip pointing at a
+    Seed cameras keep their ids (CAM-001 to CAM-003 in the demo), and the next camera added
+    afterwards gets the following number (CAM-004). Returns True if it seeded. Returns
+    False, changing nothing, when the library has ever had a camera, even one since
+    deleted, so restarting the app never brings back rows the user deleted or duplicates
+    rows. Raises SeedDataError, leaving the database as it was, if the file is malformed or
+    its rows break the library's rules (a repeated id or camera name, a clip pointing at a
     recording that is not in the seed); OSError if the file cannot be read.
     """
     seed = read_seed(seed_file)
     try:
-        return store._add_all_if_empty(seed)
+        return store._add_all_if_new(seed)
     except (LibraryError, ValueError) as error:
         raise SeedDataError(f"demo seed rows were refused: {error}") from None
 
@@ -511,9 +739,43 @@ def seed_demo_data(store: SqliteLibraryStore, seed_file: Path) -> bool:
 
 
 def _insert_camera(db: sqlite3.Connection, camera: Camera) -> None:
-    if _found(db, _CAMERA_BY_ID, (camera.id,)):
+    """Write a camera under its own id. The schema's triggers refuse a number already
+    handed out and move camera_sequence up to this one."""
+    number = camera_number(camera.id)
+    if camera.id != camera_id_for(number):
+        raise LibraryError("a camera id has no extra leading zeros: CAM-001, not CAM-0001")
+    if len(camera.ip) > MAX_CAMERA_IP_LENGTH:
+        raise LibraryError(f"a camera ip can be at most {MAX_CAMERA_IP_LENGTH} characters")
+    if _found(db, _CAMERA_EXISTS, (camera.id,)):
         raise DuplicateError("a camera with this id already exists")
-    db.execute(_INSERT_CAMERA, (camera.id, camera.name))
+    if _camera_name_taken(db, camera.name):
+        raise DuplicateError("a camera with this name already exists")
+    db.execute(
+        _INSERT_CAMERA,
+        (
+            camera.id,
+            number,
+            camera.name,
+            camera.ip,
+            camera.username,
+            camera.status,
+            camera.location,
+            camera.department,
+            _utc_text(camera.created_at),
+        ),
+    )
+
+
+def _camera_name_taken(db: sqlite3.Connection, name: str) -> bool:
+    """Whether any camera already has this name, ignoring case (str.casefold).
+
+    Call it only inside a write transaction: the write lock it holds is what stops another
+    writer adding a clashing name between this check and the caller's write. The schema's
+    UNIQUE index on lower(name) still refuses an ASCII-case repeat from any writer. It
+    reads every name, which is fine for a registry one person fills by hand.
+    """
+    wanted = name.casefold()
+    return any(other.casefold() == wanted for (other,) in db.execute(_CAMERA_NAMES))
 
 
 def _insert_recording(db: sqlite3.Connection, recording: Recording) -> None:
@@ -524,8 +786,9 @@ def _insert_recording(db: sqlite3.Connection, recording: Recording) -> None:
         _seconds_of_day(recording.start_time),
         recording.length_seconds,
         recording.status,
+        recording.status_note,
     )
-    if not _found(db, _CAMERA_BY_ID, (recording.camera,)):
+    if not _found(db, _CAMERA_EXISTS, (recording.camera,)):
         raise MissingReferenceError("there is no camera with this id")
     if _found(db, _RECORDING_EXISTS, (recording.id,)):
         raise DuplicateError("a recording with this id already exists")
@@ -574,7 +837,7 @@ def _insert_clip(db: sqlite3.Connection, clip: Clip) -> None:
 
 def _insert_zone(db: sqlite3.Connection, zone: Zone) -> None:
     _check_zone_name(zone.name)
-    if not _found(db, _CAMERA_BY_ID, (zone.camera,)):
+    if not _found(db, _CAMERA_EXISTS, (zone.camera,)):
         raise MissingReferenceError("there is no camera with this id")
     if _found(db, _ZONE_CAMERA, (zone.id,)):
         raise DuplicateError("a zone with this id already exists")
@@ -692,6 +955,20 @@ def _saved_clips_from_rows(
     ]
 
 
+def _camera_from_row(row: Sequence[object]) -> Camera:
+    """A camera for a row in _CAMERA_BY_ID's column order."""
+    return Camera(
+        id=row[0],
+        name=row[1],
+        ip=row[2],
+        username=row[3],
+        status=row[4],
+        location=row[5],
+        department=row[6],
+        created_at=_utc_datetime(row[7]),
+    )
+
+
 def _recording_from_row(row: Sequence[object]) -> Recording:
     return Recording(
         id=row[0],
@@ -700,6 +977,7 @@ def _recording_from_row(row: Sequence[object]) -> Recording:
         start_time=_time_of_day(row[3]),
         length_seconds=row[4],
         status=row[5],
+        status_note=row[6],
     )
 
 
@@ -723,6 +1001,21 @@ def _refusal(error: sqlite3.IntegrityError) -> LibraryError:
 def _check_note(note: str) -> None:
     if len(note) > MAX_NOTE_LENGTH:
         raise LibraryError(f"a note can be at most {MAX_NOTE_LENGTH} characters")
+
+
+def _check_recording_status(what: str, status: object) -> None:
+    if status not in RECORDING_STATUSES:
+        raise ValueError(f"{what} must be one of {', '.join(RECORDING_STATUSES)}")
+
+
+def _check_status_note(note: str | None) -> None:
+    """The Recording rule for status_note: None, or 1 to STATUS_NOTE_MAX non-blank chars."""
+    if note is None:
+        return
+    if not isinstance(note, str):
+        raise TypeError("a status note must be a str or None")
+    if not note.strip() or len(note) > STATUS_NOTE_MAX:
+        raise ValueError(f"status_note must be None or 1 to {STATUS_NOTE_MAX} characters")
 
 
 def _check_zone_name(name: str) -> None:

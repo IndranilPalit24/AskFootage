@@ -25,7 +25,6 @@ from python_multipart.exceptions import FormParserError
 from python_multipart.multipart import parse_options_header
 from starlette.requests import ClientDisconnect, Request
 
-from askfootage.application.library import DEFAULT_CAMERA_ID
 from askfootage.interfaces.api.errors import ApiError, describe_validation_problems
 from askfootage.interfaces.api.schemas import Day, Id
 
@@ -58,12 +57,12 @@ def _invalid(message: str) -> ApiError:
 
 
 class UploadFields(BaseModel):
-    """The text fields of an upload, validated like any other input."""
+    """The text fields of an upload, validated like any other input. Both are required."""
 
     model_config = ConfigDict(extra="ignore")
 
     day: Day
-    camera: Id = DEFAULT_CAMERA_ID
+    camera: Id
 
 
 @dataclass

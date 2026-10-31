@@ -103,8 +103,20 @@ def parse_seed(raw: object) -> DemoSeed:
 
 
 def _camera(raw: object, where: str) -> Camera:
+    # Only these keys are read: a "password" key, or any other, is ignored and never stored.
     item = _object(raw, where)
-    return _build(where, Camera, id=_text(item, "id", where), name=_text(item, "name", where))
+    return _build(
+        where,
+        Camera,
+        id=_text(item, "id", where),
+        name=_text(item, "name", where),
+        ip=_text(item, "ip", where),
+        username=_text(item, "username", where),
+        status=_text(item, "status", where),
+        location=_optional_text(item, "location", where),
+        department=_optional_text(item, "department", where),
+        created_at=_aware_datetime(item, "createdAt", where),
+    )
 
 
 def _recording(raw: object, where: str) -> Recording:
@@ -196,13 +208,7 @@ def _saved_clip(raw: object, where: str) -> SeedSavedClip:
         clip_id = _text(item, "clipId", where)
     else:
         clip_id = _text(_object(_field(item, "clip", where), f"{where}.clip"), "id", where)
-    saved_at_text = _text(item, "savedAt", where)
-    try:
-        saved_at = datetime.fromisoformat(saved_at_text)
-    except ValueError:
-        raise SeedDataError(f"{where}.savedAt must be an ISO 8601 date-time") from None
-    if saved_at.tzinfo is None:
-        raise SeedDataError(f"{where}.savedAt must include a time zone, such as Z")
+    saved_at = _aware_datetime(item, "savedAt", where)
     note = item.get("note", "")
     if not isinstance(note, str):
         raise SeedDataError(f"{where}.note must be a string")
@@ -264,6 +270,17 @@ def _day(item: dict[str, object], key: str, where: str) -> date:
         return date.fromisoformat(value)
     except ValueError:
         raise SeedDataError(f"{where}.{key} must be a date written YYYY-MM-DD") from None
+
+
+def _aware_datetime(item: dict[str, object], key: str, where: str) -> datetime:
+    value = _text(item, key, where)
+    try:
+        moment = datetime.fromisoformat(value)
+    except ValueError:
+        raise SeedDataError(f"{where}.{key} must be an ISO 8601 date-time") from None
+    if moment.tzinfo is None:
+        raise SeedDataError(f"{where}.{key} must include a time zone, such as Z")
+    return moment
 
 
 def _time_of_day(item: dict[str, object], key: str, where: str) -> time:
