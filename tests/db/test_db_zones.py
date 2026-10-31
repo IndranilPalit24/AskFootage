@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from db_library_helpers import SQUARE, camera, count_rows, zone
+from db_library_helpers import CAM_1, CAM_2, NO_SUCH_CAMERA, SQUARE, count_rows, new_camera, zone
 
 from askfootage.adapters.sqlite.store import SqliteLibraryStore
 from askfootage.ports.library_store import DuplicateError, MissingReferenceError
@@ -13,9 +13,9 @@ TRIANGLE = ((0.0, 0.0), (1.0, 0.0), (0.5, 1.0))
 
 @pytest.fixture
 def zoned(store: SqliteLibraryStore) -> SqliteLibraryStore:
-    """Cameras cam-1 and cam-2, and zone-1 "Gate" on cam-1."""
-    store.add_camera(camera("cam-1"))
-    store.add_camera(camera("cam-2", "Yard"))
+    """Cameras CAM-001 "Front gate" and CAM-002 "Yard", and zone-1 "Gate" on CAM-001."""
+    assert store.add_camera(new_camera("Front gate")).id == CAM_1
+    assert store.add_camera(new_camera("Yard")).id == CAM_2
     store.add_zone(zone())
     return store
 
@@ -33,7 +33,7 @@ def test_a_zone_round_trips_keeping_point_order(zoned: SqliteLibraryStore) -> No
 
 def test_unknown_zone_lookups(zoned: SqliteLibraryStore) -> None:
     assert zoned.get_zone("zone-nope") is None
-    assert zoned.list_zones("cam-9") == []
+    assert zoned.list_zones(NO_SUCH_CAMERA) == []
     assert zoned.replace_zone(zone("zone-nope", name="Anything")) is False
     assert zoned.delete_zone("zone-nope") is False
 
@@ -44,12 +44,12 @@ def test_add_zone_refusals(zoned: SqliteLibraryStore) -> None:
     with pytest.raises(DuplicateError, match="name"):
         zoned.add_zone(zone("zone-2", name="Gate"))
     with pytest.raises(MissingReferenceError):
-        zoned.add_zone(zone("zone-3", camera_id="cam-9"))
+        zoned.add_zone(zone("zone-3", camera_id=NO_SUCH_CAMERA))
     assert zoned.list_zones() == [zone()]
 
 
 def test_names_are_unique_per_camera_only(zoned: SqliteLibraryStore) -> None:
-    zoned.add_zone(zone("zone-2", camera_id="cam-2", name="Gate"))
+    zoned.add_zone(zone("zone-2", camera_id=CAM_2, name="Gate"))
     assert [z.id for z in zoned.list_zones()] == ["zone-1", "zone-2"]
 
 
@@ -68,7 +68,7 @@ def test_casefold_is_used_so_non_ascii_case_clashes_too(zoned: SqliteLibraryStor
     zoned.add_zone(zone("zone-4", name="ÉCLUSE"))
     with pytest.raises(DuplicateError):
         zoned.add_zone(zone("zone-5", name="écluse"))
-    assert [z.name for z in zoned.list_zones("cam-1")] == ["Gate", "straße", "ÉCLUSE"]
+    assert [z.name for z in zoned.list_zones(CAM_1)] == ["Gate", "straße", "ÉCLUSE"]
 
 
 def test_a_name_keeps_the_case_it_was_given(zoned: SqliteLibraryStore) -> None:
@@ -80,31 +80,31 @@ def test_a_name_keeps_the_case_it_was_given(zoned: SqliteLibraryStore) -> None:
 def test_names_differing_only_in_spacing_do_not_clash(zoned: SqliteLibraryStore) -> None:
     """Only case is ignored; any trimming is the API's to decide."""
     zoned.add_zone(zone("zone-2", name="Gate "))
-    assert len(zoned.list_zones("cam-1")) == 2
+    assert len(zoned.list_zones(CAM_1)) == 2
 
 
 def test_a_name_in_any_case_is_fine_on_another_camera(zoned: SqliteLibraryStore) -> None:
-    zoned.add_zone(zone("zone-2", camera_id="cam-2", name="GATE"))
-    zoned.add_zone(zone("zone-3", camera_id="cam-2", name="straße"))
-    zoned.add_zone(zone("zone-4", camera_id="cam-1", name="STRASSE"))
+    zoned.add_zone(zone("zone-2", camera_id=CAM_2, name="GATE"))
+    zoned.add_zone(zone("zone-3", camera_id=CAM_2, name="straße"))
+    zoned.add_zone(zone("zone-4", camera_id=CAM_1, name="STRASSE"))
     # Listed in the Protocol's name order, which is SQLite's binary (byte) order.
     assert [(z.camera, z.name) for z in zoned.list_zones()] == [
-        ("cam-2", "GATE"),
-        ("cam-1", "Gate"),
-        ("cam-1", "STRASSE"),
-        ("cam-2", "straße"),
+        (CAM_2, "GATE"),
+        (CAM_1, "Gate"),
+        (CAM_1, "STRASSE"),
+        (CAM_2, "straße"),
     ]
 
 
 def test_list_zones_orders_by_name_then_id_and_filters(zoned: SqliteLibraryStore) -> None:
-    zoned.add_zone(zone("zone-b", camera_id="cam-2", name="Alley"))
-    zoned.add_zone(zone("zone-a", camera_id="cam-1", name="Alley"))
-    zoned.add_zone(zone("zone-c", camera_id="cam-2", name="Yard"))
+    zoned.add_zone(zone("zone-b", camera_id=CAM_2, name="Alley"))
+    zoned.add_zone(zone("zone-a", camera_id=CAM_1, name="Alley"))
+    zoned.add_zone(zone("zone-c", camera_id=CAM_2, name="Yard"))
 
     assert [z.id for z in zoned.list_zones()] == ["zone-a", "zone-b", "zone-1", "zone-c"]
     assert [z.id for z in zoned.list_zones(None)] == ["zone-a", "zone-b", "zone-1", "zone-c"]
-    assert [z.id for z in zoned.list_zones("cam-1")] == ["zone-a", "zone-1"]
-    assert [z.id for z in zoned.list_zones("cam-2")] == ["zone-b", "zone-c"]
+    assert [z.id for z in zoned.list_zones(CAM_1)] == ["zone-a", "zone-1"]
+    assert [z.id for z in zoned.list_zones(CAM_2)] == ["zone-b", "zone-c"]
 
 
 def test_replace_zone_changes_name_and_points(
@@ -122,15 +122,15 @@ def test_replace_zone_may_keep_its_own_name(zoned: SqliteLibraryStore) -> None:
 
 
 def test_replace_zone_never_moves_it_to_another_camera(zoned: SqliteLibraryStore) -> None:
-    assert zoned.replace_zone(zone(camera_id="cam-2", name="Renamed")) is True
-    assert zoned.get_zone("zone-1") == zone(camera_id="cam-1", name="Renamed")
+    assert zoned.replace_zone(zone(camera_id=CAM_2, name="Renamed")) is True
+    assert zoned.get_zone("zone-1") == zone(camera_id=CAM_1, name="Renamed")
 
 
 def test_replace_zone_refuses_a_name_taken_on_its_camera_and_changes_nothing(
     zoned: SqliteLibraryStore,
 ) -> None:
     zoned.add_zone(zone("zone-2", name="Exit lane", points=TRIANGLE))
-    zoned.add_zone(zone("zone-3", camera_id="cam-2", name="Yard"))
+    zoned.add_zone(zone("zone-3", camera_id=CAM_2, name="Yard"))
 
     with pytest.raises(DuplicateError):
         zoned.replace_zone(zone("zone-2", name="Gate", points=SQUARE))
@@ -171,7 +171,7 @@ def test_replace_zone_may_rename_to_another_case_of_its_own_name(
     assert zoned.replace_zone(zone(name=name, points=TRIANGLE)) is True
 
     assert zoned.get_zone("zone-1") == zone(name=name, points=TRIANGLE)
-    assert [z.name for z in zoned.list_zones("cam-1")] == ["Exit lane", name]
+    assert [z.name for z in zoned.list_zones(CAM_1)] == ["Exit lane", name]
 
 
 def test_replace_zone_may_rename_to_a_non_ascii_case_of_its_own_name(

@@ -1,4 +1,4 @@
-"""Use cases for cameras, days, recordings, uploads, footage files and single clips."""
+"""Use cases for status, days, recordings, uploads, footage files and single clips."""
 
 from __future__ import annotations
 
@@ -7,56 +7,48 @@ from datetime import date, time, timedelta
 from pathlib import Path
 from typing import Protocol
 
+from askfootage.application.cameras import camera_sort_key
+from askfootage.application.clips import ClipWithCamera, camera_of_clip
 from askfootage.application.errors import NotFoundError
 from askfootage.application.library import (
-    DEFAULT_CAMERA_ID,
+    CAMERA_NOT_FOUND,
     IdFactory,
     Library,
     new_id,
     require_camera,
+    require_camera_filter,
 )
-from askfootage.ports.library_store import (
-    Camera,
-    Clip,
-    DaySummary,
-    MissingReferenceError,
-    Recording,
-)
+from askfootage.ports.library_store import DaySummary, MissingReferenceError, Recording
 
 DAYS_SHOWN = 7
 """How many days the day picker covers, ending today."""
 
+_CLIP_NOT_FOUND = "Clip not found."
+
 
 @dataclass(frozen=True, slots=True)
 class ServiceStatus:
-    """Whether the app serves demo data, and the camera it covers."""
+    """Whether the app serves demo data."""
 
     demo_mode: bool
-    camera: Camera
 
 
-def get_status(library: Library) -> ServiceStatus:
+def get_status() -> ServiceStatus:
     """The app's status.
 
     demo_mode is always True in v1: the only data source is the seeded demo dataset, and
     uploads are checked and registered but never processed.
     """
-    camera = library.recordings.get_camera(DEFAULT_CAMERA_ID)
-    if camera is None:
-        cameras = library.recordings.list_cameras()
-        if not cameras:
-            # A library without any camera is a broken installation, not a client error.
-            raise RuntimeError("the library has no cameras")
-        camera = cameras[0]
-    return ServiceStatus(demo_mode=True, camera=camera)
+    return ServiceStatus(demo_mode=True)
 
 
-def list_days(library: Library, camera_id: str, today: date) -> list[DaySummary]:
+def list_days(library: Library, camera_id: str | None, today: date) -> list[DaySummary]:
     """Recording counts for the 7 days ending today, oldest first, with empty days as zeros.
 
-    Raises NotFoundError for an unknown camera.
+    camera_id None counts every camera's recordings. Raises NotFoundError for an unknown
+    camera.
     """
-    require_camera(library, camera_id)
+    require_camera_filter(library, camera_id)
     first_day = today - timedelta(days=DAYS_SHOWN - 1)
     found = {
         summary.day: summary
@@ -66,20 +58,29 @@ def list_days(library: Library, camera_id: str, today: date) -> list[DaySummary]
     return [found.get(day) or DaySummary(day=day, recordings=0, ready=0) for day in days]
 
 
-def list_recordings(library: Library, camera_id: str, day: date) -> list[Recording]:
-    """One camera's recordings on one day, ordered by start time, then id.
+def list_recordings(library: Library, camera_id: str | None, day: date) -> list[Recording]:
+    """Recordings on one day, ordered by start time, then camera (CAM-999 before CAM-1000),
+    then id.
 
-    Raises NotFoundError for an unknown camera.
+    camera_id None lists every camera's recordings. Raises NotFoundError for an unknown
+    camera.
     """
-    require_camera(library, camera_id)
+    require_camera_filter(library, camera_id)
     recordings = library.recordings.list_recordings(camera_id, day)
-    return sorted(recordings, key=lambda recording: (recording.start_time, recording.id))
+    return sorted(
+        recordings,
+        key=lambda recording: (
+            recording.start_time,
+            camera_sort_key(recording.camera),
+            recording.id,
+        ),
+    )
 
 
 def register_upload(
     library: Library, camera_id: str, day: date, *, make_id: IdFactory = new_id
 ) -> Recording:
-    """Register an uploaded video as a new recording that waits to be processed.
+    """Register an uploaded video as a new recording of one camera that waits to be processed.
 
     The caller has already checked the file. The recording starts at 00:00:00 with length
     0; processing fills those in later (not in v1). Raises NotFoundError for an unknown
@@ -97,7 +98,7 @@ def register_upload(
     try:
         library.recordings.add_recording(recording)
     except MissingReferenceError:
-        raise NotFoundError("Camera not found.") from None
+        raise NotFoundError(CAMERA_NOT_FOUND) from None
     return recording
 
 
@@ -123,9 +124,13 @@ def find_footage(library: Library, footage: FootageSource, recording_id: str) ->
     return path
 
 
-def get_clip(library: Library, clip_id: str) -> Clip:
-    """One clip with its evidence; raises NotFoundError when there is no such clip."""
+def get_clip(library: Library, clip_id: str) -> ClipWithCamera:
+    """One clip with its evidence and its camera; raises NotFoundError when it is unknown."""
     clip = library.clips.get_clip(clip_id)
     if clip is None:
-        raise NotFoundError("Clip not found.")
-    return clip
+        raise NotFoundError(_CLIP_NOT_FOUND)
+    camera = camera_of_clip(library, clip)
+    if camera is None:
+        # The recording went between the two lookups, and the clip went with it.
+        raise NotFoundError(_CLIP_NOT_FOUND)
+    return ClipWithCamera(clip=clip, camera=camera)

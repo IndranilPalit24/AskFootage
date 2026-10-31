@@ -1,24 +1,25 @@
 import { createContext, use, useCallback, useMemo, type ReactNode } from 'react';
-import type { DaySummary, Status } from '../api/generated/types';
+import type { Camera, DaySummary } from '../api/generated/types';
 import { useAsyncData, type LoadError } from '../hooks/useAsyncData';
 import { useApiClient } from './ApiContext';
 
 export interface AppData {
-  status: Status | null;
-  /** The 7 days from GET /api/days, oldest first. */
+  /** The 7 days from GET /api/days (all cameras), oldest first. */
   days: DaySummary[] | null;
   /** The server's today: the last entry of GET /api/days. Never the browser clock. */
   today: string | null;
+  /** Every camera, in id order: the last list the server sent (the registry keeps it fresh). */
+  cameras: Camera[] | null;
   loading: boolean;
   error: LoadError | null;
   reload: () => void;
-  /** Fetches the day counts again (after an upload). */
-  refreshDays: () => Promise<void>;
+  /** Replaces the camera list with what the server confirmed. Return the same array to change nothing. */
+  setCameras: (update: (current: Camera[]) => Camera[]) => void;
 }
 
 interface Boot {
-  status: Status;
   days: DaySummary[];
+  cameras: Camera[];
 }
 
 const AppDataContext = createContext<AppData | null>(null);
@@ -27,33 +28,34 @@ const BOOT_KEY = ['boot'];
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const client = useApiClient();
-  // The days need the camera id from the status, so these two calls run in sequence.
+  // Independent of each other, so both start at once.
   const boot = useAsyncData<Boot>(async () => {
-    const status = await client.getStatus();
-    const days = await client.listDays(status.camera.id);
-    return { status, days };
+    const [days, cameras] = await Promise.all([client.listDays(), client.listCameras()]);
+    return { days, cameras };
   }, BOOT_KEY);
 
-  const cameraId = boot.data?.status.camera.id ?? null;
   const { mutate, reload } = boot;
-  const refreshDays = useCallback(async () => {
-    if (!cameraId) return;
-    const days = await client.listDays(cameraId);
-    mutate((current) => ({ ...current, days }));
-  }, [client, cameraId, mutate]);
+  const setCameras = useCallback(
+    (update: (current: Camera[]) => Camera[]) =>
+      mutate((current) => {
+        const cameras = update(current.cameras);
+        return cameras === current.cameras ? current : { ...current, cameras };
+      }),
+    [mutate],
+  );
 
   const value = useMemo<AppData>(() => {
     const days = boot.data?.days ?? null;
     return {
-      status: boot.data?.status ?? null,
       days,
       today: days && days.length > 0 ? days[days.length - 1].day : null,
+      cameras: boot.data?.cameras ?? null,
       loading: boot.loading,
       error: boot.error,
       reload,
-      refreshDays,
+      setCameras,
     };
-  }, [boot.data, boot.loading, boot.error, reload, refreshDays]);
+  }, [boot.data, boot.loading, boot.error, reload, setCameras]);
 
   return <AppDataContext value={value}>{children}</AppDataContext>;
 }

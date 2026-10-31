@@ -21,10 +21,13 @@ function BackLink() {
   );
 }
 
-function ClipDetail({ clip, cameraId, cameraName }: { clip: Clip; cameraId: string; cameraName: string }) {
+function ClipDetail({ clip, cameraName }: { clip: Clip; cameraName: string }) {
   const client = useApiClient();
-  // The day's recordings, for the timeline. It needs the clip's day, so it starts once the clip is here.
-  const recordings = useAsyncData(() => client.listRecordings(clip.day, cameraId), ['recordings', clip.day, cameraId]);
+  // The clip's camera's recordings that day, for the timeline. It needs the clip, so it starts once the clip is here.
+  const recordings = useAsyncData(
+    () => client.listRecordings(clip.day, clip.camera),
+    ['recordings', clip.day, clip.camera],
+  );
   const videoRef = useRef<HTMLVideoElement>(null);
   const [selectedFrame, setSelectedFrame] = useState<number | null>(null);
 
@@ -80,7 +83,7 @@ function ClipDetail({ clip, cameraId, cameraName }: { clip: Clip; cameraId: stri
 export function ClipDetailScreen() {
   const { id = '' } = useParams();
   const client = useApiClient();
-  const { status } = useAppData();
+  const { cameras } = useAppData();
   const clip = useAsyncData(() => client.getClip(id), ['clip', id]);
 
   if (clip.error && !clip.data) {
@@ -105,7 +108,7 @@ export function ClipDetailScreen() {
     );
   }
 
-  if (!clip.data || !status) {
+  if (!clip.data || !cameras) {
     return (
       <div className="stack">
         <BackLink />
@@ -116,5 +119,7 @@ export function ClipDetailScreen() {
     );
   }
 
-  return <ClipDetail key={clip.data.id} clip={clip.data} cameraId={status.camera.id} cameraName={status.camera.name} />;
+  const cameraId = clip.data.camera;
+  const cameraName = cameras.find((camera) => camera.id === cameraId)?.name ?? cameraId;
+  return <ClipDetail key={clip.data.id} clip={clip.data} cameraName={cameraName} />;
 }

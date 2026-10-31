@@ -52,6 +52,11 @@ def day_part(day: str = FRIDAY) -> tuple[str, str | None, str | None, bytes]:
     return ("day", None, None, day.encode())
 
 
+def camera_part(camera: str = "CAM-001") -> tuple[str, str | None, str | None, bytes]:
+    """The camera field of an upload: required, it names the camera that recorded the video."""
+    return ("camera", None, None, camera.encode())
+
+
 def upload(client: TestClient, *parts: tuple[str, str | None, str | None, bytes]) -> Any:
     """POST a multipart body built from parts."""
     return client.post(
@@ -94,7 +99,7 @@ def test_an_mp4_upload_is_accepted_and_waits(upload_client: TestClient) -> None:
     response = upload_client.post(
         "/api/recordings",
         files={"file": ("dock.mp4", FAKE_MP4, "video/mp4")},
-        data={"day": FRIDAY},
+        data={"day": FRIDAY, "camera": "CAM-001"},
     )
     assert response.status_code == 202
     assert response.json() == {"id": "rec-new1", "status": "waiting"}
@@ -102,16 +107,17 @@ def test_an_mp4_upload_is_accepted_and_waits(upload_client: TestClient) -> None:
 
 
 def test_the_new_recording_is_listed_and_counted(upload_client: TestClient) -> None:
-    upload(upload_client, video_part(), day_part(), ("camera", None, None, b"loading-dock"))
-    listed = upload_client.get("/api/recordings", params={"day": FRIDAY, "camera": "loading-dock"})
+    upload(upload_client, video_part(), day_part(), camera_part())
+    listed = upload_client.get("/api/recordings", params={"day": FRIDAY, "camera": "CAM-001"})
     assert listed.json()[0] == {
         "id": "rec-new1",
+        "camera": "CAM-001",
         "day": FRIDAY,
         "startTime": "00:00:00",
         "lengthSeconds": 0,
         "status": "waiting",
     }
-    days = upload_client.get("/api/days", params={"camera": "loading-dock"}).json()
+    days = upload_client.get("/api/days", params={"camera": "CAM-001"}).json()
     assert days[-1] == {"day": FRIDAY, "recordings": 5, "ready": 2}
 
 
@@ -123,7 +129,10 @@ def test_the_mp4_checks_ignore_case_and_parameters(
     upload_client: TestClient, filename: str, content_type: str
 ) -> None:
     response = upload(
-        upload_client, video_part(filename=filename, content_type=content_type), day_part()
+        upload_client,
+        video_part(filename=filename, content_type=content_type),
+        day_part(),
+        camera_part(),
     )
     assert response.status_code == 202
 
@@ -131,12 +140,13 @@ def test_the_mp4_checks_ignore_case_and_parameters(
 def test_a_video_of_exactly_the_limit_is_accepted(small_limit_client: TestClient) -> None:
     video = FAKE_MP4[:SMALL_LIMIT]
     assert len(video) == SMALL_LIMIT
-    assert upload(small_limit_client, video_part(video), day_part()).status_code == 202
+    response = upload(small_limit_client, video_part(video), day_part(), camera_part())
+    assert response.status_code == 202
 
 
 def test_the_upload_is_never_written_to_disk(upload_client: TestClient, tmp_path: Path) -> None:
     before = files_in(tmp_path)
-    assert upload(upload_client, video_part(), day_part()).status_code == 202
+    assert upload(upload_client, video_part(), day_part(), camera_part()).status_code == 202
     assert files_in(tmp_path) == before
 
 
@@ -152,9 +162,7 @@ def test_a_video_over_the_limit_is_413(small_limit_client: TestClient) -> None:
     response = upload(small_limit_client, video_part(video), day_part())
     message = assert_error(response, 413, "file_too_large")
     assert message == "The video is larger than the 1024 bytes limit."
-    listed = small_limit_client.get(
-        "/api/recordings", params={"day": FRIDAY, "camera": "loading-dock"}
-    )
+    listed = small_limit_client.get("/api/recordings", params={"day": FRIDAY, "camera": "CAM-001"})
     assert "waiting" not in [recording["status"] for recording in listed.json()[:1]]
 
 
@@ -233,10 +241,19 @@ def test_a_body_that_is_not_multipart_is_415(client: TestClient, content_type: s
 @pytest.mark.parametrize(
     ("parts", "message"),
     [
-        ((video_part(),), "day: is required"),
-        ((video_part(), day_part("30/10/2026")), "day: must be a date written YYYY-MM-DD"),
-        ((video_part(), day_part("2026-02-30")), "day: must be a valid date written YYYY-MM-DD"),
-        ((video_part(), day_part("")), "day: must be a date written YYYY-MM-DD"),
+        ((video_part(), camera_part()), "day: is required"),
+        (
+            (video_part(), day_part("30/10/2026"), camera_part()),
+            "day: must be a date written YYYY-MM-DD",
+        ),
+        (
+            (video_part(), day_part("2026-02-30"), camera_part()),
+            "day: must be a valid date written YYYY-MM-DD",
+        ),
+        ((video_part(), day_part(""), camera_part()), "day: must be a date written YYYY-MM-DD"),
+        ((video_part(), day_part()), "camera: is required"),
+        ((video_part(), day_part(), camera_part(), camera_part()), "camera: send it once"),
+        ((video_part(),), "day: is required; camera: is required"),
         ((video_part(), day_part(), day_part()), "day: send it once"),
         ((day_part(),), "file: is required"),
         ((("file", None, None, b"not a file"), day_part()), "file: must be an uploaded file"),
@@ -246,7 +263,7 @@ def test_a_body_that_is_not_multipart_is_415(client: TestClient, content_type: s
             "body: send the video in the field named file",
         ),
         (
-            (video_part(), day_part(), ("camera", None, None, b"../etc")),
+            (video_part(), day_part(), camera_part("../etc")),
             "camera: must be 1 to 64 letters, digits, '-' or '_'",
         ),
         ((video_part(), ("day", None, None, b"2" * 2048)), "day: is too long"),
@@ -269,12 +286,14 @@ def test_a_form_that_ends_early_is_422(client: TestClient) -> None:
 
 
 def test_an_unknown_camera_is_404(client: TestClient) -> None:
-    response = upload(client, video_part(), day_part(), ("camera", None, None, b"back-door"))
+    response = upload(client, video_part(), day_part(), camera_part("CAM-999"))
     assert assert_error(response, 404, "not_found") == "Camera not found."
 
 
 def test_extra_text_fields_are_ignored(upload_client: TestClient) -> None:
-    response = upload(upload_client, video_part(), day_part(), ("comment", None, None, b"hi"))
+    response = upload(
+        upload_client, video_part(), day_part(), camera_part(), ("comment", None, None, b"hi")
+    )
     assert response.status_code == 202
 
 

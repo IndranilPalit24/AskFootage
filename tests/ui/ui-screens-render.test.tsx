@@ -17,9 +17,16 @@ describe('every screen renders from the demo client', () => {
     expectShell();
   });
 
-  it('Camera at /camera', async () => {
-    renderApp('/camera');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Camera' })).toBeTruthy();
+  it('Cameras at /cameras', async () => {
+    renderApp('/cameras');
+    expect(screen.getByRole('heading', { level: 1, name: 'Cameras' })).toBeTruthy();
+    expect(await screen.findByRole('link', { name: 'Loading dock' })).toBeTruthy();
+    expectShell();
+  });
+
+  it('Recordings at /cameras/:id/recordings', async () => {
+    renderApp('/cameras/CAM-001/recordings');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Recordings' })).toBeTruthy();
     expect(await screen.findByText('4 recordings · 7 h · 2 ready')).toBeTruthy();
     expectShell();
   });

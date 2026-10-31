@@ -9,13 +9,13 @@ function goTo(label: string) {
   fireEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', { name: label }));
 }
 
-/** Asks "someone carrying a box" about Thu 29; the loading-dock clip is the 4th of 5. */
+/** Asks "someone carrying a box" about Thu 29; results span every camera, so the loading dock clip is the 5th of 6. */
 async function searchThursday(): Promise<HTMLElement[]> {
   const box = await screen.findByLabelText('Ask about the footage');
   fireEvent.change(screen.getByLabelText('Day:'), { target: { value: '2026-10-29' } });
   fireEvent.change(box, { target: { value: 'someone carrying a box' } });
   fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-  await screen.findByText('5 clips');
+  await screen.findByText('6 clips');
   return within(screen.getByRole('list', { name: 'Results' })).getAllByRole('article');
 }
 
@@ -23,7 +23,7 @@ describe('Save clip and the Saved clips screen', () => {
   it('saves a result and unsaves it again; the Saved clips screen follows', async () => {
     const { client } = renderApp('/');
     await waitForBoot();
-    const card = (await searchThursday())[3];
+    const card = (await searchThursday())[4];
     const button = within(card).getByRole('button', { name: 'Save clip' });
     expect(button.getAttribute('aria-pressed')).toBe('false');
 
@@ -40,7 +40,7 @@ describe('Save clip and the Saved clips screen', () => {
 
     // Back on the restored results, unsave it from the same button.
     goTo('Find Footage');
-    const again = within(screen.getByRole('list', { name: 'Results' })).getAllByRole('article')[3];
+    const again = within(screen.getByRole('list', { name: 'Results' })).getAllByRole('article')[4];
     const saved = within(again).getByRole('button', { name: 'Saved' });
     fireEvent.click(saved);
     await waitFor(() => expect(saved.getAttribute('aria-pressed')).toBe('false'));
@@ -57,7 +57,7 @@ describe('Save clip and the Saved clips screen', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Saved' }).getAttribute('aria-pressed')).toBe('true'));
     fireEvent.click(screen.getByRole('link', { name: 'Back to results' }));
     const cards = await searchThursday();
-    expect(within(cards[3]).getByRole('button', { name: 'Saved' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(cards[4]).getByRole('button', { name: 'Saved' }).getAttribute('aria-pressed')).toBe('true');
     expect(within(cards[0]).getByRole('button', { name: 'Save clip' }).getAttribute('aria-pressed')).toBe('false');
   });
 

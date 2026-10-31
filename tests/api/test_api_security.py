@@ -18,24 +18,54 @@ from askfootage.interfaces.api.body_limit import MAX_JSON_BODY_BYTES, BodyLimitM
 from askfootage.settings import Settings
 
 TRIANGLE = [[0.1, 0.1], [0.9, 0.1], [0.5, 0.9]]
+# A camera stream password: checked when a camera is added, then dropped. Never sent back.
+STREAM_PASSWORD = "pw-" + "never-shown-" * 2
+
+
+def new_camera(**changes: Any) -> dict[str, Any]:
+    """A valid CameraCreate body carrying STREAM_PASSWORD, with any field changed."""
+    return {
+        "name": "Side yard",
+        "ip": "192.168.1.50",
+        "username": "viewer",
+        "password": STREAM_PASSWORD,
+        "acknowledgeCost": True,
+        **changes,
+    }
+
 
 # One request per operation, plus failing variants: (method, path, keyword arguments).
 REQUESTS: list[tuple[str, str, dict[str, Any]]] = [
     ("GET", "/api/status", {}),
-    ("GET", "/api/days?camera=loading-dock", {}),
+    ("GET", "/api/cameras", {}),
+    ("POST", "/api/cameras", {"json": new_camera()}),
+    ("POST", "/api/cameras", {"json": new_camera(name="LOADING dock")}),
+    ("POST", "/api/cameras", {"json": new_camera(name="Bad ip", ip="not a host")}),
+    ("POST", "/api/cameras", {"json": new_camera(name="Long", password=STREAM_PASSWORD * 5)}),
+    ("GET", "/api/cameras/CAM-001", {}),
+    ("GET", "/api/cameras/CAM-999", {}),
+    ("PATCH", "/api/cameras/CAM-002", {"json": {"status": "standby"}}),
+    ("DELETE", "/api/cameras/CAM-003", {}),
+    ("GET", "/api/days?camera=CAM-001", {}),
     ("GET", "/api/days?camera=nope", {}),
     ("GET", "/api/days", {}),
-    ("GET", "/api/recordings?day=2026-10-29&camera=loading-dock", {}),
-    ("GET", "/api/recordings?day=bad&camera=loading-dock", {}),
+    ("GET", "/api/recordings?day=2026-10-29&camera=CAM-001", {}),
+    ("GET", "/api/recordings?day=bad&camera=CAM-001", {}),
     (
         "POST",
         "/api/recordings",
-        {"files": {"file": ("c.mp4", FAKE_MP4, "video/mp4")}, "data": {"day": "2026-10-30"}},
+        {
+            "files": {"file": ("c.mp4", FAKE_MP4, "video/mp4")},
+            "data": {"day": "2026-10-30", "camera": "CAM-001"},
+        },
     ),
     (
         "POST",
         "/api/recordings",
-        {"files": {"file": ("c.mov", FAKE_MP4, "video/mp4")}, "data": {"day": "2026-10-30"}},
+        {
+            "files": {"file": ("c.mov", FAKE_MP4, "video/mp4")},
+            "data": {"day": "2026-10-30", "camera": "CAM-001"},
+        },
     ),
     ("GET", "/api/recordings/rec-1029-0600/video", {}),
     ("GET", "/api/recordings/rec-1029-0600/video", {"headers": {"Range": "bytes=0-3"}}),
@@ -47,7 +77,7 @@ REQUESTS: list[tuple[str, str, dict[str, Any]]] = [
             "json": {
                 "question": "someone carrying a box",
                 "day": "2026-10-29",
-                "camera": "loading-dock",
+                "camera": "CAM-001",
             }
         },
     ),
@@ -55,11 +85,11 @@ REQUESTS: list[tuple[str, str, dict[str, Any]]] = [
     ("GET", "/api/clips/clip-1029-104215", {}),
     ("GET", "/api/clips/clip-nope", {}),
     ("GET", "/api/zones", {}),
-    ("POST", "/api/zones", {"json": {"camera": "loading-dock", "name": "Bay", "points": TRIANGLE}}),
+    ("POST", "/api/zones", {"json": {"camera": "CAM-001", "name": "Bay", "points": TRIANGLE}}),
     (
         "POST",
         "/api/zones",
-        {"json": {"camera": "loading-dock", "name": "Exit lane", "points": TRIANGLE}},
+        {"json": {"camera": "CAM-001", "name": "Exit lane", "points": TRIANGLE}},
     ),
     ("PUT", "/api/zones/zone-exit-lane", {"json": {"name": "Lane", "points": TRIANGLE}}),
     ("DELETE", "/api/zones/zone-loading-door", {}),
@@ -68,6 +98,8 @@ REQUESTS: list[tuple[str, str, dict[str, Any]]] = [
     ("POST", "/api/saved-clips", {"json": {"clipId": "clip-1029-104215"}}),
     ("PATCH", "/api/saved-clips/saved-nope", {"json": {"note": "n"}}),
     ("DELETE", "/api/saved-clips/saved-nope", {}),
+    ("POST", "/api/recordings/rec-1030-1200/index", {}),
+    ("POST", "/api/recordings/rec-nope/index", {}),
     ("GET", "/api/nowhere", {}),
     ("PUT", "/api/status", {}),
     ("GET", "/api/openapi.json", {}),
@@ -75,11 +107,21 @@ REQUESTS: list[tuple[str, str, dict[str, Any]]] = [
 
 
 def _leaks(response: httpx.Response) -> list[str]:
-    """Anything in the response that must never be sent: the key, a path, a traceback."""
+    """Anything in the response that must never be sent: the key, a camera password, a path
+    or a traceback."""
     head = "\n".join(f"{name}: {value}" for name, value in response.headers.items())
     texts = [head, response.content.decode("utf-8", errors="replace")]
     found = []
-    for needle in (FAKE_KEY, "sk-test", "Traceback", "demo.sqlite", "C:\\Users", "site-packages"):
+    needles = (
+        FAKE_KEY,
+        "sk-test",
+        STREAM_PASSWORD,
+        "Traceback",
+        "demo.sqlite",
+        "C:\\Users",
+        "site-packages",
+    )
+    for needle in needles:
         if any(needle in text for text in texts):
             found.append(needle)
     return found
@@ -118,7 +160,16 @@ def test_a_store_failure_is_a_bare_500_on_every_route(exploding_client: TestClie
         response = exploding_client.request(method, path, **options)
         statuses.add(response.status_code)
         assert _leaks(response) == [], (method, path)
-        if response.status_code >= 500:
+        if path.endswith("/index"):
+            # This build has no indexing backend: 503 before the store is ever asked.
+            assert response.json() == {
+                "error": {
+                    "code": "indexing_not_configured",
+                    "message": "Indexing is not configured in this build",
+                }
+            }
+            assert response.status_code == 503
+        elif response.status_code >= 500:
             assert response.status_code == 500
             assert response.json() == {
                 "error": {"code": "internal_error", "message": "Something went wrong."}
@@ -130,7 +181,7 @@ def test_a_500_is_logged_with_the_key_redacted(
     exploding_client: TestClient, caplog: pytest.LogCaptureFixture
 ) -> None:
     with caplog.at_level(logging.ERROR, logger="askfootage.api"):
-        response = exploding_client.get("/api/status")
+        response = exploding_client.get("/api/zones")
     assert_error(response, 500, "internal_error")
     logged = "\n".join(record.getMessage() for record in caplog.records)
     assert "RuntimeError" in logged and "database locked" in logged
@@ -147,7 +198,7 @@ def test_an_unexpected_error_inside_a_use_case_is_500(
     app = build_app(store, fake_settings, videos_dir, make_id=broken_ids)
     with TestClient(app) as client:
         response = client.post(
-            "/api/zones", json={"camera": "loading-dock", "name": "Bay", "points": TRIANGLE}
+            "/api/zones", json={"camera": "CAM-001", "name": "Bay", "points": TRIANGLE}
         )
     assert response.json() == {
         "error": {"code": "internal_error", "message": "Something went wrong."}
@@ -157,7 +208,39 @@ def test_an_unexpected_error_inside_a_use_case_is_500(
 
 
 def test_status_never_shows_settings(client: TestClient) -> None:
-    assert set(client.get("/api/status").json()) == {"demoMode", "camera"}
+    assert set(client.get("/api/status").json()) == {"demoMode"}
+
+
+def test_status_does_not_depend_on_the_store(exploding_client: TestClient) -> None:
+    assert exploding_client.get("/api/status").json() == {"demoMode": True}
+
+
+# --- Camera passwords --------------------------------------------------------------------------
+
+
+def test_a_camera_password_is_never_returned_stored_or_logged(
+    client: TestClient,
+    exploding_client: TestClient,
+    store: InMemoryLibrary,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.DEBUG):
+        responses = [
+            client.post("/api/cameras", json=new_camera()),
+            client.get("/api/cameras"),
+            client.post("/api/cameras", json=new_camera(name="side YARD")),
+            client.post("/api/cameras", json=new_camera(name="Other", ip="http://x/")),
+            client.post("/api/cameras", json=new_camera(name="Long", password=STREAM_PASSWORD * 5)),
+            exploding_client.post("/api/cameras", json=new_camera()),
+        ]
+    assert [response.status_code for response in responses] == [201, 200, 409, 422, 422, 500]
+    added = responses[0].json()
+    assert "password" not in added
+    assert added["rtspUrlMasked"].startswith("rtsp://viewer:****@192.168.1.50:")
+    for response in responses:
+        assert _leaks(response) == [], response.request.url
+    assert STREAM_PASSWORD not in repr(store.cameras)
+    assert STREAM_PASSWORD not in caplog.text
 
 
 # --- CORS -----------------------------------------------------------------------------------
@@ -227,7 +310,7 @@ def test_errors_and_500s_to_the_ui_carry_the_allow_origin_header(
 ) -> None:
     not_found = client.get("/api/clips/clip-nope", headers={"Origin": UI_ORIGIN})
     assert not_found.headers["access-control-allow-origin"] == UI_ORIGIN
-    failed = exploding_client.get("/api/status", headers={"Origin": UI_ORIGIN})
+    failed = exploding_client.get("/api/zones", headers={"Origin": UI_ORIGIN})
     assert failed.status_code == 500
     assert failed.headers["access-control-allow-origin"] == UI_ORIGIN
 
@@ -247,7 +330,7 @@ def test_no_route_or_schema_mentions_faces_or_identities(client: TestClient) -> 
 def test_a_json_body_over_64_kib_is_refused_with_422(client: TestClient) -> None:
     question = "box " * (MAX_JSON_BODY_BYTES // 4)
     response = client.post(
-        "/api/search", json={"question": question, "day": "2026-10-29", "camera": "loading-dock"}
+        "/api/search", json={"question": question, "day": "2026-10-29", "camera": "CAM-001"}
     )
     assert assert_error(response, 422, "validation_error") == "body: is too large"
 
@@ -299,7 +382,7 @@ def test_the_upload_is_not_held_to_the_json_limit(client: TestClient) -> None:
     response = client.post(
         "/api/recordings",
         files={"file": ("clip.mp4", video, "video/mp4")},
-        data={"day": "2026-10-30"},
+        data={"day": "2026-10-30", "camera": "CAM-001"},
     )
     assert response.status_code == 202, response.text
 

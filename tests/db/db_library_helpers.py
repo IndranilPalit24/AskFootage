@@ -7,14 +7,18 @@ unique across tests/. Every database lives in pytest's tmp_path; nothing touches
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import date, time
+from datetime import UTC, date, datetime, time
 from pathlib import Path
 
+from askfootage.domain.models import BoundingBox
+from askfootage.domain.tracks import Track, TrackPoint
 from askfootage.ports.library_store import (
     Camera,
+    CameraStatus,
     Clip,
     Evidence,
     KeyFrame,
+    NewCamera,
     Recording,
     RecordingStatus,
     SavedClip,
@@ -28,22 +32,63 @@ DEMO_SEED = EXAMPLES_DIR / "demo-seed.json"
 
 DAY = date(2026, 10, 29)
 SQUARE: tuple[ZonePoint, ...] = ((0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9))
+CREATED_AT = datetime(2026, 10, 30, 9, 0, 0, tzinfo=UTC)
+
+CAM_1 = "CAM-001"
+"""The first camera an empty library hands out."""
+CAM_2 = "CAM-002"
+"""The second camera an empty library hands out."""
+NO_SUCH_CAMERA = "CAM-009"
+"""A well-formed camera id that no test fixture creates."""
 
 
-def camera(camera_id: str = "cam-1", name: str = "Front gate") -> Camera:
-    """A camera with harmless defaults."""
-    return Camera(id=camera_id, name=name)
+def new_camera(
+    name: str = "Front gate",
+    *,
+    ip: str = "192.168.1.10",
+    username: str = "viewer",
+    status: CameraStatus = "online",
+    location: str | None = None,
+    department: str | None = None,
+    created_at: datetime = CREATED_AT,
+) -> NewCamera:
+    """What add_camera takes, with harmless defaults; the store gives out the id."""
+    return NewCamera(
+        name=name,
+        ip=ip,
+        username=username,
+        status=status,
+        location=location,
+        department=department,
+        created_at=created_at,
+    )
+
+
+def stored_camera(camera_id: str, camera: NewCamera) -> Camera:
+    """The Camera the store should return for `camera` stored under `camera_id`."""
+    return Camera(
+        id=camera_id,
+        name=camera.name,
+        ip=camera.ip,
+        username=camera.username,
+        status=camera.status,
+        location=camera.location,
+        department=camera.department,
+        created_at=camera.created_at,
+    )
 
 
 def recording(
     recording_id: str = "rec-1",
-    camera_id: str = "cam-1",
+    camera_id: str = CAM_1,
     day: date = DAY,
     start_time: time = time(10, 0, 0),
     length_seconds: int = 7200,
     status: RecordingStatus = "ready",
+    *,
+    status_note: str | None = None,
 ) -> Recording:
-    """A recording with harmless defaults: cam-1, 29 Oct 2026, 10:00 for two hours."""
+    """A recording with harmless defaults: CAM-001, 29 Oct 2026, 10:00 for two hours."""
     return Recording(
         id=recording_id,
         camera=camera_id,
@@ -51,6 +96,7 @@ def recording(
         start_time=start_time,
         length_seconds=length_seconds,
         status=status,
+        status_note=status_note,
     )
 
 
@@ -87,11 +133,11 @@ def clip(
 
 def zone(
     zone_id: str = "zone-1",
-    camera_id: str = "cam-1",
+    camera_id: str = CAM_1,
     name: str = "Gate",
     points: tuple[ZonePoint, ...] = SQUARE,
 ) -> Zone:
-    """A square zone on cam-1."""
+    """A square zone on CAM-001."""
     return Zone(id=zone_id, camera=camera_id, name=name, points=points)
 
 
@@ -114,6 +160,7 @@ def count_rows(path: Path, table: str) -> int:
 
 
 TABLES = (
+    "camera_sequence",
     "cameras",
     "recordings",
     "clips",
@@ -122,12 +169,33 @@ TABLES = (
     "zones",
     "zone_points",
     "saved_clips",
+    "tracks",
+    "track_points",
 )
 """Every table in schema.sql."""
 
 
+def track(
+    track_id: int = 1,
+    label: str = "person",
+    frames: tuple[int, ...] = (0, 1, 2),
+    *,
+    box: BoundingBox | None = None,
+) -> Track:
+    """A track with one point per frame; boxes drift right by 1.25 px per frame unless
+    `box` fixes them all."""
+    return Track(
+        track_id=track_id,
+        label=label,
+        points=tuple(
+            TrackPoint(frame, box or BoundingBox(10.5 + frame * 1.25, 20.0, 50.75 + frame, 90.0))
+            for frame in frames
+        ),
+    )
+
+
 def clip_json(value: Clip) -> dict[str, object]:
-    """A clip in the API's camelCase shape (contract/openapi.yaml, Clip)."""
+    """A clip in the demo seed's camelCase shape: the API's Clip without its camera."""
     return {
         "id": value.id,
         "recordingId": value.recording_id,
@@ -147,10 +215,16 @@ def clip_json(value: Clip) -> dict[str, object]:
     }
 
 
+def api_clip_json(value: Clip, camera_id: str) -> dict[str, object]:
+    """A clip in the API's shape (contract/openapi.yaml, Clip): its recording's camera too."""
+    return {**clip_json(value), "camera": camera_id}
+
+
 def recording_json(value: Recording) -> dict[str, object]:
     """A recording in the API's camelCase shape (contract/openapi.yaml, Recording)."""
     return {
         "id": value.id,
+        "camera": value.camera,
         "day": value.day.isoformat(),
         "startTime": value.start_time.isoformat(),
         "lengthSeconds": value.length_seconds,
@@ -168,11 +242,27 @@ def zone_json(value: Zone) -> dict[str, object]:
     }
 
 
-def saved_clip_json(value: SavedClip) -> dict[str, object]:
+def saved_clip_json(value: SavedClip, camera_id: str) -> dict[str, object]:
     """A saved clip in the API's shape, savedAt in UTC ending in Z, whole seconds."""
     return {
         "id": value.id,
-        "clip": clip_json(value.clip),
+        "clip": api_clip_json(value.clip, camera_id),
         "note": value.note,
         "savedAt": value.saved_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+
+
+def camera_json(value: Camera) -> dict[str, object]:
+    """The fields of the API's Camera (contract/openapi.yaml) that the store holds itself.
+
+    The API adds rtspUrlMasked (built from username and ip) and the three counts.
+    """
+    return {
+        "id": value.id,
+        "name": value.name,
+        "location": value.location,
+        "department": value.department,
+        "ip": value.ip,
+        "status": value.status,
+        "createdAt": value.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }

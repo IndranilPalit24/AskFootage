@@ -2,7 +2,6 @@ import { createContext, use, useCallback, useMemo, useRef, useState, type ReactN
 import { errorMessage } from '../api/errors';
 import type { SearchResponse } from '../api/generated/types';
 import { useApiClient } from './ApiContext';
-import { useAppData } from './AppDataContext';
 
 export type SearchState =
   | { phase: 'idle' }
@@ -21,17 +20,16 @@ const SearchActionsContext = createContext<SearchActions | null>(null);
 
 export function SearchProvider({ children }: { children: ReactNode }) {
   const client = useApiClient();
-  const camera = useAppData().status?.camera.id ?? null;
   const [state, setState] = useState<SearchState>({ phase: 'idle' });
   const latest = useRef(0);
 
   const run = useCallback(
     (question: string, day: string) => {
-      if (!camera) return;
       latest.current += 1;
       const requestId = latest.current;
       setState({ phase: 'loading', question, day });
-      client.search({ question, day, camera }).then(
+      // No camera: the search covers every camera.
+      client.search({ question, day }).then(
         (response) => {
           if (latest.current === requestId) setState({ phase: 'done', question, day, response });
         },
@@ -40,7 +38,7 @@ export function SearchProvider({ children }: { children: ReactNode }) {
         },
       );
     },
-    [client, camera],
+    [client],
   );
 
   const actions = useMemo<SearchActions>(() => ({ run }), [run]);

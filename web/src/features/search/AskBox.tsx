@@ -21,14 +21,14 @@ interface AskBoxProps {
   days: DaySummary[];
   day: string;
   onDayChange: (day: string) => void;
-  cameraName: string;
 }
 
 /**
- * The ask box: question, Search, example chips that fill the box, and the scope line (day and camera).
- * The draft question lives here, so typing re-renders only the box, never the result cards.
+ * The ask box (question with the Search button inside it, bottom-right), example chips that fill the box,
+ * and the Day selector. Searches cover every camera. The draft question lives here, so typing re-renders
+ * only the box, never the result cards.
  */
-export function AskBox({ initialQuestion, onSubmit, days, day, onDayChange, cameraName }: AskBoxProps) {
+export function AskBox({ initialQuestion, onSubmit, days, day, onDayChange }: AskBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [question, setQuestion] = useState(initialQuestion);
   const blank = question.trim().length === 0;
@@ -51,16 +51,16 @@ export function AskBox({ initialQuestion, onSubmit, days, day, onDayChange, came
   }
 
   return (
-    <div className="card ask">
+    <div className="ask">
       <form role="search" aria-label="Find Footage" onSubmit={handleSubmit}>
-        <div className="ask__row">
+        <div className="ask__box" data-testid="ask-box">
           <label htmlFor="ask-question" className="visually-hidden">
             Ask about the footage
           </label>
           <textarea
             ref={textareaRef}
             id="ask-question"
-            className="textarea ask__textarea"
+            className="ask__textarea"
             rows={3}
             maxLength={QUESTION_MAX}
             placeholder="Find your footage… e.g. someone carrying a box"
@@ -69,10 +69,11 @@ export function AskBox({ initialQuestion, onSubmit, days, day, onDayChange, came
             onChange={(event) => setQuestion(event.target.value)}
             onKeyDown={handleKeyDown}
           />
-          <button type="submit" className="btn btn--primary" disabled={blank}>
-            <Icon name="search" />
-            Search
-          </button>
+          <div className="ask__actions">
+            <button type="submit" className="btn btn--primary ask__submit" aria-label="Search" disabled={blank}>
+              <Icon name="search" />
+            </button>
+          </div>
         </div>
         <p id="ask-keys" className="visually-hidden">
           Enter searches. Shift and Enter starts a new line.
@@ -88,17 +89,14 @@ export function AskBox({ initialQuestion, onSubmit, days, day, onDayChange, came
         ))}
       </ul>
       <div className="scope">
-        <span className="scope__item">
-          <label htmlFor="ask-day">Day:</label>
-          <select id="ask-day" className="select" value={day} onChange={(event) => onDayChange(event.target.value)}>
-            {days.map((entry) => (
-              <option key={entry.day} value={entry.day}>
-                {formatShortDay(entry.day)}
-              </option>
-            ))}
-          </select>
-        </span>
-        <span className="scope__item">Camera: {cameraName}</span>
+        <label htmlFor="ask-day">Day:</label>
+        <select id="ask-day" className="select" value={day} onChange={(event) => onDayChange(event.target.value)}>
+          {days.map((entry) => (
+            <option key={entry.day} value={entry.day}>
+              {formatShortDay(entry.day)}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   );

@@ -18,7 +18,7 @@ from pydantic import BaseModel, TypeAdapter
 
 from askfootage.application.library import Library
 from askfootage.interfaces.api import schemas
-from askfootage.interfaces.api.app import create_app
+from askfootage.interfaces.api.app import API_VERSION, create_app
 
 Spec = dict[str, Any]
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "head", "options", "trace"}
@@ -261,8 +261,16 @@ ALL_CHECKS = (
 # --- The tests --------------------------------------------------------------------------------
 
 
-def test_the_contract_has_the_fifteen_operations_the_api_serves() -> None:
-    assert len(_operations(CONTRACT)) == 15
+def test_the_contract_has_the_twenty_one_operations_the_api_serves() -> None:
+    assert len(_operations(CONTRACT)) == 21
+    assert _operations(CONTRACT)[("POST", "/api/recordings/{id}/index")]["operationId"] == (
+        "indexRecording"
+    )
+
+
+def test_the_app_serves_the_contracts_version(app_spec: Spec) -> None:
+    assert CONTRACT["info"]["version"] == "1.2.0"
+    assert app_spec["info"]["version"] == API_VERSION == CONTRACT["info"]["version"]
 
 
 @pytest.mark.parametrize("check", ALL_CHECKS, ids=lambda check: check.__name__)
@@ -274,12 +282,48 @@ def test_upload_form_has_file_day_and_camera(app_spec: Spec) -> None:
     body = app_spec["paths"]["/api/recordings"]["post"]["requestBody"]
     form = body["content"]["multipart/form-data"]["schema"]
     assert set(form["properties"]) == {"file", "day", "camera"}
-    assert sorted(form["required"]) == ["day", "file"]
+    assert sorted(form["required"]) == ["camera", "day", "file"]
+
+
+def _property_names(node: Any) -> set[str]:
+    """Every property name anywhere inside a schema."""
+    found: set[str] = set()
+    if isinstance(node, dict):
+        found.update(node.get("properties", {}))
+        for value in node.values():
+            found |= _property_names(value)
+    elif isinstance(node, list):
+        for value in node:
+            found |= _property_names(value)
+    return found
+
+
+def test_the_password_is_write_only_and_in_no_other_schema(app_spec: Spec) -> None:
+    schemas_by_name = app_spec["components"]["schemas"]
+    assert schemas_by_name["CameraCreate"]["properties"]["password"]["writeOnly"] is True
+    others = {name: schema for name, schema in schemas_by_name.items() if name != "CameraCreate"}
+    assert not {name for name in _property_names(others) if "pass" in name.lower()}
+    assert not {name for name in _property_names(app_spec["paths"]) if "pass" in name.lower()}
+
+
+def test_camera_ids_in_a_camera_follow_the_contracts_pattern(app_spec: Spec) -> None:
+    camera = app_spec["components"]["schemas"]["Camera"]
+    assert camera["properties"]["id"]["pattern"] == "^CAM-[0-9]{3,}$"
 
 
 def test_the_app_never_adds_fastapis_own_validation_schemas(app_spec: Spec) -> None:
     assert "HTTPValidationError" not in app_spec["components"]["schemas"]
     assert "ValidationError" not in app_spec["components"]["schemas"]
+
+
+def test_the_index_operation_has_no_body_and_answers_202_with_index_accepted(
+    app_spec: Spec,
+) -> None:
+    operation = app_spec["paths"]["/api/recordings/{id}/index"]["post"]
+    assert "requestBody" not in operation
+    accepted = operation["responses"]["202"]["content"]["application/json"]["schema"]
+    assert accepted == {"$ref": "#/components/schemas/IndexAccepted"}
+    assert set(operation["responses"]) == {"202", "404", "409", "422", "500", "503"}
 
 
 def test_the_api_document_is_served_under_api(client: Any) -> None:
@@ -318,7 +362,7 @@ def _drifted(app_spec: Spec, change: Any) -> Spec:
         ),
         (
             parameter_differences,
-            lambda s: s["paths"]["/api/days"]["get"]["parameters"][0].update(required=False),
+            lambda s: s["paths"]["/api/days"]["get"]["parameters"][0].update(required=True),
         ),
         (
             schema_differences,
@@ -353,6 +397,60 @@ def _drifted(app_spec: Spec, change: Any) -> Spec:
             request_body_differences,
             lambda s: s["paths"]["/api/search"]["post"].pop("requestBody"),
         ),
+        (
+            status_code_differences,
+            lambda s: s["paths"]["/api/cameras"]["post"]["responses"].pop("409"),
+        ),
+        (
+            operation_differences,
+            lambda s: s["paths"]["/api/cameras/{id}"]["patch"].update(operationId="setCamera"),
+        ),
+        (
+            schema_differences,
+            lambda s: s["components"]["schemas"]["CameraCreate"]["properties"]["ip"].update(
+                pattern="^.*$"
+            ),
+        ),
+        (
+            schema_differences,
+            lambda s: s["components"]["schemas"]["CameraCreate"]["properties"][
+                "acknowledgeCost"
+            ].update(const=False),
+        ),
+        (
+            schema_differences,
+            lambda s: s["components"]["schemas"]["Camera"]["properties"].update(
+                password={"type": "string"}
+            ),
+        ),
+        (
+            schema_differences,
+            lambda s: s["components"]["schemas"]["SearchRequest"].update(
+                required=["question", "day", "camera"]
+            ),
+        ),
+        (
+            upload_form_differences,
+            lambda s: s["paths"]["/api/recordings"]["post"]["requestBody"]["content"][
+                "multipart/form-data"
+            ]["schema"].update(required=["file", "day"]),
+        ),
+        (
+            status_code_differences,
+            lambda s: s["paths"]["/api/recordings/{id}/index"]["post"]["responses"].pop("503"),
+        ),
+        (
+            schema_differences,
+            lambda s: s["components"]["schemas"]["IndexAccepted"]["properties"]["status"].update(
+                enum=["waiting"]
+            ),
+        ),
+        (
+            request_body_differences,
+            lambda s: s["paths"]["/api/recordings/{id}/index"]["post"].update(
+                requestBody={"content": {"application/json": {"schema": {"type": "object"}}}}
+            ),
+        ),
     ],
 )
 def test_each_check_reports_drift(check: Any, change: Any, app_spec: Spec) -> None:
@@ -366,9 +464,13 @@ def test_each_check_reports_drift(check: Any, change: Any, app_spec: Spec) -> No
     ("example", "model"),
     [
         ("status.json", schemas.Status),
+        ("cameras.json", list[schemas.Camera]),
+        ("camera.json", schemas.Camera),
         ("days.json", list[schemas.DaySummary]),
         ("recordings.json", list[schemas.Recording]),
         ("recording-accepted.json", schemas.RecordingAccepted),
+        ("index-accepted.json", schemas.IndexAccepted),
+        ("index-not-configured.json", schemas.Error),
         ("clip-detail.json", schemas.Clip),
         ("search-response.json", schemas.SearchResponse),
         ("zones.json", list[schemas.Zone]),

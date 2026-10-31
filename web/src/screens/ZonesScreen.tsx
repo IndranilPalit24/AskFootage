@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { Point, Zone } from '../api/generated/types';
 import { useApiClient } from '../app/ApiContext';
 import { useAppData } from '../app/AppDataContext';
@@ -24,11 +25,20 @@ const loadingZones = (
 
 export function ZonesScreen() {
   const client = useApiClient();
-  const { status } = useAppData();
-  const cameraId = status?.camera.id ?? null;
+  const { cameras } = useAppData();
+  const [chosenCamera, setChosenCamera] = useState<string | null>(null);
+  // Derived, not synced: the picked camera while it exists, otherwise the first one.
+  const camera = cameras?.find((item) => item.id === chosenCamera) ?? cameras?.[0] ?? null;
+  const cameraId = camera?.id ?? null;
   const zones = useAsyncData(cameraId ? () => client.listZones(cameraId) : null, ['zones', cameraId]);
   // null: not drawing. An array: the points of the zone being drawn, in click order.
   const [draft, setDraft] = useState<Point[] | null>(null);
+
+  function pickCamera(id: string) {
+    setChosenCamera(id);
+    // A half-drawn zone belongs to the other camera's view.
+    setDraft(null);
+  }
 
   const { mutate } = zones;
 
@@ -60,7 +70,7 @@ export function ZonesScreen() {
     [client, mutate],
   );
 
-  if (!status) {
+  if (!cameras) {
     return loading;
   }
 
@@ -85,15 +95,43 @@ export function ZonesScreen() {
     listBody = <ZoneList zones={list} onRename={renameZone} onDelete={deleteZone} />;
   }
 
+  const pageHead = (
+    <div className="page-head">
+      <div>
+        <h1>Zones</h1>
+        <p className="page-head__subtitle">
+          Mark areas of the camera view. Questions can name them, e.g. &ldquo;anyone in the loading door&rdquo;.
+        </p>
+      </div>
+    </div>
+  );
+
+  if (!camera) {
+    return (
+      <>
+        {pageHead}
+        <p className="muted">
+          No cameras yet. <Link to="/cameras">Add a camera</Link> to draw zones on its view.
+        </p>
+      </>
+    );
+  }
+
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>Zones</h1>
-          <p className="page-head__subtitle">
-            Mark areas of the camera view. Questions can name them, e.g. &ldquo;anyone in the loading door&rdquo;.
-          </p>
-        </div>
+      {pageHead}
+
+      <div className="field field--inline zones-camera">
+        <label htmlFor="zones-camera" className="field__label">
+          Camera
+        </label>
+        <select id="zones-camera" className="select" value={camera.id} onChange={(event) => pickCamera(event.target.value)}>
+          {cameras.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="zones-grid">
@@ -108,7 +146,7 @@ export function ZonesScreen() {
           </div>
           <ZoneFrame
             zones={list}
-            caption={`${status.camera.name} · still frame`}
+            caption={`${camera.name} · still frame`}
             drawing={drawing}
             draft={draft ?? []}
             onAddPoint={addPoint}

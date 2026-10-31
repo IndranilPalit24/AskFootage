@@ -67,7 +67,12 @@ export function useAsyncData<T>(
   const reload = useCallback(() => setVersion((value) => value + 1), []);
   const mutate = useCallback(
     (update: (current: T) => T) =>
-      setSlot((prev) => (prev.data === undefined ? prev : { ...prev, data: update(prev.data) })),
+      setSlot((prev) => {
+        if (prev.data === undefined) return prev;
+        const data = update(prev.data);
+        // An update that changes nothing keeps the same state, so nothing re-renders.
+        return data === prev.data ? prev : { ...prev, data };
+      }),
     [],
   );
 

@@ -22,6 +22,10 @@ const PATHS = {
   zones: <path d="M9 2l6.1 3.5v7L9 16l-6.1-3.5v-7z" />,
   /** Bookmark outline. */
   bookmark: <path d="M4.5 2.5h9v13L9 12.5l-4.5 3z" />,
+  /** A cross, 9 wide. */
+  close: <path d="m4.5 4.5 9 9m0-9-9 9" />,
+  /** Bin: lid at y 5, handle, body narrowing to y 15, two inner lines. */
+  trash: <path d="M3 5h12M7 5V3.5h4V5M4.5 5l.8 10h7.4l.8-10M7.5 8v4.5m3-4.5v4.5" />,
 } as const;
 
 export type IconName = keyof typeof PATHS;

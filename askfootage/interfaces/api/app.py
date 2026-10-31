@@ -22,16 +22,19 @@ from starlette.datastructures import Headers
 from starlette.middleware.cors import CORSMiddleware
 from starlette.types import Receive, Scope, Send
 
+from askfootage.application.ingest_video import IndexingPipeline
 from askfootage.application.library import IdFactory, Library, new_id
 from askfootage.application.search import Interpreter, QuestionInterpreter
 from askfootage.interfaces.api.body_limit import BodyLimitMiddleware
-from askfootage.interfaces.api.context import ApiContext
+from askfootage.interfaces.api.context import ApiContext, JobScheduler, run_after_reply
 from askfootage.interfaces.api.errors import InternalErrorMiddleware, install_error_handlers
 from askfootage.interfaces.api.footage import DemoFootageSource
 from askfootage.interfaces.api.routes import router
 from askfootage.interfaces.api.upload import MAX_UPLOAD_BYTES
 from askfootage.settings import Settings, load_settings
 
+API_VERSION = "1.2.0"
+"""The contract version this app serves (info.version in contract/openapi.yaml)."""
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_VIDEOS_DIR = REPO_ROOT / "videos"
 """Where demo footage lives: <repo>/videos, worked out from this file, not the environment."""
@@ -55,6 +58,8 @@ def create_app(
     interpreter: Interpreter | None = None,
     make_id: IdFactory = new_id,
     max_upload_bytes: int = MAX_UPLOAD_BYTES,
+    indexing: IndexingPipeline | None = None,
+    schedule_after_reply: JobScheduler = run_after_reply,
 ) -> FastAPI:
     """Build the AskFootage API.
 
@@ -63,8 +68,14 @@ def create_app(
     contract/examples/demo-seed.json when empty), "today" is the demo dataset's today and
     footage is <repo>/videos/clip1.mp4.
 
+    `indexing` is the pipeline POST /api/recordings/{id}/index runs. It is None by
+    default: this build has no perception yet, so that route answers 503
+    indexing_not_configured and changes nothing. `schedule_after_reply` decides how the
+    indexing work runs after the reply (FastAPI background tasks by default).
+
     Tests pass `library` (in-memory stores), and may pass `today`, `utc_now`,
-    `videos_dir`, `interpreter`, `make_id` and a smaller `max_upload_bytes`. `settings`
+    `videos_dir`, `interpreter`, `make_id`, a smaller `max_upload_bytes`, a fake
+    `indexing` pipeline and a scheduler that runs the work when they say. `settings`
     gives the data directory (when no library is given) and the API key to keep out of
     the server log; the key is never used for anything else here and never sent.
     """
@@ -74,7 +85,7 @@ def create_app(
         library = open_demo_library(settings)
     app = FastAPI(
         title="AskFootage API",
-        version="1.0.0",
+        version=API_VERSION,
         description=(
             "Ask a plain-English question about fixed-camera footage and get the matching "
             "clips with the evidence for each match. contract/openapi.yaml is the source "
@@ -93,6 +104,8 @@ def create_app(
         utc_now=utc_now if utc_now is not None else _utc_now,
         make_id=make_id,
         max_upload_bytes=max_upload_bytes,
+        indexing=indexing,
+        schedule_after_reply=schedule_after_reply,
     )
     install_error_handlers(app)
     app.include_router(router)
@@ -112,7 +125,10 @@ def create_app(
 
 
 def open_demo_library(settings: Settings) -> Library:
-    """Open (and seed, when empty) the demo database in settings.data_dir."""
+    """Open (and seed, when empty) the demo database in settings.data_dir.
+
+    The SQLite adapter owns the database file, its schema version and any migration.
+    """
     # The one place the SQLite adapter is imported: lazily, so tests never need it.
     from askfootage.adapters.sqlite.store import SqliteLibraryStore, seed_demo_data
 

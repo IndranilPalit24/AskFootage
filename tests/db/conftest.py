@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from db_library_helpers import DEMO_SEED, camera, clip, recording
+from db_library_helpers import CAM_1, DEMO_SEED, clip, new_camera, recording
 
 from askfootage.adapters.sqlite.store import SqliteLibraryStore, seed_demo_data
 
@@ -22,8 +22,9 @@ def store(library_path: Path) -> SqliteLibraryStore:
 
 @pytest.fixture
 def stocked_store(store: SqliteLibraryStore) -> SqliteLibraryStore:
-    """A library holding camera cam-1, recording rec-1 (29 Oct 2026, 10:00) and clip-1."""
-    store.add_camera(camera())
+    """A library holding camera CAM-001 "Front gate", recording rec-1 (29 Oct 2026, 10:00)
+    and clip-1."""
+    assert store.add_camera(new_camera()).id == CAM_1
     store.add_recording(recording())
     store.add_clip(clip())
     return store

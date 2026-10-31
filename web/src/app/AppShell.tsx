@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
-import { Chip } from '../components/Chip';
 import { Icon, type IconName } from '../components/Icon';
 import { formatShortDay } from '../lib/dates';
 import { useAppData } from './AppDataContext';
@@ -9,12 +8,17 @@ import { useSelectedDay } from './SelectedDayContext';
 // Versioned key: a later change of meaning gets a new key instead of misreading an old value.
 export const DRAWER_STORAGE_KEY = 'askfootage:drawer-collapsed:v1';
 
+const NARROW_SCREEN = '(max-width: 640px)';
+
 function readCollapsed(): boolean {
   try {
-    return window.localStorage.getItem(DRAWER_STORAGE_KEY) === '1';
+    const stored = window.localStorage.getItem(DRAWER_STORAGE_KEY);
+    if (stored !== null) return stored === '1';
   } catch {
-    return false;
+    // Storage blocked: fall through to the default.
   }
+  // No choice made yet: icons only on a phone-sized screen, so the content keeps its width.
+  return typeof window.matchMedia === 'function' && window.matchMedia(NARROW_SCREEN).matches;
 }
 
 function writeCollapsed(collapsed: boolean): void {
@@ -36,7 +40,8 @@ interface NavEntry {
 // Order, names and hints as in the design reference.
 const NAV: readonly NavEntry[] = [
   { to: '/', label: 'Find Footage', hint: 'Ask a question about your footage', icon: 'search' },
-  { to: '/camera', label: 'Camera', hint: "Each day's recordings", icon: 'camera' },
+  // No `end`: the item stays active on /cameras/:id/recordings too.
+  { to: '/cameras', label: 'Cameras', hint: 'Manage cameras and recordings', icon: 'camera' },
   { to: '/zones', label: 'Zones', hint: 'Mark areas of the camera view', icon: 'zones' },
   { to: '/saved', label: 'Saved clips', hint: 'Clips you kept as evidence', icon: 'bookmark' },
 ];
@@ -44,7 +49,6 @@ const NAV: readonly NavEntry[] = [
 const MAIN_ID = 'main-content';
 
 function Topbar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const { status } = useAppData();
   const { day } = useSelectedDay();
   return (
     <header className="topbar">
@@ -63,7 +67,6 @@ function Topbar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => v
       </Link>
       <div className="topbar__date">
         {day ? <span>{formatShortDay(day)}</span> : null}
-        {status?.demoMode ? <Chip>Demo data</Chip> : null}
       </div>
     </header>
   );
@@ -84,7 +87,6 @@ function Drawer({ collapsed }: { collapsed: boolean }) {
           </li>
         ))}
       </ul>
-      {collapsed ? null : <p className="drawer__footer">Powered by Meta</p>}
     </nav>
   );
 }

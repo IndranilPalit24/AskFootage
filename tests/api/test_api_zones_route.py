@@ -16,23 +16,36 @@ TRIANGLE = [[0.1, 0.1], [0.9, 0.1], [0.5, 0.9]]
 
 def new_zone(**changes: Any) -> dict[str, Any]:
     """A valid ZoneCreate body, with any field changed."""
-    return {"camera": "loading-dock", "name": "Bay 3", "points": TRIANGLE, **changes}
+    return {"camera": "CAM-001", "name": "Bay 3", "points": TRIANGLE, **changes}
 
 
 # --- GET /api/zones -----------------------------------------------------------------------
 
 
-def test_zones_come_ordered_by_name(client: TestClient) -> None:
+def test_without_a_camera_every_cameras_zones_come_ordered_by_name(client: TestClient) -> None:
     response = client.get("/api/zones")
     assert response.status_code == 200
-    assert response.json() == load_example("zones.json")
+    assert [(zone["name"], zone["camera"]) for zone in response.json()] == [
+        ("Exit lane", "CAM-001"),
+        ("Gate lane", "CAM-002"),
+        ("Loading door", "CAM-001"),
+    ]
+    from_cam1 = [zone for zone in response.json() if zone["camera"] == "CAM-001"]
+    assert from_cam1 == load_example("zones.json")
 
 
 def test_zones_can_be_filtered_by_camera(client: TestClient) -> None:
-    assert client.get("/api/zones", params={"camera": "loading-dock"}).json() == load_example(
+    assert client.get("/api/zones", params={"camera": "CAM-001"}).json() == load_example(
         "zones.json"
     )
-    assert client.get("/api/zones", params={"camera": "garage"}).json() == []
+    gate = client.get("/api/zones", params={"camera": "CAM-002"}).json()
+    assert [zone["id"] for zone in gate] == ["zone-gate-lane"]
+    assert client.get("/api/zones", params={"camera": "CAM-003"}).json() == []
+
+
+def test_an_unknown_camera_filter_is_404(client: TestClient) -> None:
+    response = client.get("/api/zones", params={"camera": "CAM-999"})
+    assert assert_error(response, 404, "not_found") == "Camera not found."
 
 
 def test_a_bad_camera_filter_is_422(client: TestClient) -> None:
@@ -50,13 +63,10 @@ def test_creating_a_zone_returns_201_with_a_server_made_id(
     assert response.status_code == 201
     zone = response.json()
     assert zone["id"].startswith("zone-") and len(zone["id"]) == len("zone-") + 12
-    assert zone == {"id": zone["id"], "camera": "loading-dock", "name": "Bay 3", "points": TRIANGLE}
+    assert zone == {"id": zone["id"], "camera": "CAM-001", "name": "Bay 3", "points": TRIANGLE}
     assert zone["id"] in store.zones
-    assert [z["name"] for z in client.get("/api/zones").json()] == [
-        "Bay 3",
-        "Exit lane",
-        "Loading door",
-    ]
+    listed = client.get("/api/zones", params={"camera": "CAM-001"}).json()
+    assert [z["name"] for z in listed] == ["Bay 3", "Exit lane", "Loading door"]
 
 
 def test_each_new_zone_gets_its_own_id(client: TestClient) -> None:
@@ -100,8 +110,8 @@ def test_a_zone_on_an_unknown_camera_is_404(client: TestClient) -> None:
         (new_zone(points="0.1,0.1"), "points: "),
         (new_zone(camera="../x"), "camera: must be 1 to 64"),
         ({"name": "Bay 3", "points": TRIANGLE}, "camera: is required"),
-        ({"camera": "loading-dock", "points": TRIANGLE}, "name: is required"),
-        ({"camera": "loading-dock", "name": "Bay 3"}, "points: is required"),
+        ({"camera": "CAM-001", "points": TRIANGLE}, "name: is required"),
+        ({"camera": "CAM-001", "name": "Bay 3"}, "points: is required"),
         (new_zone(id="zone-mine"), "id: is not an accepted field"),
     ],
 )
@@ -115,7 +125,7 @@ def test_bad_zones_are_422_naming_the_field(
 @pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity", "1e999"])
 def test_points_that_are_not_finite_are_422(client: TestClient, value: str) -> None:
     body = (
-        '{"camera": "loading-dock", "name": "Bay 3", '
+        '{"camera": "CAM-001", "name": "Bay 3", '
         f'"points": [[{value}, 0.1], [0.2, 0.2], [0.3, 0.3]]}}'
     )
     response = client.post(
@@ -134,7 +144,7 @@ def test_replacing_a_zone_renames_and_redraws_it(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json() == {
         "id": "zone-exit-lane",
-        "camera": "loading-dock",
+        "camera": "CAM-001",
         "name": "Exit lane north",
         "points": TRIANGLE,
     }
@@ -189,7 +199,8 @@ def test_deleting_a_zone_is_204_then_404(client: TestClient) -> None:
     response = client.delete("/api/zones/zone-exit-lane")
     assert response.status_code == 204
     assert response.content == b""
-    assert [zone["id"] for zone in client.get("/api/zones").json()] == ["zone-loading-door"]
+    left = client.get("/api/zones", params={"camera": "CAM-001"}).json()
+    assert [zone["id"] for zone in left] == ["zone-loading-door"]
     assert_error(client.delete("/api/zones/zone-exit-lane"), 404, "not_found")
 
 

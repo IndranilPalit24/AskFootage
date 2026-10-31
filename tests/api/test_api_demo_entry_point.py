@@ -29,26 +29,32 @@ def demo_settings(fake_settings: Settings, monkeypatch: pytest.MonkeyPatch) -> S
 def test_the_factory_with_no_arguments_serves_the_seeded_demo(demo_settings: Settings) -> None:
     with TestClient(app_module.create_app()) as client:
         assert client.get("/api/status").json() == load_example("status.json")
-        days = client.get("/api/days", params={"camera": "loading-dock"}).json()
+        days = client.get("/api/days", params={"camera": "CAM-001"}).json()
         recordings = client.get(
-            "/api/recordings", params={"day": "2026-10-29", "camera": "loading-dock"}
+            "/api/recordings", params={"day": "2026-10-29", "camera": "CAM-001"}
         ).json()
         answer = client.post(
             "/api/search",
             json={
                 "question": "someone carrying a box",
                 "day": "2026-10-29",
-                "camera": "loading-dock",
+                "camera": "CAM-001",
             },
         ).json()
         clip = client.get("/api/clips/clip-1029-104215").json()
-        zones = client.get("/api/zones").json()
+        zones = client.get("/api/zones", params={"camera": "CAM-001"}).json()
+        all_zones = client.get("/api/zones").json()
         saved = client.get("/api/saved-clips").json()
     assert days == load_example("days.json")
     assert recordings == load_example("recordings.json")
     assert answer == load_example("search-response.json")
     assert clip == load_example("clip-detail.json")
     assert zones == load_example("zones.json")
+    assert [zone["id"] for zone in all_zones] == [
+        "zone-exit-lane",
+        "zone-gate-lane",
+        "zone-loading-door",
+    ]
     assert saved == []
 
 
@@ -63,7 +69,8 @@ def test_a_restart_keeps_changes_and_does_not_seed_again(demo_settings: Settings
         created = client.post("/api/saved-clips", json={"clipId": "clip-1029-104215"})
         assert created.status_code == 201
     with TestClient(app_module.create_app()) as client:
-        assert [zone["id"] for zone in client.get("/api/zones").json()] == ["zone-loading-door"]
+        zones = client.get("/api/zones").json()
+        assert [zone["id"] for zone in zones] == ["zone-gate-lane", "zone-loading-door"]
         assert [s["clip"]["id"] for s in client.get("/api/saved-clips").json()] == [
             "clip-1029-104215"
         ]

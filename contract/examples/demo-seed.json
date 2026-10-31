@@ -2,14 +2,40 @@
   "today": "2026-10-30",
   "cameras": [
     {
-      "id": "loading-dock",
-      "name": "Loading dock"
+      "id": "CAM-001",
+      "name": "Loading dock",
+      "location": "Warehouse, north side",
+      "department": "Logistics",
+      "ip": "192.168.1.101",
+      "username": "viewer",
+      "status": "online",
+      "createdAt": "2026-10-20T08:00:00Z"
+    },
+    {
+      "id": "CAM-002",
+      "name": "Front gate",
+      "location": "Main entrance",
+      "department": "Security",
+      "ip": "192.168.1.102",
+      "username": "viewer",
+      "status": "standby",
+      "createdAt": "2026-10-21T09:30:00Z"
+    },
+    {
+      "id": "CAM-003",
+      "name": "Back door",
+      "location": null,
+      "department": "Facilities",
+      "ip": "cam-backdoor.local",
+      "username": "admin",
+      "status": "offline",
+      "createdAt": "2026-10-22T10:15:00Z"
     }
   ],
   "recordings": [
     {
       "id": "rec-1024-0800",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-24",
       "startTime": "08:00:00",
       "lengthSeconds": 14400,
@@ -17,7 +43,7 @@
     },
     {
       "id": "rec-1026-0600",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-26",
       "startTime": "06:00:00",
       "lengthSeconds": 14400,
@@ -25,7 +51,7 @@
     },
     {
       "id": "rec-1026-1000",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-26",
       "startTime": "10:00:00",
       "lengthSeconds": 14400,
@@ -33,15 +59,23 @@
     },
     {
       "id": "rec-1027-0600",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-27",
       "startTime": "06:00:00",
       "lengthSeconds": 14400,
       "status": "ready"
     },
     {
+      "id": "rec-1027-cam3-0630",
+      "camera": "CAM-003",
+      "day": "2026-10-27",
+      "startTime": "06:30:00",
+      "lengthSeconds": 900,
+      "status": "ready"
+    },
+    {
       "id": "rec-1027-1000",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-27",
       "startTime": "10:00:00",
       "lengthSeconds": 10800,
@@ -49,7 +83,7 @@
     },
     {
       "id": "rec-1028-0600",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-28",
       "startTime": "06:00:00",
       "lengthSeconds": 7200,
@@ -57,7 +91,7 @@
     },
     {
       "id": "rec-1028-0800",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-28",
       "startTime": "08:00:00",
       "lengthSeconds": 7200,
@@ -65,23 +99,39 @@
     },
     {
       "id": "rec-1028-1000",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-28",
       "startTime": "10:00:00",
       "lengthSeconds": 7200,
       "status": "ready"
     },
     {
+      "id": "rec-1028-cam3-1800",
+      "camera": "CAM-003",
+      "day": "2026-10-28",
+      "startTime": "18:00:00",
+      "lengthSeconds": 1200,
+      "status": "ready"
+    },
+    {
       "id": "rec-1029-0600",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-29",
       "startTime": "06:00:00",
       "lengthSeconds": 1860,
       "status": "ready"
     },
     {
+      "id": "rec-1029-cam2-0700",
+      "camera": "CAM-002",
+      "day": "2026-10-29",
+      "startTime": "07:00:00",
+      "lengthSeconds": 2700,
+      "status": "ready"
+    },
+    {
       "id": "rec-1029-0705",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-29",
       "startTime": "07:05:00",
       "lengthSeconds": 1440,
@@ -89,7 +139,7 @@
     },
     {
       "id": "rec-1029-0912",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-29",
       "startTime": "09:12:00",
       "lengthSeconds": 1080,
@@ -97,15 +147,23 @@
     },
     {
       "id": "rec-1029-1030",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-29",
       "startTime": "10:30:00",
       "lengthSeconds": 1620,
       "status": "ready"
     },
     {
+      "id": "rec-1029-cam2-1200",
+      "camera": "CAM-002",
+      "day": "2026-10-29",
+      "startTime": "12:00:00",
+      "lengthSeconds": 1800,
+      "status": "ready"
+    },
+    {
       "id": "rec-1029-1300",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-29",
       "startTime": "13:00:00",
       "lengthSeconds": 1320,
@@ -113,7 +171,7 @@
     },
     {
       "id": "rec-1029-1610",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-29",
       "startTime": "16:10:00",
       "lengthSeconds": 720,
@@ -121,7 +179,7 @@
     },
     {
       "id": "rec-1030-0600",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-30",
       "startTime": "06:00:00",
       "lengthSeconds": 7200,
@@ -129,15 +187,23 @@
     },
     {
       "id": "rec-1030-0800",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-30",
       "startTime": "08:00:00",
       "lengthSeconds": 7200,
       "status": "ready"
     },
     {
+      "id": "rec-1030-cam2-0800",
+      "camera": "CAM-002",
+      "day": "2026-10-30",
+      "startTime": "08:00:00",
+      "lengthSeconds": 3600,
+      "status": "indexing"
+    },
+    {
       "id": "rec-1030-1000",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-30",
       "startTime": "10:00:00",
       "lengthSeconds": 7200,
@@ -145,7 +211,7 @@
     },
     {
       "id": "rec-1030-1200",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "day": "2026-10-30",
       "startTime": "12:00:00",
       "lengthSeconds": 3600,
@@ -292,6 +358,42 @@
         },
         {
           "atSeconds": 263,
+          "imageUrl": null
+        }
+      ],
+      "thumbnailUrl": null
+    },
+    {
+      "id": "clip-1029-cam2-071230",
+      "recordingId": "rec-1029-cam2-0700",
+      "day": "2026-10-29",
+      "startTime": "07:12:30",
+      "startSeconds": 750,
+      "endSeconds": 764,
+      "label": "Person carrying a box through the front gate",
+      "evidence": [
+        {
+          "kind": "carrying",
+          "text": "Carrying · 14 s"
+        },
+        {
+          "kind": "in_zone",
+          "text": "In Gate lane · 10 s"
+        }
+      ],
+      "zone": "Gate lane",
+      "whyMatched": "A person was tracked holding a box for 14 seconds. The box moved together with the person the whole time. For 10 of those seconds they were inside the Gate lane zone.",
+      "keyFrames": [
+        {
+          "atSeconds": 750,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 757,
+          "imageUrl": null
+        },
+        {
+          "atSeconds": 764,
           "imageUrl": null
         }
       ],
@@ -585,7 +687,7 @@
   "zones": [
     {
       "id": "zone-loading-door",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "name": "Loading door",
       "points": [
         [
@@ -608,7 +710,7 @@
     },
     {
       "id": "zone-exit-lane",
-      "camera": "loading-dock",
+      "camera": "CAM-001",
       "name": "Exit lane",
       "points": [
         [
@@ -625,6 +727,29 @@
         ],
         [
           0.6,
+          0.97
+        ]
+      ]
+    },
+    {
+      "id": "zone-gate-lane",
+      "camera": "CAM-002",
+      "name": "Gate lane",
+      "points": [
+        [
+          0.3,
+          0.4
+        ],
+        [
+          0.7,
+          0.38
+        ],
+        [
+          0.75,
+          0.95
+        ],
+        [
+          0.25,
           0.97
         ]
       ]

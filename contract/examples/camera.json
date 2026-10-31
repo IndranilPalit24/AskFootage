@@ -1,0 +1,13 @@
+{
+  "id": "CAM-004",
+  "name": "Side yard",
+  "location": "East fence",
+  "department": null,
+  "ip": "192.168.1.104",
+  "status": "online",
+  "rtspUrlMasked": "rtsp://yard.viewer:****@192.168.1.104:554/cam/realmonitor?channel=1&subtype=1",
+  "zoneCount": 0,
+  "recordingCount": 0,
+  "savedClipCount": 0,
+  "createdAt": "2026-10-30T11:05:09Z"
+}

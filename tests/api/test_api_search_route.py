@@ -1,4 +1,8 @@
-"""POST /api/search over HTTP: the demo keyword search on the seeded Thursday 29 October."""
+"""POST /api/search over HTTP: the demo keyword search on the seeded Thursday 29 October.
+
+Most tests ask about CAM-001 (the loading dock, the contract example's camera). The tests
+at the end leave the camera out, which searches every camera.
+"""
 
 from __future__ import annotations
 
@@ -32,12 +36,18 @@ ALL_READY_ON_THURSDAY = [
     "clip-1029-131430",
 ]
 NOT_READY_NOTE = "1 recording on this day is still being indexed, so it was not searched."
+CAM2_CARRYING = "clip-1029-cam2-071230"
 
 
 def ask(client: TestClient, question: Any, day: str = THURSDAY, **extra: Any) -> Any:
-    """POST a question about the loading dock and return the response."""
-    body = {"question": question, "day": day, "camera": "loading-dock", **extra}
+    """POST a question about the loading dock (CAM-001) and return the response."""
+    body = {"question": question, "day": day, "camera": "CAM-001", **extra}
     return client.post("/api/search", json=body)
+
+
+def ask_all(client: TestClient, question: str, day: str = THURSDAY) -> Any:
+    """POST a question about every camera (no camera field) and return the response."""
+    return client.post("/api/search", json={"question": question, "day": day})
 
 
 def clip_ids(response: Any) -> list[str]:
@@ -160,7 +170,7 @@ def test_a_day_with_only_unready_recordings_searches_nothing(
     store.add_recording(
         Recording(
             id="rec-1025-0600",
-            camera="loading-dock",
+            camera="CAM-001",
             day=date(2026, 10, 25),
             start_time=time(6, 0),
             length_seconds=60,
@@ -172,30 +182,94 @@ def test_a_day_with_only_unready_recordings_searches_nothing(
     assert response.json()["note"] == NOT_READY_NOTE
 
 
-def test_search_on_an_unknown_camera_is_404(client: TestClient) -> None:
+@pytest.mark.parametrize("camera", ["garage", "CAM-999", "loading-dock"])
+def test_search_on_an_unknown_camera_is_404(client: TestClient, camera: str) -> None:
     response = client.post(
-        "/api/search", json={"question": "people", "day": THURSDAY, "camera": "garage"}
+        "/api/search", json={"question": "people", "day": THURSDAY, "camera": camera}
     )
     assert assert_error(response, 404, "not_found") == "Camera not found."
+
+
+# --- Every camera: camera left out or null --------------------------------------------------
+
+
+def test_without_a_camera_every_cameras_clips_are_searched(client: TestClient) -> None:
+    response = ask_all(client, "someone carrying a box")
+    ids = clip_ids(response)
+    assert ids == [*CARRYING_ON_THURSDAY[:2], CAM2_CARRYING, *CARRYING_ON_THURSDAY[2:]]
+    cameras = {clip["id"]: clip["camera"] for clip in response.json()["clips"]}
+    assert cameras.pop(CAM2_CARRYING) == "CAM-002"
+    assert set(cameras.values()) == {"CAM-001"}
+    assert response.json()["note"] == NOT_READY_NOTE
+
+
+def test_a_null_camera_is_the_same_as_leaving_it_out(client: TestClient) -> None:
+    body = {"question": "someone carrying a box", "day": THURSDAY, "camera": None}
+    with_null = client.post("/api/search", json=body)
+    assert with_null.status_code == 200
+    assert with_null.json() == ask_all(client, "someone carrying a box").json()
+
+
+def test_one_camera_leaves_the_other_cameras_out(client: TestClient) -> None:
+    assert CAM2_CARRYING not in clip_ids(ask(client, "carrying"))
+    only_gate = client.post(
+        "/api/search", json={"question": "carrying", "day": THURSDAY, "camera": "CAM-002"}
+    )
+    assert clip_ids(only_gate) == [CAM2_CARRYING]
+    assert only_gate.json()["note"] is None
+
+
+def test_the_note_counts_unready_recordings_across_every_camera(client: TestClient) -> None:
+    # Friday: CAM-001 has one preparing and one waiting recording, CAM-002 one indexing.
+    response = ask_all(client, "carrying", day="2026-10-30")
+    assert clip_ids(response) == ["clip-1030-065240"]
+    assert response.json()["note"] == (
+        "3 recordings on this day are still being indexed, so they were not searched."
+    )
+
+
+def test_zone_names_of_every_camera_are_understood(client: TestClient) -> None:
+    assert clip_ids(ask_all(client, "anything in the gate lane?")) == [CAM2_CARRYING]
+    # CAM-001 has no zone called Gate lane, so on its own the question is not understood.
+    one_camera = ask(client, "anything in the gate lane?")
+    assert clip_ids(one_camera) == []
+    note = one_camera.json()["note"]
+    assert "Gate lane" not in note and "Loading door" in note
+
+
+def test_the_not_understood_note_lists_every_cameras_zones(client: TestClient) -> None:
+    note = ask_all(client, "red bicycle").json()["note"]
+    assert "a zone (Exit lane, Gate lane, Loading door)" in note
+
+
+def test_a_day_without_footage_on_any_camera_says_so(client: TestClient) -> None:
+    response = ask_all(client, "someone carrying a box", day="2026-10-25")
+    assert response.json() == {
+        "question": "someone carrying a box",
+        "day": "2026-10-25",
+        "clips": [],
+        "note": "There is no footage from any camera on this day.",
+    }
 
 
 @pytest.mark.parametrize(
     ("body", "message"),
     [
-        ({"question": "", "day": THURSDAY, "camera": "loading-dock"}, "question: must be at least"),
-        ({"question": "   \t\n ", "day": THURSDAY, "camera": "loading-dock"}, "question: must not"),
+        ({"question": "", "day": THURSDAY, "camera": "CAM-001"}, "question: must be at least"),
+        ({"question": "   \t\n ", "day": THURSDAY, "camera": "CAM-001"}, "question: must not"),
         (
-            {"question": "a" * 301, "day": THURSDAY, "camera": "loading-dock"},
+            {"question": "a" * 301, "day": THURSDAY, "camera": "CAM-001"},
             "question: must be at most 300 characters",
         ),
-        ({"question": 42, "day": THURSDAY, "camera": "loading-dock"}, "question: must be text"),
-        ({"day": THURSDAY, "camera": "loading-dock"}, "question: is required"),
-        ({"question": "people", "camera": "loading-dock"}, "day: is required"),
-        ({"question": "people", "day": "yesterday", "camera": "loading-dock"}, "day: must be"),
-        ({"question": "people", "day": THURSDAY}, "camera: is required"),
+        ({"question": 42, "day": THURSDAY, "camera": "CAM-001"}, "question: must be text"),
+        ({"day": THURSDAY, "camera": "CAM-001"}, "question: is required"),
+        ({"question": "people", "camera": "CAM-001"}, "day: is required"),
+        ({"question": "people", "day": "yesterday", "camera": "CAM-001"}, "day: must be"),
         ({"question": "people", "day": THURSDAY, "camera": "a b"}, "camera: must be 1 to 64"),
+        ({"question": "people", "day": THURSDAY, "camera": ""}, "camera: must be 1 to 64"),
+        ({"question": "people", "day": THURSDAY, "camera": 7}, "camera: must be text"),
         (
-            {"question": "people", "day": THURSDAY, "camera": "loading-dock", "limit": 5},
+            {"question": "people", "day": THURSDAY, "camera": "CAM-001", "limit": 5},
             "limit: is not an accepted field",
         ),
     ],
