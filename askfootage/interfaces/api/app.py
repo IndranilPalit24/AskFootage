@@ -24,6 +24,7 @@ from starlette.types import Receive, Scope, Send
 
 from askfootage.application.ingest_video import IndexingPipeline
 from askfootage.application.library import IdFactory, Library, new_id
+from askfootage.application.recordings import FootageSource
 from askfootage.application.search import Interpreter, QuestionInterpreter
 from askfootage.application.search_relations import FrameSizeSource, frame_size_source_of
 from askfootage.application.snapshots import SnapshotStore
@@ -68,6 +69,7 @@ def create_app(
     question_parser: QuestionParser | None = None,
     frame_size: FrameSizeSource | None = None,
     snapshots: SnapshotStore | None = None,
+    footage: FootageSource | None = None,
 ) -> FastAPI:
     """Build the AskFootage API.
 
@@ -83,6 +85,7 @@ def create_app(
     recording's pixel size so zone questions can run (default: the track store's own
     frame_size method, when it has one). Without tracks, search is the demo keyword matcher.
 
+    `footage` says which file plays for a recording (default: the demo clip).
     `snapshots` makes and serves the evidence snapshot of each clip found from tracks (none in
     demo mode).
 
@@ -120,7 +123,9 @@ def create_app(
     app.state.context = ApiContext(
         library=library,
         interpreter=interpreter if interpreter is not None else QuestionInterpreter(),
-        footage=DemoFootageSource(videos_dir if videos_dir is not None else DEFAULT_VIDEOS_DIR),
+        footage=footage
+        if footage is not None
+        else DemoFootageSource(videos_dir if videos_dir is not None else DEFAULT_VIDEOS_DIR),
         today=today if today is not None else _fixed_day(read_demo_today()),
         utc_now=utc_now if utc_now is not None else _utc_now,
         make_id=make_id,

@@ -71,10 +71,6 @@ def _iou(a: Span, b: Span) -> float:
     return inter / union
 
 
-def _best(expected: Span, found: tuple[Span, ...]) -> float | None:
-    return max((_iou(expected, span) for span in found), default=None)
-
-
 def _spans(tracks: list[Track], timebase: Timebase) -> tuple[Span, ...]:
     """Merged stretches during which any of the tracks was seen, in seconds."""
     frames = sorted({f for t in tracks for f in t.frames})
@@ -96,8 +92,12 @@ def evaluate_clip(
     """Each labelled event of the clip next to what the relation layer finds in its tracks."""
     timebase = Timebase(DEFAULT_ANALYSIS_FPS)
 
+    cache: dict[str, list[Track]] = {}
+
     def stitched(label: str) -> list[Track]:
-        return stitch_tracks(tracks.tracks_for(video_id, label))
+        if label not in cache:
+            cache[label] = stitch_tracks(tracks.tracks_for(video_id, label))
+        return cache[label]
 
     people = stitched(PERSON)
     rows = [_row(event, people, stitched, thresholds, timebase) for event in labels.events]
@@ -137,7 +137,7 @@ def _row(
         )
         note = f"no rule for leaving the room and no zone to define it by{last}"
         return EventResult(event, found, "not evaluable", None, note)
-    iou = _best(expected, found)
+    iou = max((_iou(expected, span) for span in found), default=None)
     if event.status != "confirmed":
         return EventResult(event, found, "not scored", iou, "labelled unconfirmed")
     verdict = "match" if iou is not None and iou >= MATCH_IOU else "miss"

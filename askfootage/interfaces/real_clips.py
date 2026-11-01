@@ -12,7 +12,6 @@ repository. Run scripts.ingest_real_clips first; without it the library is empty
 
 from __future__ import annotations
 
-from dataclasses import replace
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -24,7 +23,6 @@ from askfootage.application.library import Library
 from askfootage.application.snapshots import SnapshotStore
 from askfootage.interfaces.api.app import REPO_ROOT
 from askfootage.interfaces.api.app import create_app as create_demo_app
-from askfootage.interfaces.api.context import ApiContext
 from askfootage.ports.library_store import Recording
 
 DEFAULT_DATA_DIR = REPO_ROOT / "data" / "real"
@@ -50,15 +48,9 @@ def create_app(data_dir: Path = DEFAULT_DATA_DIR, videos_dir: Path = DEFAULT_VID
     tracks = SqliteTrackStore(library)
     prepared = Path(data_dir)
     renderer = FfmpegSnapshotRenderer(lambda recording_id: prepared / recording_id / "prepared.mp4")
-    app = create_demo_app(
+    return create_demo_app(
         library=Library.from_store(library),
         tracks=tracks,
         snapshots=SnapshotStore(prepared / SNAPSHOTS_DIR_NAME, renderer),
-        videos_dir=videos_dir,
+        footage=PerRecordingFootage(videos_dir),
     )
-    app.state.context = _with_footage(app.state.context, PerRecordingFootage(videos_dir))
-    return app
-
-
-def _with_footage(context: ApiContext, footage: PerRecordingFootage) -> ApiContext:
-    return replace(context, footage=footage)

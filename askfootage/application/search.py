@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date
 from typing import Protocol
@@ -46,6 +47,9 @@ from askfootage.ports.library_store import Clip, DuplicateError, EvidenceKind, M
 from askfootage.ports.track_store import TrackStore
 
 logger = logging.getLogger("askfootage.search")
+
+SNAPSHOT_WORKERS = 4
+"""Evidence snapshots rendered at the same time for one search."""
 
 MAX_QUESTION_LENGTH = 300
 """Longest question accepted, in characters, before trimming."""
@@ -287,14 +291,18 @@ def _make_snapshots(
 ) -> None:
     """Make the evidence snapshot of each clip that has a proof. A failure is logged by type
     and skipped: a missing picture must never break a search."""
-    for item in clips:
-        proof = proofs.get(item.clip.id)
-        if proof is None:
-            continue
+    jobs = [(item.clip, proofs[item.clip.id]) for item in clips if item.clip.id in proofs]
+
+    def make(job: tuple[Clip, ClipProof]) -> None:
+        clip, proof = job
         try:
-            snapshots.create(item.clip, proof)
+            snapshots.create(clip, proof)
         except Exception as error:
-            logger.warning("Snapshot for %s not made (%s)", item.clip.id, type(error).__name__)
+            logger.warning("Snapshot for %s not made (%s)", clip.id, type(error).__name__)
+
+    # Each render is its own ffmpeg process, so they run side by side; the search still waits.
+    with ThreadPoolExecutor(max_workers=SNAPSHOT_WORKERS) as pool:
+        list(pool.map(make, jobs))
 
 
 def _remember_clips(library: Library, clips: Sequence[Clip]) -> None:
