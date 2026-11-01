@@ -24,15 +24,8 @@ async function openStartScreen() {
   return { box, find: screen.getByTestId('find-footage') };
 }
 
-/** The declarations of the rule whose selector is exactly `selector` (top level of the file). */
-function ruleBody(selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = globalCss.match(new RegExp(`(?:^|\\n)${escaped} \\{([^}]*)\\}`));
-  return match ? match[1] : '';
-}
-
 describe('Find Footage start screen layout', () => {
-  it('before the first search, the heading, ask box, examples and Day selector are one centred group', async () => {
+  it('before the first search, the heading, ask box, examples and Day selector are one group, centred in the page and left-aligned', async () => {
     const { find } = await openStartScreen();
     expect([...find.classList]).toEqual(['find', 'find--start']);
 
@@ -58,7 +51,8 @@ describe('Find Footage start screen layout', () => {
     expect(style.flexDirection).toBe('column');
     expect(style.justifyContent).toBe('center');
     expect(style.flexGrow).toBe('1');
-    expect(getComputedStyle(group).textAlign).toBe('center');
+    // The text inside is left-aligned (Swiss style), only the group as a whole sits in the middle.
+    expect(getComputedStyle(group).textAlign).not.toBe('center');
 
     // The column fills the space under the topbar, so "centre" means the middle of the visible page.
     const main = screen.getByRole('main');
@@ -72,13 +66,6 @@ describe('Find Footage start screen layout', () => {
     expect(inner.className).toBe('main__inner');
     expect(getComputedStyle(inner).display).toBe('flex');
     expect(getComputedStyle(inner).flexGrow).toBe('1');
-  });
-
-  it('the stylesheet holds the centring rule for .find--start', () => {
-    const start = ruleBody('.find--start');
-    expect(start).toMatch(/display: flex;/);
-    expect(start).toMatch(/flex-direction: column;/);
-    expect(start).toMatch(/justify-content: center;/);
   });
 
   it('the Search icon button sits inside the ask box, after the question, at the bottom-right', async () => {
@@ -97,9 +84,9 @@ describe('Find Footage start screen layout', () => {
     expect(askBox.lastElementChild).toBe(actions);
     expect(box.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-    // A bordered box with 12px corners; the button row is inside it, in the flow, pushed to the right.
+    // A bordered box with the 8px card corners; the button row is inside it, in the flow, pushed to the right.
     const boxStyle = getComputedStyle(askBox);
-    expect(boxStyle.borderRadius).toBe('12px');
+    expect(boxStyle.borderRadius).toBe('var(--radius-card)'); // the 8px card radius token (jsdom keeps var())
     expect(boxStyle.display).toBe('flex');
     expect(boxStyle.flexDirection).toBe('column');
     const actionsStyle = getComputedStyle(actions);
