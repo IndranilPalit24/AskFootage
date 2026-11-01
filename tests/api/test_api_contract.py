@@ -272,7 +272,7 @@ def test_the_contract_has_the_twenty_two_operations_the_api_serves() -> None:
 
 
 def test_the_app_serves_the_contracts_version(app_spec: Spec) -> None:
-    assert CONTRACT["info"]["version"] == "1.4.0"
+    assert CONTRACT["info"]["version"] == "1.5.0"
     assert app_spec["info"]["version"] == API_VERSION == CONTRACT["info"]["version"]
 
 
@@ -443,6 +443,14 @@ def _drifted(app_spec: Spec, change: Any) -> Spec:
             lambda s: s["paths"]["/api/recordings/{id}/index"]["post"]["responses"].pop("503"),
         ),
         (
+            parameter_differences,
+            lambda s: s["paths"]["/api/cameras/{id}"]["delete"]["parameters"].pop(),
+        ),
+        (
+            status_code_differences,
+            lambda s: s["paths"]["/api/cameras/{id}"]["delete"]["responses"].pop("409"),
+        ),
+        (
             schema_differences,
             lambda s: s["components"]["schemas"]["IndexAccepted"]["properties"]["status"].update(
                 enum=["waiting"]
@@ -479,6 +487,7 @@ def test_each_check_reports_drift(check: Any, change: Any, app_spec: Spec) -> No
         ("zones.json", list[schemas.Zone]),
         ("saved-clips.json", list[schemas.SavedClip]),
         ("error.json", schemas.Error),
+        ("camera-has-recordings.json", schemas.Error),
     ],
 )
 def test_each_example_round_trips_through_its_model(example: str, model: Any) -> None:
