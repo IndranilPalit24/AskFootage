@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "camera_has_recordings",
+    "message": "This camera has 2 recordings and 1 saved clip. Deleting it would delete them too; confirm to delete the camera together with its recordings."
+  }
+}
