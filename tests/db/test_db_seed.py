@@ -243,6 +243,7 @@ def test_row_counts_after_seeding(seeded_store: SqliteLibraryStore, library_path
         "saved_clips": 0,
         "tracks": 0,
         "track_points": 0,
+        "concepts_searched": 0,
     }
     with raw_connection(library_path) as db:
         assert db.execute("SELECT last_number FROM camera_sequence").fetchone()[0] == 3
