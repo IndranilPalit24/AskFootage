@@ -38,6 +38,8 @@ export interface ApiClient {
   addRecording(file: File, day: IsoDay, camera: string): Promise<RecordingAccepted>;
   /** getRecordingVideo: the URL a <video> element can stream from, or null when no footage can be served. */
   recordingVideoUrl(recordingId: string): string | null;
+  /** The URL an <img> can load for a server path such as a clip's snapshotUrl. */
+  assetUrl(path: string): string;
   search(request: SearchRequest): Promise<SearchResponse>;
   getClip(id: string): Promise<Clip>;
   listZones(camera?: string): Promise<Zone[]>;
@@ -156,6 +158,10 @@ export class FetchApiClient implements ApiClient {
 
   recordingVideoUrl(recordingId: string): string {
     return recordingVideoUrlFor(this.baseUrl, recordingId);
+  }
+
+  assetUrl(path: string): string {
+    return `${this.baseUrl}${path}`;
   }
 
   search(request: SearchRequest): Promise<SearchResponse> {

@@ -60,7 +60,7 @@ export interface DemoSeed {
   today: IsoDay;
   cameras: CameraRecord[];
   recordings: Recording[];
-  clips: Array<Omit<Clip, 'camera'> & { camera?: string }>;
+  clips: Array<Omit<Clip, 'camera' | 'snapshotUrl'> & { camera?: string; snapshotUrl?: string | null }>;
   zones: Zone[];
   savedClips: SavedClip[];
 }
@@ -213,12 +213,18 @@ function countBy<T>(items: readonly T[], key: (item: T) => string): Map<string, 
   return counts;
 }
 
+/** The demo seed has no snapshots; one clip gets one so the screen can show it. */
+const DEMO_SNAPSHOTS: Record<string, string> = {
+  'clip-1029-104215': '/api/clips/clip-1029-104215/snapshot',
+};
+
 /** The seed as the demo's data: every clip gets the camera of its recording. */
 function fromSeed(seed: DemoSeed): DemoData {
   const cameraOfRecording = new Map(seed.recordings.map((recording) => [recording.id, recording.camera]));
   const withCamera = (clip: DemoSeed['clips'][number]): Clip => ({
     ...clip,
     camera: clip.camera ?? cameraOfRecording.get(clip.recordingId) ?? '',
+    snapshotUrl: clip.snapshotUrl ?? DEMO_SNAPSHOTS[clip.id] ?? null,
   });
   return {
     ...seed,
@@ -389,6 +395,11 @@ export class MockApiClient implements ApiClient {
       this.data.recordings.push({ id, camera, day, startTime: '00:00:00', lengthSeconds: 0, status: 'waiting' });
       return { id, status: 'waiting' as const };
     });
+  }
+
+  /** The demo has no server, so a path stays as it is. */
+  assetUrl(path: string): string {
+    return path;
   }
 
   /** The demo has no footage files, so there is never a video to stream. */

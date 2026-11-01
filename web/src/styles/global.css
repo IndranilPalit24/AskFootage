@@ -1198,3 +1198,16 @@ a:hover {
   list-style: none;
   color: var(--color-text-muted);
 }
+
+.snapshot {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.snapshot__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-card);
+}

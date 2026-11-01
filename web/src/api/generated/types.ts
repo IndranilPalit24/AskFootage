@@ -116,6 +116,8 @@ export interface Clip {
   whyMatched: string;
   keyFrames: KeyFrame[];
   thumbnailUrl: string | null;
+  /** A JPEG of the frame where the match began, with the boxes drawn on it; null when there is none. */
+  snapshotUrl: string | null;
 }
 
 export interface SearchRequest {

@@ -4,6 +4,7 @@ import type { Clip } from '../api/generated/types';
 import { useApiClient } from '../app/ApiContext';
 import { useAppData } from '../app/AppDataContext';
 import { SaveClipButton } from '../components/SaveClipButton';
+import { EvidenceSnapshot } from '../features/evidence/EvidenceSnapshot';
 import { KeyFrameStrip } from '../features/evidence/KeyFrameStrip';
 import { WhyMatchedPanel } from '../features/evidence/WhyMatchedPanel';
 import { VideoPlayer } from '../features/player/VideoPlayer';
@@ -66,6 +67,7 @@ function ClipDetail({ clip, cameraName }: { clip: Clip; cameraName: string }) {
             hint="The evidence below is still available."
             videoRef={videoRef}
           />
+          <EvidenceSnapshot src={clip.snapshotUrl === null ? null : client.assetUrl(clip.snapshotUrl)} />
           <KeyFrameStrip clip={clip} selected={selectedFrame} onSelect={selectFrame} />
           <DayTimeline
             recordings={recordings.data ?? []}
