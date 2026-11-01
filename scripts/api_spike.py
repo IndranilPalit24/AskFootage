@@ -47,6 +47,7 @@ from askfootage.adapters.meta.budget import (  # noqa: E402
 )
 from askfootage.adapters.meta.client import MetaHttpClient  # noqa: E402
 from askfootage.adapters.meta.record_replay import RecordingTransport, fingerprint  # noqa: E402
+from askfootage.adapters.meta.sam import SAM_MODEL, UPLOAD_PURPOSE, sam_request  # noqa: E402
 from askfootage.adapters.meta.transport import (  # noqa: E402
     FileUpload,
     MetaApiError,
@@ -85,7 +86,6 @@ EXIT_OK = EXIT_CODES["OK"]
 EXIT_API_FAILURE = EXIT_CODES["UNEXPECTED"]
 EXIT_REFUSED = EXIT_CODES["REFUSED"]
 
-SAM_MODEL = "sam-3.1"
 CHECK_PROMPT = "person"
 CHECK_ESTIMATE_USD = Decimal("0.001")
 """Tiny spend estimate that check-key reserves in the budget."""
@@ -99,7 +99,6 @@ DEFAULT_VIDEO = DEFAULT_VIDEOS[0]
 SPIKE_DIR_NAME = "spike"
 PREPARED_DIR_NAME = "prepared"
 SYNTHETIC_FILE = "synthetic.mp4"
-UPLOAD_PURPOSE = "user_data"
 MAX_PRINTED_LINES = 80
 MAX_NOUN_CHARS = 40
 
@@ -148,24 +147,6 @@ def classify(status: int, body: str) -> str:
 def check_key_request() -> MetaRequest:
     """The one request that check-key sends: sam-3.1, a noun and no video (may get 400/422)."""
     return MetaRequest("/responses", json_body={"model": SAM_MODEL, "input": CHECK_PROMPT})
-
-
-def sam_request(noun: str, video_part: dict[str, str], *, stream: bool = True) -> MetaRequest:
-    """The /responses request asking SAM to find `noun` in the video given by `video_part`."""
-    return MetaRequest(
-        "/responses",
-        json_body={
-            "model": SAM_MODEL,
-            "input": [
-                {
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": noun}, video_part],
-                }
-            ],
-            "stream": stream,
-            "metadata": {"include_confidence": "true"},
-        },
-    )
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -1,0 +1,6 @@
+{
+  "fingerprint": "729ab73fb35e78cf7c89baabecbdd8f3abbf30d330d77f831ea13ee9464322fc",
+  "path": "/files",
+  "status": 200,
+  "body": "{\"id\":\"file-3608752279287319\",\"bytes\":3004280,\"created_at\":1793518923,\"expires_at\":null,\"filename\":\"prepared.mp4\",\"object\":\"file\",\"purpose\":\"user_data\",\"status\":\"uploaded\"}"
+}

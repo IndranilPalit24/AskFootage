@@ -1,0 +1,54 @@
+{
+  "clips": {
+    "clip1": {
+      "file_id": "file-3608752279287319",
+      "prepared_sha256": "a4d4e47a87b15ab7f0cad262c903958a9fd3dc83820f7f18c0f4cf2757f306b4",
+      "requests": {
+        "box": {
+          "detections": 0,
+          "fingerprint": "fd9d7abe6521396eb7fcee711d08d6b16693824d6955501ca6babacc45403c4a",
+          "last_frame": null
+        },
+        "hand": {
+          "detections": 31,
+          "fingerprint": "70ee65b261fb5862def150f6e0b481b0acc64011296410d242ab92ff5eda1a91",
+          "last_frame": 40
+        },
+        "person": {
+          "detections": 45,
+          "fingerprint": "2aa72dddbf18adb8c0e3996a9a43b784cbd48a79e3a44e3927a313c47d3ffbf7",
+          "last_frame": 42
+        }
+      },
+      "upload_fingerprint": "729ab73fb35e78cf7c89baabecbdd8f3abbf30d330d77f831ea13ee9464322fc"
+    },
+    "clip2": {
+      "file_id": "file-1198869666098090",
+      "prepared_sha256": "246036dfd2e9c9626805950451b7489f736fae73ff6260868c8ebcdf01031c9d",
+      "requests": {
+        "box": {
+          "detections": 28,
+          "fingerprint": "04623635981d94a7419abd8d0608c8040edfdae3a762b4a3ee937812e53cecce",
+          "last_frame": 46
+        },
+        "hand": {
+          "detections": 26,
+          "fingerprint": "b425d6905b84d36a52bc64b5f5f9e92976a1ae8464406eecd0a26e04c2ea45ef",
+          "last_frame": 35
+        },
+        "person": {
+          "detections": 68,
+          "fingerprint": "cd6297363e3c2ed167fe241b471dfb031a1eaeb5c70502dcfa9dfb2eaab0256d",
+          "last_frame": 48
+        }
+      },
+      "upload_fingerprint": "8a27696d6a5613ec6c77bc8161e004c4941b39fa0bd4cd30d162416eb770e321"
+    }
+  },
+  "fps": 5.0,
+  "model": "sam-3.1",
+  "note": "Real SAM 3.1 replies, masks removed. Frames are 0-based; seconds = frame / fps.",
+  "prompts": {
+    "cardboard box": "box"
+  }
+}
