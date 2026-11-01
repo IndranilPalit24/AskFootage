@@ -139,9 +139,7 @@ def test_predict_relations_from_stored_tracks() -> None:
     assert set(predicted) == {"carrying", "in_zone:everywhere"}
     # the same rule as search: region_entry, so the interval starts at the entry frame
     assert predicted["in_zone:everywhere"][0].start_frame == 20
-    labels = LabelSet(
-        "v", (LabeledSpan("in_zone", 20, 29, "everywhere"),), labels.zones
-    )
+    labels = LabelSet("v", (LabeledSpan("in_zone", 20, 29, "everywhere"),), labels.zones)
     assert evaluate(predicted, labels)["in_zone:everywhere"].f1 == 1.0
 
 

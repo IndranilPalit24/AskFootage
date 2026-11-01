@@ -170,8 +170,9 @@ def test_corrupt_tracks_and_bad_labels_json_are_fixed_messages(tmp_path: Path, v
     (settings.data_dir / "v" / "tracks.json").write_text("{oops", encoding="utf-8")
     labels = tmp_path / "labels.json"
     labels.write_text(
-        json.dumps({"video_id": "v", "relations": [{"kind": "carrying", "start_frame": 0,
-                                                    "end_frame": 5}]}),
+        json.dumps(
+            {"video_id": "v", "relations": [{"kind": "carrying", "start_frame": 0, "end_frame": 5}]}
+        ),
         encoding="utf-8",
     )
     code, _, err = _run(evaluate_cli, [str(labels)], settings)
@@ -185,8 +186,12 @@ def test_evaluating_an_unknown_video_is_an_error_and_makes_no_folder(tmp_path: P
     settings = _settings(tmp_path)
     labels = tmp_path / "labels.json"
     labels.write_text(
-        json.dumps({"video_id": "ghost", "relations": [{"kind": "carrying", "start_frame": 0,
-                                                        "end_frame": 5}]}),
+        json.dumps(
+            {
+                "video_id": "ghost",
+                "relations": [{"kind": "carrying", "start_frame": 0, "end_frame": 5}],
+            }
+        ),
         encoding="utf-8",
     )
     code, out, err = _run(evaluate_cli, [str(labels)], settings)
