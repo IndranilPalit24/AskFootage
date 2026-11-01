@@ -1,0 +1,7 @@
+{
+  "clip": "clip2",
+  "events": [
+    { "type": "carrying", "object": "box", "start_s": 1, "end_s": 5, "status": "confirmed" },
+    { "type": "leaves_room", "object": "box", "start_s": 6, "end_s": 6, "status": "confirmed" }
+  ]
+}

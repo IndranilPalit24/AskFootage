@@ -189,9 +189,7 @@ class FfmpegVideoPreparer:
         if not output.is_file() or output.stat().st_size == 0:
             raise VideoPreparationError("Video conversion produced no output.")
 
-    def _probe(
-        self, ffprobe: str, output: Path
-    ) -> tuple[float, int, tuple[int, int] | None]:
+    def _probe(self, ffprobe: str, output: Path) -> tuple[float, int, tuple[int, int] | None]:
         stream, container = self._probe_json(
             ffprobe,
             [

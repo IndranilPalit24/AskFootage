@@ -108,7 +108,7 @@ class RelationScore:
 
 
 def relation_key(kind: str, zone: str | None) -> str:
-    """"carrying", or "in_zone:dock" for a zone relation."""
+    """ "carrying", or "in_zone:dock" for a zone relation."""
     return kind if zone is None else f"{kind}:{zone}"
 
 
@@ -140,16 +140,10 @@ def _span_iou(a: Span, b: Span) -> float:
     return overlap / ((a[1] - a[0] + 1) + (b[1] - b[0] + 1) - overlap)
 
 
-def _match(
-    predicted: Sequence[Span], truth: Sequence[Span], threshold: float
-) -> list[float]:
+def _match(predicted: Sequence[Span], truth: Sequence[Span], threshold: float) -> list[float]:
     """IoUs of the one-to-one matches, taking the best overlaps first."""
     pairs = sorted(
-        (
-            (_span_iou(p, t), i, j)
-            for i, p in enumerate(predicted)
-            for j, t in enumerate(truth)
-        ),
+        ((_span_iou(p, t), i, j) for i, p in enumerate(predicted) for j, t in enumerate(truth)),
         reverse=True,
     )
     used_p: set[int] = set()
@@ -230,9 +224,7 @@ def _was_searched(tracks: TrackStore, video_id: str, label: str) -> bool:
     return bool(marker(video_id, label)) if marker is not None else False
 
 
-def _zone_polygon(
-    tracks: TrackStore, labels: LabelSet, name: str
-) -> tuple[Point, ...]:
+def _zone_polygon(tracks: TrackStore, labels: LabelSet, name: str) -> tuple[Point, ...]:
     polygon = labels.zones[name]
     if labels.zone_units == "pixels":
         return polygon

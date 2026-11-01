@@ -92,10 +92,12 @@ CHECK_ESTIMATE_USD = Decimal("0.001")
 EXCERPT_CHARS = 300
 """Characters of an error or check-key reply to print."""
 
-DEFAULT_NOUN = "person"
-DEFAULT_VIDEO = Path("videos") / "clip1.mp4"
+DEFAULT_NOUNS = ("person", "box", "hand")
+"""The concepts asked about, each in its own pass (one noun per request)."""
+DEFAULT_VIDEOS = (Path("videos") / "clip1.mp4", Path("videos") / "clip2.mp4")
+DEFAULT_VIDEO = DEFAULT_VIDEOS[0]
 SPIKE_DIR_NAME = "spike"
-SAM_REPLY_FILE = "sam_reply.json"
+PREPARED_DIR_NAME = "prepared"
 SYNTHETIC_FILE = "synthetic.mp4"
 UPLOAD_PURPOSE = "user_data"
 MAX_PRINTED_LINES = 80
@@ -180,8 +182,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     sam = commands.add_parser("sam", help="plan, or with --live run, SAM 3.1 on one video")
     sam.add_argument("--live", action="store_true", help="really upload and call (costs money)")
-    sam.add_argument("--video", type=Path, default=None, help=f"default {DEFAULT_VIDEO}")
-    sam.add_argument("--object", default=DEFAULT_NOUN, help=f"default {DEFAULT_NOUN}")
+    sam.add_argument(
+        "--video",
+        type=Path,
+        action="append",
+        default=None,
+        help="repeat for several; default: videos/clip1.mp4 and videos/clip2.mp4",
+    )
+    sam.add_argument(
+        "--object",
+        action="append",
+        default=None,
+        help=f"repeat for several, one pass each; default: {', '.join(DEFAULT_NOUNS)}",
+    )
     sam.add_argument("--yes", action="store_true", help=argparse.SUPPRESS)  # refused, see main
     return parser
 
@@ -330,55 +343,76 @@ def _synthesize(target: Path) -> int:
 
 
 def _plan(
-    video: Path,
-    noun: str,
+    videos: Sequence[Path],
+    nouns: Sequence[str],
     settings: Settings,
     probe: Callable[[Path], float | None],
     report: _Reporter,
 ) -> None:
     report.say("PLAN (nothing is sent; add --live to run it):")
-    if video.is_file():
-        seconds = probe(video)
-        frames = None if seconds is None else math.ceil(seconds * PREPARED_FPS)
-        report.say(f"file: {video}  ({video.stat().st_size} bytes)")
-    else:
-        report.say(f"file: {video}  NOT FOUND")
-        if video == DEFAULT_VIDEO:
-            report.say("  --live would fall back to a SYNTHETIC video (make_synthetic_video.py)")
-            frames = _synthetic_frames_at_5_fps()
+    passes = len(nouns)
+    total = Decimal(0)
+    known = True
+    for video in videos:
+        frames: int | None
+        if video.is_file():
+            seconds = probe(video)
+            frames = None if seconds is None else math.ceil(seconds * PREPARED_FPS)
+            report.say(f"file: {video}  ({video.stat().st_size} bytes)")
         else:
-            frames = None
-            report.say("  --live would refuse: the --video you named does not exist")
-    if frames is None:
-        report.say(f"frames at {PREPARED_FPS} fps: unknown")
-        report.say("estimated cost: unknown (at least $0.01: 50 frames are always billed)")
-    else:
-        report.say(f"frames at {PREPARED_FPS} fps: {frames}")
+            report.say(f"file: {video}  NOT FOUND")
+            if video == DEFAULT_VIDEO:
+                report.say(
+                    "  --live would fall back to a SYNTHETIC video (make_synthetic_video.py)"
+                )
+                frames = _synthetic_frames_at_5_fps()
+            else:
+                frames = None
+                report.say("  --live would refuse: the --video you named does not exist")
+        if frames is None:
+            known = False
+            report.say(f"frames at {PREPARED_FPS} fps: unknown")
+        else:
+            total += frames_cost(frames) * passes
+            report.say(f"frames at {PREPARED_FPS} fps: {frames}")
+    if known:
         report.say(
-            f"estimated cost: ${frames_cost(frames)}  (hard cap ${settings.max_run_cost_usd})"
+            f"estimated cost: ${total}  ({passes} passes per clip; hard cap "
+            f"${settings.max_run_cost_usd})"
         )
+    else:
+        report.say("estimated cost: unknown (at least $0.01 per pass: 50 frames are always billed)")
     report.say("")
-    report.say(f"1) POST {settings.api_base_url}/files  (multipart/form-data)")
+    report.say(f"1) POST {settings.api_base_url}/files  (multipart/form-data), once per clip")
     report.say(f"   form field: purpose = {UPLOAD_PURPOSE}")
-    report.say("   file field: file = prepared.mp4 (the 5 fps H.264 copy)")
-    request = sam_request(noun, {"type": "input_video", "file_id": "<id from the /files reply>"})
-    report.say(f"2) POST {settings.api_base_url}{request.path}")
-    report.say(f"   body: {json.dumps(request.json_body, indent=2)}")
+    report.say("   file field: file = prepared.mp4 (the 5 fps, silent H.264 copy)")
+    for number, noun in enumerate(nouns, start=2):
+        request = sam_request(noun, {"type": "input_video", "file_id": "<id from /files>"})
+        report.say(f"{number}) POST {settings.api_base_url}{request.path}  (pass for '{noun}')")
+        report.say(f"   body: {json.dumps(request.json_body, indent=2)}")
 
 
-def _resolve_video(
+def _resolve_videos(
     args: argparse.Namespace, spike_dir: Path, synthesize: Callable[[Path], int], report: _Reporter
-) -> Path | None:
-    if args.video is not None:
-        return args.video if args.video.is_file() else None
-    if DEFAULT_VIDEO.is_file():
-        return DEFAULT_VIDEO
+) -> list[Path] | None:
+    if args.video:
+        return list(args.video) if all(video.is_file() for video in args.video) else None
+    found = [video for video in DEFAULT_VIDEOS if video.is_file()]
+    if found:
+        return found
     target = spike_dir / SYNTHETIC_FILE
     spike_dir.mkdir(parents=True, exist_ok=True)
     report.say(f"FALLBACK: {DEFAULT_VIDEO} is missing; using a SYNTHETIC video: {target}")
     if synthesize(target) != 0 or not target.is_file():
         return None
-    return target
+    return [target]
+
+
+def _valid_nouns(raw: Sequence[str] | None) -> list[str] | None:
+    nouns = [noun.strip() for noun in (raw or DEFAULT_NOUNS)]
+    if any(not 1 <= len(noun) <= MAX_NOUN_CHARS for noun in nouns):
+        return None
+    return list(dict.fromkeys(nouns))
 
 
 def _sam(
@@ -390,61 +424,91 @@ def _sam(
     probe: Callable[[Path], float | None],
     synthesize: Callable[[Path], int],
 ) -> int:
-    noun: str = args.object.strip()
-    if not 1 <= len(noun) <= MAX_NOUN_CHARS:
-        report.say(f"INVALID: --object must be 1 to {MAX_NOUN_CHARS} characters")
+    nouns = _valid_nouns(args.object)
+    if nouns is None:
+        report.say(f"INVALID: each --object must be 1 to {MAX_NOUN_CHARS} characters")
         return EXIT_REFUSED
     spike_dir = settings.data_dir / SPIKE_DIR_NAME
 
     if not args.live:
-        _plan(
-            args.video if args.video is not None else DEFAULT_VIDEO, noun, settings, probe, report
-        )
+        _plan(args.video or DEFAULT_VIDEOS, nouns, settings, probe, report)
         return EXIT_OK
 
     if settings.api_key is None:
         return _result(report, "KEY_MISSING")
-    if args.video is not None and not args.video.is_file():
-        report.say(f"INVALID: video {args.video} does not exist or is not a file")
+    sources = _resolve_videos(args, spike_dir, synthesize, report)
+    if sources is None:
+        report.say("INVALID: no video to send (a --video does not exist, or no fallback)")
         return EXIT_REFUSED
-    source = _resolve_video(args, spike_dir, synthesize, report)
-    if source is None:
-        report.say("INVALID: no video to send (the synthetic fallback could not be made)")
-        return EXIT_REFUSED
-    try:
-        prepared: PreparedVideo = preparer.prepare(source, spike_dir / "prepared")
-    except VideoPreparationError as error:
-        report.say(f"INVALID: could not prepare the video: {error}")
-        return EXIT_REFUSED
-    report.say(
-        f"prepared: {prepared.path} ({PREPARED_FPS} fps H.264, {prepared.frame_count} frames, "
-        f"{prepared.duration_seconds:.2f} s)"
-    )
+    prepared_clips: list[tuple[Path, PreparedVideo]] = []
+    for source in sources:
+        try:
+            prepared = preparer.prepare(source, settings.data_dir / PREPARED_DIR_NAME / source.stem)
+        except VideoPreparationError as error:
+            report.say(f"INVALID: could not prepare the video: {error}")
+            return EXIT_REFUSED
+        report.say(
+            f"prepared: {prepared.path} ({PREPARED_FPS} fps H.264, no audio, "
+            f"{prepared.frame_count} frames, {prepared.duration_seconds:.2f} s)"
+        )
+        prepared_clips.append((source, prepared))
 
-    cost = frames_cost(prepared.frame_count)
     live = transport if transport is not None else MetaHttpClient(settings)
     try:
         budget = HardCapBudget(settings.max_run_cost_usd, spike_dir)
     except OSError as error:
         report.say(f"file error: {error}")
         return EXIT_API_FAILURE
-    guarded = BudgetedTransport(live, budget, lambda r: Decimal(0) if r.upload else cost)
+    current_cost = [Decimal(0)]
+    guarded = BudgetedTransport(live, budget, lambda r: Decimal(0) if r.upload else current_cost[0])
     recordings = settings.data_dir / "recordings"
     recorder = RecordingTransport(guarded, recordings)
 
-    try:
-        upload_reply: RawResponse = recorder.send(
-            MetaRequest("/files", upload=FileUpload(prepared.path, UPLOAD_PURPOSE))
-        )
+    for source, prepared in prepared_clips:
+        current_cost[0] = frames_cost(prepared.frame_count)
+        try:
+            upload_reply: RawResponse = recorder.send(
+                MetaRequest("/files", upload=FileUpload(prepared.path, UPLOAD_PURPOSE))
+            )
+        except BudgetError as error:
+            report.say(f"REFUSED: {error}")
+            return EXIT_REFUSED
+        except (ConfigurationError, MetaError) as error:
+            return _failure(error, report)
+        except OSError as error:
+            report.say(f"file error: {error}")
+            return EXIT_API_FAILURE
         file_id = _file_id(upload_reply.body)
         if file_id is None:
             report.say("FAIL: the /files reply has no file id.")
             report.say(f"HTTP status: {upload_reply.status}")
             report.say(upload_reply.body[:EXCERPT_CHARS])
             return EXIT_API_FAILURE
-        request = sam_request(noun, {"type": "input_video", "file_id": file_id})
-        recording = recordings / f"{fingerprint(request)}.json"
-        replayed = recording.is_file()
+        for noun in nouns:
+            request = sam_request(noun, {"type": "input_video", "file_id": file_id})
+            code = _pass(
+                source, noun, request, upload_reply, recorder, recordings, settings, report
+            )
+            if code != EXIT_OK:
+                return code
+    report.say(f"total spend recorded (all runs): ${budget.spent} of ${budget.cap} cap")
+    report.say(f"spend ledger: {spike_dir / 'spend-ledger.jsonl'}")
+    return EXIT_OK
+
+
+def _pass(
+    source: Path,
+    noun: str,
+    request: MetaRequest,
+    upload_reply: RawResponse,
+    recorder: Transport,
+    recordings: Path,
+    settings: Settings,
+    report: _Reporter,
+) -> int:
+    """One SAM request for one noun on one clip: print the RAW reply, save it, return the code."""
+    replayed = (recordings / f"{fingerprint(request)}.json").is_file()
+    try:
         reply = recorder.send(request)
     except BudgetError as error:
         report.say(f"REFUSED: {error}")
@@ -455,8 +519,10 @@ def _sam(
         report.say(f"file error: {error}")
         return EXIT_API_FAILURE
 
-    saved = spike_dir / SAM_REPLY_FILE
+    saved = settings.data_dir / SPIKE_DIR_NAME / f"sam_{source.stem}_{_file_safe(noun)}.json"
     payload = {
+        "clip": source.stem,
+        "concept": noun,
         "http_status": reply.status,
         "files_reply": _scrub(upload_reply.body, settings),
         "raw": _scrub(reply.body, settings),
@@ -467,8 +533,8 @@ def _sam(
         report.say(f"file error: {error}")
         return EXIT_API_FAILURE
 
-    ok = 200 <= reply.status < 300
-    name = "OK" if ok else classify(reply.status, reply.body)
+    name = "OK" if 200 <= reply.status < 300 else classify(reply.status, reply.body)
+    report.say(f"==== PASS {source.stem} / {noun} ====")
     report.say(f"RESULT: {name}")
     report.say(f"HTTP status: {reply.status}")
     report.say(
@@ -481,10 +547,11 @@ def _sam(
     if len(lines) > MAX_PRINTED_LINES:
         report.say(f"... {len(lines) - MAX_PRINTED_LINES} more lines; full reply in {saved}")
     report.say(f"full reply saved to: {saved}")
-    report.say(f"estimated cost of this call: ${cost}")
-    report.say(f"total spend recorded (all runs): ${budget.spent} of ${budget.cap} cap")
-    report.say(f"spend ledger: {spike_dir / 'spend-ledger.jsonl'}")
     return EXIT_CODES[name]
+
+
+def _file_safe(noun: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", noun).strip("_") or "noun"
 
 
 def _scrub(text: str, settings: Settings) -> str:

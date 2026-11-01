@@ -129,7 +129,8 @@ def run(
 
 
 def live(video: Path, *extra: str) -> list[str]:
-    return ["sam", "--live", "--video", str(video), *extra]
+    objects = [] if "--object" in extra else ["--object", "person"]
+    return ["sam", "--live", "--video", str(video), *objects, *extra]
 
 
 # --- check-key: one distinct result and exit code per category -------------------------------
@@ -257,7 +258,10 @@ def test_plan_prints_the_exact_shapes_and_sends_nothing(settings: Settings, vide
     assert transport.requests == []
     assert str(video) in output
     assert "frames at 5 fps: 100" in output
-    assert "estimated cost: $0.02" in output
+    assert "estimated cost: $0.06" in output
+    assert "3 passes" in output
+    for noun in ("person", "box", "hand"):
+        assert f'"text": "{noun}"' in output
     assert "POST" in output and "/files" in output
     assert "purpose = user_data" in output
     assert "/responses" in output
@@ -333,7 +337,7 @@ def test_live_prints_status_and_the_raw_streamed_events_and_saves_them(
     assert "HTTP status: 200" in output
     assert "event: delta" in output
     assert 'data: {"frame": 1}' in output
-    saved = json.loads((settings.data_dir / "spike" / "sam_reply.json").read_text("utf-8"))
+    saved = json.loads((settings.data_dir / "spike" / "sam_clip_person.json").read_text("utf-8"))
     assert saved["http_status"] == 200
     assert saved["raw"] == SAM_REPLY
     assert "file-abc123" in saved["files_reply"]
@@ -345,7 +349,7 @@ def test_a_long_reply_prints_80_lines_and_the_file_path(settings: Settings, vide
     assert "data: 79" in output
     assert "data: 80\n" not in output
     assert "120 more lines" in output
-    assert "sam_reply.json" in output
+    assert "sam_clip_person.json" in output
 
 
 def test_live_records_spend_and_a_ledger(settings: Settings, video: Path) -> None:
@@ -480,7 +484,7 @@ def test_the_key_is_scrubbed_from_output_and_the_saved_file(
     body = f"data: leaked {FAKE_KEY}\n"
     _, output = run(live(video), settings, _ok_transport(body), preparer=FakePreparer())
     assert FAKE_KEY not in output
-    saved = (settings.data_dir / "spike" / "sam_reply.json").read_text("utf-8")
+    saved = (settings.data_dir / "spike" / "sam_clip_person.json").read_text("utf-8")
     assert FAKE_KEY not in saved
     assert "[REDACTED]" in saved
 
@@ -544,3 +548,83 @@ def test_a_400_from_a_sam_call_is_not_reported_as_ok(settings: Settings, video: 
 
 def test_no_muse_model_is_referenced() -> None:
     assert "muse" not in SCRIPT.read_text("utf-8").lower()
+
+
+# --- one pass per concept, one upload per clip ---------------------------------------------------
+
+
+def _asked_nouns(transport: FakeTransport) -> list[str]:
+    return [
+        r.json_body["input"][0]["content"][0]["text"]
+        for r in transport.requests
+        if r.json_body is not None
+    ]
+
+
+def test_default_concepts_are_person_box_and_hand_as_separate_passes(
+    settings: Settings, video: Path
+) -> None:
+    transport = _ok_transport()
+    code, output = run(
+        ["sam", "--live", "--video", str(video)], settings, transport, preparer=FakePreparer()
+    )
+    assert code == 0
+    assert [r.path for r in transport.requests] == [
+        "/files",
+        "/responses",
+        "/responses",
+        "/responses",
+    ]
+    assert _asked_nouns(transport) == ["person", "box", "hand"]
+    for noun in ("person", "box", "hand"):
+        assert (settings.data_dir / "spike" / f"sam_clip_{noun}.json").is_file()
+    assert "PASS clip / box" in output
+
+
+def test_two_clips_are_each_uploaded_once_and_asked_three_times(
+    settings: Settings, tmp_path: Path
+) -> None:
+    clips = []
+    for name in ("one.mp4", "two.mp4"):
+        clip = tmp_path / name
+        clip.write_bytes(b"x")
+        clips.append(clip)
+
+    class DistinctPreparer(FakePreparer):
+        def prepare(self, source: Path, dest_dir: Path) -> PreparedVideo:
+            prepared = super().prepare(source, dest_dir)
+            prepared.path.write_bytes(source.name.encode())
+            return prepared
+
+    class NumberedFiles(FakeTransport):
+        def send(self, request: MetaRequest) -> RawResponse:
+            if request.path == "/files":
+                self.requests.append(request)
+                return RawResponse(200, f'{{"id": "file-{len(self.requests)}"}}')
+            return super().send(request)
+
+    transport = NumberedFiles({"/responses": RawResponse(200, SAM_REPLY)})
+    preparer = DistinctPreparer()
+    code, _ = run(
+        ["sam", "--live", "--video", str(clips[0]), "--video", str(clips[1])],
+        settings,
+        transport,
+        preparer=preparer,
+    )
+    assert code == 0
+    assert [r.path for r in transport.requests].count("/files") == 2
+    assert [r.path for r in transport.requests].count("/responses") == 6
+    assert [c[1].name for c in preparer.calls] == ["one", "two"]
+    assert all(c[1].parent.name == "prepared" for c in preparer.calls)
+
+
+def test_a_failed_pass_stops_the_run_with_its_own_category(settings: Settings, video: Path) -> None:
+    transport = FakeTransport(
+        {"/files": RawResponse(200, FILE_REPLY), "/responses": MetaApiError(429, "slow down")}
+    )
+    code, output = run(
+        ["sam", "--live", "--video", str(video)], settings, transport, preparer=FakePreparer()
+    )
+    assert code == 14
+    assert "RATE_LIMITED" in output
+    assert _asked_nouns(transport) == ["person"]
