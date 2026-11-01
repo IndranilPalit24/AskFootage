@@ -1,8 +1,8 @@
 """One error shape for every failure: {"error": {"code": ..., "message": ...}}.
 
 Codes: validation_error 422, not_found 404, method_not_allowed 405, already_saved,
-zone_name_taken, camera_name_taken and recording_not_waiting 409, file_too_large 413,
-unsupported_media_type 415, internal_error 500, indexing_not_configured 503.
+zone_name_taken, camera_name_taken, camera_has_recordings and recording_not_waiting 409,
+file_too_large 413, unsupported_media_type 415, internal_error 500, indexing_not_configured 503.
 Messages are fixed or built from our own words: they name the field at fault but never
 repeat the rejected input, an exception's text, a stack trace, a server path or a key.
 """
@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from askfootage.application.cameras import HOST_PROBLEM
+from askfootage.application.cameras import HOST_PROBLEM, CameraHasRecordingsError
 from askfootage.application.errors import (
     AlreadySavedError,
     ApplicationError,
@@ -53,6 +53,8 @@ RESPONSE_DESCRIPTIONS: dict[int, str] = {
     409: (
         "The change clashes with existing data "
         "(code already_saved, zone_name_taken or camera_name_taken), "
+        "the camera still has recordings and deleteRecordings was not true "
+        "(code camera_has_recordings), "
         "or the recording is not waiting to be indexed (code recording_not_waiting)"
     ),
     413: "The upload is over 200 MiB (code file_too_large)",
@@ -238,6 +240,8 @@ async def _on_application_error(request: Request, exc: Exception) -> JSONRespons
         return error_response(409, "zone_name_taken", exc.message)
     if isinstance(exc, CameraNameTakenError):
         return error_response(409, "camera_name_taken", exc.message)
+    if isinstance(exc, CameraHasRecordingsError):
+        return error_response(409, "camera_has_recordings", exc.message)
     if isinstance(exc, RecordingNotWaitingError):
         return error_response(409, "recording_not_waiting", exc.message)
     if isinstance(exc, IndexingNotConfiguredError):

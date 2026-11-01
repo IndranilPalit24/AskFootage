@@ -23,6 +23,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Path, Query, Request, Response
 from fastapi.responses import FileResponse
+from pydantic import BeforeValidator
 
 from askfootage.application import cameras, ingest_video, recordings, saved_clips, search, zones
 from askfootage.application.errors import NotFoundError
@@ -61,6 +62,27 @@ OptionalCameraQuery = Annotated[
         pattern=ID_PATTERN,
         description="A camera id; leave it out for all cameras",
         examples=["CAM-001"],
+    ),
+]
+
+
+def _exactly_true_or_false(value: object) -> object:
+    """Accept only the text true or false (pydantic would also take 1, yes, on, ...)."""
+    if value is True or value is False or value in ("true", "false"):
+        return value
+    raise ValueError("must be true or false")
+
+
+DeleteRecordingsQuery = Annotated[
+    bool,
+    BeforeValidator(_exactly_true_or_false),
+    Query(
+        alias="deleteRecordings",
+        description=(
+            "True to delete the camera together with its recordings, clips, saved clips and "
+            "zones; false (the default) refuses when the camera has recordings"
+        ),
+        examples=[False],
     ),
 ]
 DayQuery = Annotated[Day, Query(examples=["2026-10-29"])]
@@ -183,14 +205,22 @@ async def update_camera(id: IdPath, body: CameraUpdate, context: Context) -> Cam
     response_class=Response,
     summary="Delete a camera and everything recorded on it",
     description=(
-        "Also removes the camera's recordings (with their clips and saved clips) and its "
-        "zones. A second delete of the same camera returns 404."
+        "A camera with no recordings is deleted at once (204), whatever deleteRecordings "
+        "says; its zones go with it. A camera with one or more recordings is not deleted "
+        "unless deleteRecordings is true: the answer is 409 with code camera_has_recordings "
+        "and a message that says how many recordings and saved clips it has, and nothing is "
+        "changed. With deleteRecordings=true the camera is deleted together with its "
+        "recordings, their clips, the saved clips and its zones. A second delete of the same "
+        "camera returns 404. deleteRecordings must be exactly true or false; any other value "
+        "returns 422."
     ),
-    responses=error_responses(404, 422, 500),
+    responses=error_responses(404, 409, 422, 500),
 )
-async def delete_camera(id: IdPath, context: Context) -> Response:
-    """Delete a camera and everything recorded on it."""
-    cameras.delete_camera(context.library, id)
+async def delete_camera(
+    id: IdPath, context: Context, delete_recordings: DeleteRecordingsQuery = False
+) -> Response:
+    """Delete a camera; with recordings it needs deleteRecordings=true."""
+    cameras.delete_camera(context.library, id, delete_recordings=delete_recordings)
     return Response(status_code=204)
 
 
