@@ -38,6 +38,12 @@ export const tokens = {
     fieldBorder: '#868C99',
     /** Not in the reference: error text, 6.5:1 on white. */
     danger: '#B42318',
+    /** Camera status dots (always next to a text label). */
+    statusOnline: '#16A34A',
+    statusStandby: '#CA8A04',
+    statusOffline: '#DC2626',
+    /** Behind a dialog. */
+    scrim: 'rgba(22, 24, 28, 0.45)',
   },
   size: {
     topbarHeight: '56px',
@@ -52,6 +58,8 @@ export const tokens = {
     dayButtonWidth: '76px',
     dayButtonHeight: '60px',
     statusDot: '6px',
+    /** The Cameras page status dot. */
+    cameraStatusDot: '8px',
     tableMinWidth: '560px',
   },
   radius: {

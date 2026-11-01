@@ -1211,3 +1211,150 @@ a:hover {
   height: auto;
   border-radius: var(--radius-card);
 }
+
+/* ---------- Cameras page ---------- */
+
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tabs__tab {
+  min-height: var(--control-height);
+  margin-bottom: -1px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.tabs__tab:hover {
+  color: var(--color-text);
+}
+
+.tabs__tab[aria-selected='true'] {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.cam-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.cam-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.cam-card dd {
+  margin: 0;
+}
+
+.cam-card__value {
+  font-size: var(--font-size-24);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.25;
+}
+
+.table--cameras {
+  min-width: 860px;
+}
+
+.cam-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.cam-status__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cam-dot {
+  flex: none;
+  width: var(--camera-status-dot);
+  height: var(--camera-status-dot);
+  border-radius: 50%;
+}
+
+.cam-dot--online {
+  background: var(--color-status-online);
+}
+
+.cam-dot--standby {
+  background: var(--color-status-standby);
+}
+
+.cam-dot--offline {
+  background: var(--color-status-offline);
+}
+
+.cam-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cam-form {
+  max-width: 520px;
+}
+
+.cam-form__rtsp {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-table-header-fill);
+  font-size: var(--font-size-13);
+  overflow-wrap: anywhere;
+}
+
+.cam-form__check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.cam-form__check input {
+  margin-top: 4px;
+}
+
+/* ---------- Dialog ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--color-scrim);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 440px;
+  padding: var(--space-5);
+}
+
+.modal__actions {
+  justify-content: flex-end;
+}

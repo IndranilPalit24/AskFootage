@@ -16,7 +16,7 @@ import {
   STREAM_PASSWORD_MAX,
   STREAM_USERNAME_MAX,
 } from './cameraRules';
-import type { ApiClient } from './client';
+import type { ApiClient, DeleteCameraOptions } from './client';
 import { ApiError } from './errors';
 import type {
   Camera,
@@ -233,6 +233,10 @@ function fromSeed(seed: DemoSeed): DemoData {
   };
 }
 
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
 const MILLISECONDS = /\.\d{3}Z$/;
 
 function nowUtc(): string {
@@ -346,10 +350,20 @@ export class MockApiClient implements ApiClient {
     });
   }
 
-  deleteCamera(id: string): Promise<void> {
+  deleteCamera(id: string, options: DeleteCameraOptions = {}): Promise<void> {
     return this.answer(() => {
       this.requireCamera(id);
       const { data } = this;
+      const recordings = data.recordings.filter((recording) => recording.camera === id).length;
+      if (recordings > 0 && options.deleteRecordings !== true) {
+        const saved = data.savedClips.filter((item) => item.clip.camera === id).length;
+        throw new ApiError(
+          409,
+          'camera_has_recordings',
+          `This camera has ${plural(recordings, 'recording')} and ${plural(saved, 'saved clip')}. ` +
+            'Deleting it would delete them too; confirm to delete the camera together with its recordings.',
+        );
+      }
       // Cascade: the camera's recordings (with their clips and saved clips) and its zones go too.
       data.cameras = data.cameras.filter((camera) => camera.id !== id);
       data.recordings = data.recordings.filter((recording) => recording.camera !== id);

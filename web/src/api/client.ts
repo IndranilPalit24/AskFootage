@@ -20,6 +20,10 @@ import type {
 } from './generated/types';
 import { MockApiClient } from './mockClient';
 
+export interface DeleteCameraOptions {
+  deleteRecordings?: boolean;
+}
+
 /** One method per operation in contract/openapi.yaml. */
 export interface ApiClient {
   getStatus(): Promise<Status>;
@@ -29,8 +33,12 @@ export interface ApiClient {
   /** 201 with the new camera; 409 camera_name_taken when the name is in use, ignoring case. */
   addCamera(body: CameraCreate): Promise<Camera>;
   updateCamera(id: string, body: CameraUpdate): Promise<Camera>;
-  /** Also removes the camera's recordings, zones and saved clips. */
-  deleteCamera(id: string): Promise<void>;
+  /**
+   * A camera with no recordings is deleted at once. With recordings the answer is 409 camera_has_recordings
+   * (nothing changes) unless options.deleteRecordings is true, which also removes its recordings, clips,
+   * saved clips and zones.
+   */
+  deleteCamera(id: string, options?: DeleteCameraOptions): Promise<void>;
   /** Without camera: the counts cover all cameras. */
   listDays(camera?: string): Promise<DaySummary[]>;
   /** Without camera: every camera's recordings. */
@@ -136,8 +144,10 @@ export class FetchApiClient implements ApiClient {
     return this.request('PATCH', `/api/cameras/${encodeURIComponent(id)}`, { json: body });
   }
 
-  deleteCamera(id: string): Promise<void> {
-    return this.request('DELETE', `/api/cameras/${encodeURIComponent(id)}`);
+  deleteCamera(id: string, options?: DeleteCameraOptions): Promise<void> {
+    // Sent only when true: the contract's default is false.
+    const query = options?.deleteRecordings === true ? { deleteRecordings: 'true' } : undefined;
+    return this.request('DELETE', `/api/cameras/${encodeURIComponent(id)}`, { query });
   }
 
   listDays(camera?: string): Promise<DaySummary[]> {
