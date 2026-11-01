@@ -56,8 +56,10 @@ class Thresholds:
         camera shake, and it is why a box at rest beside a standing person is not carried.
     carry_motion_tolerance: largest allowed difference between the object's and the
         person's displacement on one step, as a fraction of the person's displacement.
-        0.5 accepts a box that swings in the hand but rejects one that moves at a
-        different speed or in a different direction.
+        0.75 accepts a box that swings in the hand and the jitter of a real person box,
+        whose centre shifts with posture and with the feet leaving the frame (measured on
+        the real clip2: 0.5 and 0.6 miss a carry that the filmer confirmed, 0.7 and above
+        find it); it still rejects one that moves at a different speed or direction.
     carry_min_agreement: least fraction of a carry's steps on which person and object
         moved together. Steps inside a joined gap count against it, so 0.6 lets a carry
         survive brief stumbles but not a run that is mostly disagreement.
@@ -72,7 +74,7 @@ class Thresholds:
     carry_containment: float = 0.5
     min_carry_frames: int = 10
     min_moving_displacement: float = 0.02
-    carry_motion_tolerance: float = 0.5
+    carry_motion_tolerance: float = 0.75
     carry_min_agreement: float = 0.6
     gap_tolerance_frames: int = 3
     min_zone_frames: int = 2

@@ -271,3 +271,45 @@ def _positive_int(value: object) -> int | None:
     except ValueError:
         return None
     return number if number > 0 else None
+
+
+class PreparedCopyPreparer(FfmpegVideoPreparer):
+    """Reuses a video that already is the 5 fps working copy: copies it instead of encoding.
+
+    The copy is byte-identical, so the content hash an upload's request fingerprint is made
+    from does not change and a recording made earlier from that file still replays. Only
+    ffprobe is run. A source that is not 5 fps is refused, so it is never passed off as a
+    prepared copy.
+    """
+
+    def prepare(self, source: Path, dest_dir: Path) -> PreparedVideo:
+        """Copy `source` to dest_dir/prepared.mp4 and describe it; see FfmpegVideoPreparer."""
+        prepared = super().prepare(source, dest_dir)
+        if not _is_five_fps(prepared):
+            prepared.path.unlink(missing_ok=True)
+            raise VideoPreparationError(f"The video is not a {PREPARED_FPS} fps copy.")
+        return prepared
+
+    def describe(self, source: Path) -> PreparedVideo:
+        """Describe an existing prepared video without copying it."""
+        path = self._checked_source(Path(source))
+        duration, frame_count, size = self._probe(self._find("ffprobe"), path)
+        described = PreparedVideo(
+            path=path,
+            fps=float(PREPARED_FPS),
+            duration_seconds=duration,
+            frame_count=frame_count,
+            width=None if size is None else size[0],
+            height=None if size is None else size[1],
+        )
+        if not _is_five_fps(described):
+            raise VideoPreparationError(f"The video is not a {PREPARED_FPS} fps copy.")
+        return described
+
+    def _encode(self, ffmpeg: str, source: Path, output: Path) -> None:
+        shutil.copyfile(source, output)
+
+
+def _is_five_fps(video: PreparedVideo) -> bool:
+    """True when the frame count agrees with the duration at 5 fps, give or take a frame."""
+    return abs(video.frame_count - video.duration_seconds * PREPARED_FPS) <= 1.0

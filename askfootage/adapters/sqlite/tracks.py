@@ -8,8 +8,9 @@ messages) and the one place that creates and upgrades the schema. A video is a r
 tracks reference recordings, so deleting a recording, or the camera that made it, removes
 its tracks and their points too.
 
-Tables (schema.sql, version 3): tracks holds one row per (recording, label, track_id);
-track_points one row per (track, frame), the box in four REAL columns. A frame number is a
+Tables (schema.sql, version 4): tracks holds one row per (recording, label, track_id);
+track_points one row per (track, frame), the box in four REAL columns; concepts_searched one
+row per (recording, label) that was searched, found or not. A frame number is a
 frame of the recording's constant-frame-rate working copy (askfootage/domain/timebase.py).
 
 save_tracks checks everything it can before it touches the file, then deletes the concept's
@@ -39,6 +40,18 @@ _RECORDING_EXISTS = "SELECT 1 FROM recordings WHERE id = ?"
 # Removes a concept's tracks; the schema cascades to their points.
 _DELETE_CONCEPT = "DELETE FROM tracks WHERE recording_id = ? AND label = ?"
 _DELETE_VIDEO = "DELETE FROM tracks WHERE recording_id = ?"
+_DELETE_MARKERS = "DELETE FROM concepts_searched WHERE recording_id = ?"
+# The "searched" marker; saving the same concept again keeps the one row. ON CONFLICT is
+# used rather than OR IGNORE, which would also swallow a label the CHECK refuses.
+_MARK_SEARCHED = """
+    INSERT INTO concepts_searched (recording_id, label) VALUES (?, ?)
+    ON CONFLICT (recording_id, label) DO NOTHING
+"""
+# A marker, or (for data saved before markers existed) at least one track.
+_CONCEPT_DONE = """
+    SELECT EXISTS (SELECT 1 FROM concepts_searched WHERE recording_id = ? AND label = ?)
+        OR EXISTS (SELECT 1 FROM tracks WHERE recording_id = ? AND label = ?)
+"""
 _INSERT_TRACK = """
     INSERT INTO tracks (recording_id, label, track_id) VALUES (?, ?, ?) RETURNING id
 """
@@ -75,7 +88,8 @@ class SqliteTrackStore:
         """Replace every track saved for this video and concept with `tracks`, atomically.
 
         Every track's label must equal `concept` and track ids must be unique, else
-        ValueError (nothing is written). An empty `tracks` clears the concept. Raises
+        ValueError (nothing is written). An empty `tracks` clears the concept's tracks but
+        still records that the concept was searched (see concept_done). Raises
         MissingReferenceError if the video does not exist, TypeError if an item is not a
         Track, and LibraryError if a number is too large for SQLite (nothing is written).
         """
@@ -85,6 +99,7 @@ class SqliteTrackStore:
             if db.execute(_RECORDING_EXISTS, (video_id,)).fetchone() is None:
                 raise MissingReferenceError("there is no recording with this id")
             db.execute(_DELETE_CONCEPT, (video_id, concept))
+            db.execute(_MARK_SEARCHED, (video_id, concept))
             points: list[_PointRow] = []
             for track in tracks:
                 (row,) = db.execute(_INSERT_TRACK, (video_id, concept, track.track_id)).fetchone()
@@ -100,12 +115,24 @@ class SqliteTrackStore:
             rows = db.execute(_POINTS_OF_TRACKS, (video_id, label)).fetchall()
         return _tracks_from_rows(label, rows)
 
-    def delete_video(self, video_id: str) -> int:
-        """Remove every track of this video; returns how many tracks were removed.
+    def concept_done(self, video_id: str, concept: str) -> bool:
+        """Whether this concept was already searched for this video.
 
-        The recording itself, and its clips, stay. An unknown video removes nothing (0).
+        True when save_tracks ran for it (even with no tracks: "ran, empty") or when it has
+        tracks. False for a concept never searched and for an unknown video.
+        """
+        with self._library._transaction(write=False) as db:
+            params = (video_id, concept, video_id, concept)
+            return db.execute(_CONCEPT_DONE, params).fetchone()[0] == 1
+
+    def delete_video(self, video_id: str) -> int:
+        """Remove every track and searched-concept marker of this video.
+
+        Returns how many tracks were removed. The recording itself, and its clips, stay. An
+        unknown video removes nothing (0).
         """
         with self._library._transaction(write=True) as db:
+            db.execute(_DELETE_MARKERS, (video_id,))
             return db.execute(_DELETE_VIDEO, (video_id,)).rowcount
 
 

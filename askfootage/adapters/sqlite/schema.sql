@@ -16,6 +16,9 @@
 --   indexing attempt failed. Demo data only: upgrading from v1 or v2 drops and recreates;
 --   the seed then refills it, and every recording must be indexed again. (store.py drops
 --   every old table and applies this file, in one transaction.)
+-- - 4: concepts_searched, a marker that a concept was searched for a recording, even when
+--   nothing was found. Additive: a v3 database is upgraded in place and keeps its data
+--   (store.py runs _MIGRATIONS[3], which creates the table and sets the version).
 --
 -- Conventions
 -- - Recording, clip, zone and saved-clip ids are chosen by the caller: 1 to 64 letters,
@@ -255,4 +258,16 @@ CREATE TABLE track_points (
     PRIMARY KEY (track_row, frame)
 ) STRICT, WITHOUT ROWID;
 
-PRAGMA user_version = 3;
+-- A concept that was searched for a recording, whether or not it found any track. Without
+-- it "searched, nothing found" cannot be told from "never searched". Same label rule as
+-- tracks.label. Deleting the recording removes its markers.
+CREATE TABLE concepts_searched (
+    recording_id TEXT NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
+    label        TEXT NOT NULL
+                 CHECK (label <> ''
+                        AND label = trim(label, char(32, 9, 10, 11, 12, 13))
+                        AND length(label) <= 40),
+    PRIMARY KEY (recording_id, label)
+) STRICT, WITHOUT ROWID;
+
+PRAGMA user_version = 4;
