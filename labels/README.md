@@ -40,3 +40,29 @@ error, not a table of zeros.
 Each relation is scored separately (`carrying`, `in_zone:dock`, ...) for precision,
 recall, f1 and frame IoU, counted per frame, plus interval matches at an IoU of 0.5 by
 default (`--iou`). Add `--json` for machine output.
+
+## Real-clip labels in seconds
+
+`labels/clip1.json` and `labels/clip2.json` use a second, simpler format, in seconds of the
+clip, written only from what the person who filmed them said:
+
+```json
+{
+  "clip": "clip2",
+  "events": [
+    { "type": "carrying", "object": "box", "start_s": 1, "end_s": 5, "status": "confirmed" },
+    { "type": "leaves_room", "object": "box", "start_s": 6, "end_s": 6, "status": "confirmed" }
+  ]
+}
+```
+
+- `type` is `in_frame`, `carrying` or `leaves_room`; `start_s` and `end_s` are seconds, end
+  not before start (a moment such as "leaves the room at 6 s" has both equal).
+- `status` is `confirmed` (stated outright) or `unconfirmed` (not stated, so it must never be
+  scored as truth). A file may hold no other fields, and no zone is invented.
+- `clip1`: the person is in frame from 1 s to 7 s. Whether the object is visible or carried
+  was not stated, so the event is `unconfirmed` and **clip1's carry status is unconfirmed**.
+- `clip2`: the box is in the person's hands from 1 s to 5 s, and at 6 s it is seen leaving
+  the room.
+
+The loader is `askfootage/application/clip_labels.py` (`load_clip_labels`).

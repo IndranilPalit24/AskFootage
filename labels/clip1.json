@@ -1,0 +1,6 @@
+{
+  "clip": "clip1",
+  "events": [
+    { "type": "in_frame", "object": "person", "start_s": 1, "end_s": 7, "status": "unconfirmed" }
+  ]
+}
