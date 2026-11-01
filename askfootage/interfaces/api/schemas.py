@@ -341,6 +341,14 @@ class IndexAccepted(ResponseModel):
 
 # --- Clips and search ---------------------------------------------------------------------
 
+SnapshotUrl = Callable[[str], str | None]
+"""Maps a clip id to the URL of its evidence snapshot, or None when it has none."""
+
+
+def no_snapshot(clip_id: str) -> str | None:
+    """The SnapshotUrl for an app with no snapshots."""
+    return None
+
 
 class Evidence(ResponseModel):
     """One measured reason a clip matched, with its short chip text."""
@@ -374,9 +382,17 @@ class Clip(ResponseModel):
     why_matched: str
     key_frames: list[KeyFrame]
     thumbnail_url: str | None
+    snapshot_url: str | None = Field(
+        description=(
+            "URL of the evidence snapshot (GET /api/clips/{id}/snapshot), or null when none was "
+            "made. Only clips found from stored object tracks can have one."
+        )
+    )
 
     @classmethod
-    def from_port(cls, clip: ports.Clip, camera: str) -> Clip:
+    def from_port(
+        cls, clip: ports.Clip, camera: str, snapshot_url: SnapshotUrl = no_snapshot
+    ) -> Clip:
         """The response model for a stored clip and its recording's camera."""
         return cls(
             id=clip.id,
@@ -395,6 +411,7 @@ class Clip(ResponseModel):
                 for frame in clip.key_frames
             ],
             thumbnail_url=clip.thumbnail_url,
+            snapshot_url=snapshot_url(clip.id),
         )
 
 
@@ -488,12 +505,16 @@ class SearchResponse(ResponseModel):
     )
 
     @classmethod
-    def from_result(cls, result: SearchResult) -> SearchResponse:
+    def from_result(
+        cls, result: SearchResult, snapshot_url: SnapshotUrl = no_snapshot
+    ) -> SearchResponse:
         """The response model for a search result."""
         return cls(
             question=result.question,
             day=result.day,
-            clips=[Clip.from_port(found.clip, found.camera) for found in result.clips],
+            clips=[
+                Clip.from_port(found.clip, found.camera, snapshot_url) for found in result.clips
+            ],
             note=result.note,
             proofs=[ClipProof.from_result(proof) for proof in result.proofs],
         )
@@ -547,11 +568,13 @@ class SavedClip(ResponseModel):
     saved_at: datetime
 
     @classmethod
-    def from_found(cls, found: SavedClipWithCamera) -> SavedClip:
+    def from_found(
+        cls, found: SavedClipWithCamera, snapshot_url: SnapshotUrl = no_snapshot
+    ) -> SavedClip:
         """The response model for a saved clip and its camera; savedAt is UTC to the second."""
         saved = found.saved
         saved_at = saved.saved_at.astimezone(UTC).replace(microsecond=0)
-        clip = Clip.from_port(saved.clip, found.camera)
+        clip = Clip.from_port(saved.clip, found.camera, snapshot_url)
         return cls(id=saved.id, clip=clip, note=saved.note, saved_at=saved_at)
 
 

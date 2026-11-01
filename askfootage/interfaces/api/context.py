@@ -14,6 +14,7 @@ from askfootage.application.library import IdFactory, Library
 from askfootage.application.recordings import FootageSource
 from askfootage.application.search import Interpreter
 from askfootage.application.search_relations import FrameSizeSource
+from askfootage.application.snapshots import SnapshotStore
 from askfootage.ports.language_model import QuestionParser
 from askfootage.ports.track_store import TrackStore
 
@@ -37,7 +38,8 @@ class ApiContext:
 
     indexing is None when the build has no way to find objects (POST .../index is 503).
     tracks, question_parser and frame_size feed search over stored tracks; with tracks
-    None (or a recording without tracks) search uses the demo keyword matcher.
+    None (or a recording without tracks) search uses the demo keyword matcher. snapshots,
+    when set, makes and serves the evidence snapshot of each clip found from tracks.
     """
 
     library: Library
@@ -51,7 +53,20 @@ class ApiContext:
     tracks: TrackStore | None = None
     question_parser: QuestionParser | None = None
     frame_size: FrameSizeSource | None = None
+    snapshots: SnapshotStore | None = None
     schedule_after_reply: JobScheduler = run_after_reply
+
+
+def snapshot_url_of(context: ApiContext) -> Callable[[str], str | None]:
+    """Clip id -> the URL of its evidence snapshot, or None when the clip has none."""
+    snapshots = context.snapshots
+
+    def url(clip_id: str) -> str | None:
+        if snapshots is not None and snapshots.has(clip_id):
+            return f"/api/clips/{clip_id}/snapshot"
+        return None
+
+    return url
 
 
 def get_context(request: Request) -> ApiContext:

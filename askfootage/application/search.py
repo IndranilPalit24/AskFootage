@@ -22,6 +22,7 @@ id). That is what lets GET /clips/{id} and saving work for it. Such clips (ids s
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -39,9 +40,12 @@ from askfootage.application.search_relations import (
     answer_recording,
     read_question,
 )
+from askfootage.application.snapshots import SnapshotStore
 from askfootage.ports.language_model import QuestionParser
 from askfootage.ports.library_store import Clip, DuplicateError, EvidenceKind, MissingReferenceError
 from askfootage.ports.track_store import TrackStore
+
+logger = logging.getLogger("askfootage.search")
 
 MAX_QUESTION_LENGTH = 300
 """Longest question accepted, in characters, before trimming."""
@@ -202,6 +206,7 @@ def search_day(
     tracks: TrackStore | None = None,
     parser: QuestionParser | None = None,
     frame_size: FrameSizeSource | None = None,
+    snapshots: SnapshotStore | None = None,
 ) -> SearchResult:
     """Answer a question about one day of footage, from one camera or (None) every camera.
 
@@ -259,6 +264,8 @@ def search_day(
         and plan.matches(clip)
     )
     clips = sorted(found, key=lambda item: (item.clip.start_time, item.clip.id))
+    if snapshots is not None:
+        _make_snapshots(snapshots, clips, proofs)
 
     notes: list[str] = list(relation_notes)
     if not plan.understood and not relation_used:
@@ -273,6 +280,21 @@ def search_day(
         note=" ".join(notes) or None,
         proofs=tuple(proofs[item.clip.id] for item in clips if item.clip.id in proofs),
     )
+
+
+def _make_snapshots(
+    snapshots: SnapshotStore, clips: Sequence[ClipWithCamera], proofs: dict[str, ClipProof]
+) -> None:
+    """Make the evidence snapshot of each clip that has a proof. A failure is logged by type
+    and skipped: a missing picture must never break a search."""
+    for item in clips:
+        proof = proofs.get(item.clip.id)
+        if proof is None:
+            continue
+        try:
+            snapshots.create(item.clip, proof)
+        except Exception as error:
+            logger.warning("Snapshot for %s not made (%s)", item.clip.id, type(error).__name__)
 
 
 def _remember_clips(library: Library, clips: Sequence[Clip]) -> None:

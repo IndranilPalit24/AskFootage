@@ -1,4 +1,4 @@
-"""The 21 operations of contract/openapi.yaml, all under /api.
+"""The 22 operations of contract/openapi.yaml, all under /api.
 
 Each handler validates its input (path, query and body models), calls one application
 use case and shapes the result into the contract's models. Failures are raised as
@@ -22,10 +22,11 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Path, Query, Request, Response
+from fastapi.responses import FileResponse
 
 from askfootage.application import cameras, ingest_video, recordings, saved_clips, search, zones
 from askfootage.application.errors import NotFoundError
-from askfootage.interfaces.api.context import Context
+from askfootage.interfaces.api.context import Context, snapshot_url_of
 from askfootage.interfaces.api.errors import error_responses, json_error_responses
 from askfootage.interfaces.api.footage import VideoFileResponse
 from askfootage.interfaces.api.schemas import (
@@ -66,6 +67,7 @@ DayQuery = Annotated[Day, Query(examples=["2026-10-29"])]
 OptionalDayQuery = Annotated[Day | None, Query(examples=["2026-10-29"])]
 
 _MP4_SCHEMA: dict[str, Any] = {"type": "string", "contentMediaType": "video/mp4"}
+_JPEG_SCHEMA: dict[str, Any] = {"type": "string", "contentMediaType": "image/jpeg"}
 _UPLOAD_LIMIT_MIB = MAX_UPLOAD_BYTES // (1024 * 1024)
 _UPLOAD_BODY: dict[str, Any] = {
     "required": True,
@@ -343,8 +345,9 @@ async def search_footage(body: SearchRequest, context: Context) -> SearchRespons
         tracks=context.tracks,
         parser=context.question_parser,
         frame_size=context.frame_size,
+        snapshots=context.snapshots,
     )
-    return SearchResponse.from_result(result)
+    return SearchResponse.from_result(result, snapshot_url_of(context))
 
 
 @router.get(
@@ -357,7 +360,33 @@ async def search_footage(body: SearchRequest, context: Context) -> SearchRespons
 async def get_clip(id: IdPath, context: Context) -> Clip:
     """One clip with its evidence and its camera."""
     found = recordings.get_clip(context.library, id)
-    return Clip.from_port(found.clip, found.camera)
+    return Clip.from_port(found.clip, found.camera, snapshot_url_of(context))
+
+
+@router.get(
+    "/clips/{id}/snapshot",
+    operation_id="getClipSnapshot",
+    status_code=200,
+    summary="The evidence snapshot of a clip",
+    description=(
+        "A JPEG of the frame where the match began, with the object's box drawn in red and "
+        "the person's box in a neutral grey. Made when a search finds the clip from stored "
+        "object tracks. Returns 404 with the standard error body when the clip is unknown or "
+        "has no snapshot."
+    ),
+    response_class=FileResponse,
+    responses={
+        200: {"description": "The snapshot", "content": {"image/jpeg": {"schema": _JPEG_SCHEMA}}},
+        **json_error_responses(404, 422, 500),
+    },
+)
+async def get_clip_snapshot(id: IdPath, context: Context) -> FileResponse:
+    """The clip's evidence snapshot; 404 when the clip or its snapshot does not exist."""
+    recordings.get_clip(context.library, id)
+    snapshots = context.snapshots
+    if snapshots is None or not snapshots.has(id):
+        raise NotFoundError("Snapshot not found.")
+    return FileResponse(snapshots.path_for(id), media_type="image/jpeg")
 
 
 # --- Zones ------------------------------------------------------------------------------------
@@ -436,7 +465,7 @@ async def delete_zone(id: IdPath, context: Context) -> Response:
 async def list_saved_clips(context: Context, day: OptionalDayQuery = None) -> list[SavedClip]:
     """Saved clips, newest save first."""
     found = saved_clips.list_saved_clips(context.library, day)
-    return [SavedClip.from_found(saved) for saved in found]
+    return [SavedClip.from_found(saved, snapshot_url_of(context)) for saved in found]
 
 
 @router.post(
@@ -453,7 +482,7 @@ async def save_clip(body: SavedClipCreate, context: Context) -> SavedClip:
     saved = saved_clips.save_clip(
         context.library, body.clip_id, body.note, context.utc_now(), make_id=context.make_id
     )
-    return SavedClip.from_found(saved)
+    return SavedClip.from_found(saved, snapshot_url_of(context))
 
 
 @router.patch(
@@ -465,7 +494,8 @@ async def save_clip(body: SavedClipCreate, context: Context) -> SavedClip:
 )
 async def update_saved_clip(id: IdPath, body: SavedClipUpdate, context: Context) -> SavedClip:
     """Replace a saved clip's note."""
-    return SavedClip.from_found(saved_clips.update_note(context.library, id, body.note))
+    updated = saved_clips.update_note(context.library, id, body.note)
+    return SavedClip.from_found(updated, snapshot_url_of(context))
 
 
 @router.delete(

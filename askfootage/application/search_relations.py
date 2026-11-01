@@ -42,6 +42,7 @@ from askfootage.domain.vocabulary import (
 )
 from askfootage.ports.language_model import QuestionNotUnderstoodError, QuestionParser
 from askfootage.ports.library_store import Clip, Evidence, KeyFrame, Recording, Zone
+from askfootage.ports.snapshots import SnapshotBox
 from askfootage.ports.track_store import TrackDataError, TrackStore
 
 logger = logging.getLogger("askfootage.search")
@@ -94,6 +95,49 @@ class ProofBox:
 
 
 @dataclass(frozen=True, slots=True)
+class SnapshotPlan:
+    """The frame and boxes of a clip's evidence snapshot: both boxes seen on one frame."""
+
+    frame: int
+    boxes: tuple[SnapshotBox, ...]
+
+
+def snapshot_plan(interval: Interval, lookup: dict[tuple[str, int], Track]) -> SnapshotPlan | None:
+    """Where to take a carrying clip's snapshot: the first frame of the interval on which both
+    the person and the carried object have a box, with those two boxes. None for any other
+    relation, or when the two were never seen on the same frame."""
+    if interval.evidence.kind != "carrying" or len(interval.evidence.track_ids) != 2:
+        return None
+    person_id, object_id = interval.evidence.track_ids
+    person = lookup.get((ObjectNoun.PERSON.value, person_id))
+    carried = next(
+        (
+            track
+            for (label, track_id), track in lookup.items()
+            if track_id == object_id and label != ObjectNoun.PERSON.value
+        ),
+        None,
+    )
+    if person is None or carried is None:
+        return None
+    for frame in range(interval.start_frame, interval.end_frame + 1):
+        person_box, object_box = person.box_at(frame), carried.box_at(frame)
+        if person_box is not None and object_box is not None:
+            return SnapshotPlan(
+                frame,
+                (
+                    SnapshotBox(
+                        "object", object_box.x1, object_box.y1, object_box.x2, object_box.y2
+                    ),
+                    SnapshotBox(
+                        "person", person_box.x1, person_box.y1, person_box.x2, person_box.y2
+                    ),
+                ),
+            )
+    return None
+
+
+@dataclass(frozen=True, slots=True)
 class ClipProof:
     """Why a clip matched: the rule, the interval and the numbers it measured.
 
@@ -111,6 +155,8 @@ class ClipProof:
     track_labels: tuple[str, ...]
     measures: tuple[tuple[str, float], ...]
     boxes: tuple[ProofBox, ...]
+    snapshot: SnapshotPlan | None = None
+    """Where to take the evidence snapshot; None when there is no single frame to show."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,8 +261,12 @@ def answer_recording(
             f"The stored tracks of recording {recording.id} could not be read, "
             "so it was searched with the demo matcher."
         )
-    missing = [label for label in labels if not by_label[label]]
-    if len(missing) == len(labels):
+    missing = [
+        label
+        for label in labels
+        if not by_label[label] and not _searched_and_empty(tracks, video_id, label)
+    ]
+    if not any(by_label[label] for label in labels) and len(missing) == len(labels):
         return NotJudged()
     if missing:
         return NotJudged(
@@ -274,6 +324,21 @@ def answer_recording(
         clips.append(clip)
         proofs.append(proof)
     return RelationAnswer(clips, proofs)
+
+
+def _searched_and_empty(tracks: TrackStore, video_id: str, label: str) -> bool:
+    """True when the store says the noun was searched for this video (even with no result).
+
+    A store without that marker (the port does not require one) answers False, so a noun
+    with no tracks is treated as never indexed.
+    """
+    marker = getattr(tracks, "concept_done", None)
+    if marker is None:
+        return False
+    try:
+        return bool(marker(video_id, label))
+    except _UNREADABLE_STORE:
+        return False
 
 
 def _echo(text: str) -> str:
@@ -354,6 +419,7 @@ def _clip_and_proof(
         track_labels=labels,
         measures=interval.evidence.measures,
         boxes=boxes,
+        snapshot=snapshot_plan(interval, lookup),
     )
     return clip, proof
 
