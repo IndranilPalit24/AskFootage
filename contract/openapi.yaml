@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AskFootage API",
-    "version": "1.3.0",
-    "description": "Ask a plain-English question about fixed-camera footage and get the matching clips with the evidence for each match. Every path is under /api. Every error has the body {\"error\": {\"code\": \"...\", \"message\": \"...\"}} with a matching HTTP status, and never contains a stack trace, a key, a password or a server path. JSON field names are camelCase. Days are calendar dates (YYYY-MM-DD) and times of day are HH:MM:SS in the camera's local time. Cameras are identified by ids the server gives out in order (CAM-001, CAM-002, ...); a camera's stream password is checked when the camera is added and then dropped: it is never stored, returned or logged. Wherever a camera query parameter is optional, leaving it out means all cameras. Lists are not paginated in v1: days, recordings and search results are bounded by the 7-day window and one day; cameras, zones and saved clips are bounded only by what the single user of the v1 demo creates. Versioning: /api is unversioned because the UI and the API ship together; once released, changes are additive only, and a breaking change (such as paging cameras, zones or saved clips) moves to /api/v2. Still pre-release: 1.1.0 added cameras, made camera ids CAM-NNN and dropped the camera from Status; 1.2.0 adds POST /api/recordings/{id}/index; 1.3.0 adds proofs to SearchResponse (measured proof for clips found from stored object tracks). This file is written in JSON syntax, which is valid YAML 1.2, so it can be read without a YAML library."
+    "version": "1.4.0",
+    "description": "Ask a plain-English question about fixed-camera footage and get the matching clips with the evidence for each match. Every path is under /api. Every error has the body {\"error\": {\"code\": \"...\", \"message\": \"...\"}} with a matching HTTP status, and never contains a stack trace, a key, a password or a server path. JSON field names are camelCase. Days are calendar dates (YYYY-MM-DD) and times of day are HH:MM:SS in the camera's local time. Cameras are identified by ids the server gives out in order (CAM-001, CAM-002, ...); a camera's stream password is checked when the camera is added and then dropped: it is never stored, returned or logged. Wherever a camera query parameter is optional, leaving it out means all cameras. Lists are not paginated in v1: days, recordings and search results are bounded by the 7-day window and one day; cameras, zones and saved clips are bounded only by what the single user of the v1 demo creates. Versioning: /api is unversioned because the UI and the API ship together; once released, changes are additive only, and a breaking change (such as paging cameras, zones or saved clips) moves to /api/v2. Still pre-release: 1.1.0 added cameras, made camera ids CAM-NNN and dropped the camera from Status; 1.2.0 adds POST /api/recordings/{id}/index; 1.3.0 adds proofs to SearchResponse (measured proof for clips found from stored object tracks); 1.4.0 adds snapshotUrl to Clip and GET /api/clips/{id}/snapshot (the evidence frame, with the matched objects' boxes drawn on it). This file is written in JSON syntax, which is valid YAML 1.2, so it can be read without a YAML library."
   },
   "paths": {
     "/api/status": {
@@ -246,6 +246,23 @@
           "200": {
             "description": "The clip",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Clip" } } }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/clips/{id}/snapshot": {
+      "get": {
+        "operationId": "getClipSnapshot",
+        "summary": "The evidence snapshot of a clip",
+        "description": "A JPEG of the frame where the match began, with the object's box drawn in red and the person's box in a neutral grey. Made when a search finds the clip from stored object tracks. Returns 404 with the standard error body when the clip is unknown or has no snapshot.",
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": {
+            "description": "The snapshot",
+            "content": { "image/jpeg": { "schema": { "type": "string", "contentMediaType": "image/jpeg" } } }
           },
           "404": { "$ref": "#/components/responses/NotFound" },
           "422": { "$ref": "#/components/responses/ValidationFailed" },
@@ -582,7 +599,7 @@
         "type": "object",
         "required": [
           "id", "recordingId", "camera", "day", "startTime", "startSeconds", "endSeconds", "label",
-          "evidence", "zone", "whyMatched", "keyFrames", "thumbnailUrl"
+          "evidence", "zone", "whyMatched", "keyFrames", "thumbnailUrl", "snapshotUrl"
         ],
         "properties": {
           "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
@@ -597,7 +614,8 @@
           "zone": { "type": ["string", "null"], "description": "Name of the zone involved, or null" },
           "whyMatched": { "type": "string", "description": "Two or three plain sentences explaining the match" },
           "keyFrames": { "type": "array", "items": { "$ref": "#/components/schemas/KeyFrame" } },
-          "thumbnailUrl": { "type": ["string", "null"] }
+          "thumbnailUrl": { "type": ["string", "null"] },
+          "snapshotUrl": { "type": ["string", "null"], "description": "URL of the evidence snapshot (GET /api/clips/{id}/snapshot), or null when none was made. Only clips found from stored object tracks can have one." }
         }
       },
       "SearchRequest": {

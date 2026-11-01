@@ -37,7 +37,8 @@
           "imageUrl": null
         }
       ],
-      "thumbnailUrl": null
+      "thumbnailUrl": null,
+      "snapshotUrl": null
     },
     {
       "id": "clip-1029-070903",
@@ -74,7 +75,8 @@
           "imageUrl": null
         }
       ],
-      "thumbnailUrl": null
+      "thumbnailUrl": null,
+      "snapshotUrl": null
     },
     {
       "id": "clip-1029-091522",
@@ -107,7 +109,8 @@
           "imageUrl": null
         }
       ],
-      "thumbnailUrl": null
+      "thumbnailUrl": null,
+      "snapshotUrl": null
     },
     {
       "id": "clip-1029-104215",
@@ -144,7 +147,8 @@
           "imageUrl": null
         }
       ],
-      "thumbnailUrl": null
+      "thumbnailUrl": null,
+      "snapshotUrl": null
     },
     {
       "id": "clip-1029-130610",
@@ -181,7 +185,8 @@
           "imageUrl": null
         }
       ],
-      "thumbnailUrl": null
+      "thumbnailUrl": null,
+      "snapshotUrl": null
     }
   ],
   "note": "1 recording on this day is still being indexed, so it was not searched.",
