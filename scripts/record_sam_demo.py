@@ -118,8 +118,9 @@ def _load(path: Path, prepared_dir: Path) -> _Saved:
             f"{path.name}: the prepared video of {clip} is {video.stat().st_size} bytes but "
             f"{uploaded_bytes} bytes were uploaded, so it is not the same file."
         )
+    request = sam_request(prompt, video_part(file_id))
     try:
-        found = parse_sam_stream(redact_sam_reply(sam_request(prompt, video_part(file_id)), reply))
+        found = parse_sam_stream(redact_sam_reply(request, reply))
     except PerceptionError as error:
         raise Refused(f"{path.name}: {error}") from None
     return _Saved(
@@ -130,7 +131,7 @@ def _load(path: Path, prepared_dir: Path) -> _Saved:
         reply=reply,
         file_id=file_id,
         upload=upload_request(video),
-        request=sam_request(prompt, video_part(file_id)),
+        request=request,
         detections=len(found),
         last_frame=max((d.frame for d in found), default=None),
     )
@@ -139,15 +140,14 @@ def _load(path: Path, prepared_dir: Path) -> _Saved:
 def _manifest(saved: Sequence[_Saved]) -> dict[str, Any]:
     clips: dict[str, Any] = {}
     for item in sorted(saved, key=lambda s: (s.clip, s.prompt)):
-        entry = clips.setdefault(
-            item.clip,
-            {
+        if item.clip not in clips:  # hash the video once per clip, not once per noun
+            clips[item.clip] = {
                 "prepared_sha256": hashlib.sha256(item.video.read_bytes()).hexdigest(),
                 "file_id": item.file_id,
                 "upload_fingerprint": fingerprint(item.upload),
                 "requests": {},
-            },
-        )
+            }
+        entry = clips[item.clip]
         entry["requests"][item.prompt] = {
             "fingerprint": fingerprint(item.request),
             "detections": item.detections,

@@ -24,8 +24,7 @@ from askfootage.application.clip_labels import load_clip_labels  # noqa: E402
 from askfootage.application.errors import ApplicationError  # noqa: E402
 from askfootage.application.evaluate_clips import EventResult, evaluate_clip  # noqa: E402
 from askfootage.ports.library_store import LibraryError  # noqa: E402
-
-CLIPS = ("clip1", "clip2")
+from scripts.ingest_real_clips import CLIPS  # noqa: E402
 
 
 def _times(spans: Sequence[tuple[float, float]]) -> str:
