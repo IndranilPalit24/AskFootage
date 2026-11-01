@@ -57,8 +57,8 @@ function SummaryCards({ counts }: { counts: Counts }) {
   );
 }
 
-function withStatus(list: Camera[], id: string, status: CameraStatus): Camera[] {
-  return list.map((camera) => (camera.id === id ? { ...camera, status } : camera));
+function replaceCamera(list: Camera[], camera: Camera): Camera[] {
+  return list.map((item) => (item.id === camera.id ? camera : item));
 }
 
 /** Puts a camera back in id order, unless the list already has it. */
@@ -66,8 +66,10 @@ function withCamera(list: Camera[], camera: Camera): Camera[] {
   return list.some((item) => item.id === camera.id) ? list : [...list, camera].toSorted(byCameraId);
 }
 
-interface RecordingsPrompt {
+/** The one open delete dialog: first a plain confirmation, then (if the server says it has recordings) a second. */
+interface DeletePrompt {
   camera: Camera;
+  deleteRecordings: boolean;
   message: string;
 }
 
@@ -77,8 +79,7 @@ export function CamerasScreen() {
   const { cameras, setCameras } = useAppData();
   const { refreshFailed, write } = useCameraSync(client, setCameras);
   const [tab, setTab] = useState(REGISTRY);
-  const [confirming, setConfirming] = useState<Camera | null>(null);
-  const [recordingsPrompt, setRecordingsPrompt] = useState<RecordingsPrompt | null>(null);
+  const [prompt, setPrompt] = useState<DeletePrompt | null>(null);
 
   const counts = useMemo(() => countStatuses(cameras ?? []), [cameras]);
 
@@ -86,13 +87,13 @@ export function CamerasScreen() {
     async (camera: Camera, status: CameraStatus) => {
       if (camera.status === status) return;
       const previous = camera.status;
-      setCameras((list) => withStatus(list, camera.id, status));
+      setCameras((list) => replaceCamera(list, { ...camera, status }));
       try {
         const updated = await write(() => client.updateCamera(camera.id, { status }));
-        setCameras((list) => list.map((item) => (item.id === updated.id ? updated : item)));
+        setCameras((list) => replaceCamera(list, updated));
         toasts.success(`${camera.name} is now ${CAMERA_STATUS_LABEL[updated.status]}.`);
       } catch (caught) {
-        setCameras((list) => withStatus(list, camera.id, previous));
+        setCameras((list) => replaceCamera(list, { ...camera, status: previous }));
         toasts.error(`Could not change the status of ${camera.name}. ${errorMessage(caught)}`);
       }
     },
@@ -111,7 +112,7 @@ export function CamerasScreen() {
       } catch (caught) {
         setCameras((list) => withCamera(list, camera));
         if (!deleteRecordings && caught instanceof ApiError && caught.code === 'camera_has_recordings') {
-          setRecordingsPrompt({ camera, message: caught.message });
+          setPrompt({ camera, deleteRecordings: true, message: caught.message });
         } else {
           toasts.error(`Could not delete ${camera.name}. ${errorMessage(caught)}`);
         }
@@ -120,7 +121,11 @@ export function CamerasScreen() {
     [client, setCameras, toasts, write],
   );
 
-  const askToDelete = useCallback((camera: Camera) => setConfirming(camera), []);
+  const askToDelete = useCallback(
+    (camera: Camera) =>
+      setPrompt({ camera, deleteRecordings: false, message: 'The camera will be removed from the registry.' }),
+    [],
+  );
 
   const added = useCallback(
     (camera: Camera) => {
@@ -165,56 +170,29 @@ export function CamerasScreen() {
         </div>
       </div>
       <Tabs label="Cameras" tabs={tabs} selected={tab} onSelect={setTab} />
-      {confirming ? (
+      {prompt ? (
         <Modal
-          title={`Delete ${confirming.name}?`}
-          onClose={() => setConfirming(null)}
+          title={prompt.deleteRecordings ? `${prompt.camera.name} has recordings` : `Delete ${prompt.camera.name}?`}
+          onClose={() => setPrompt(null)}
           actions={
             <>
-              <button type="button" className="btn" data-autofocus onClick={() => setConfirming(null)}>
+              <button type="button" className="btn" data-autofocus onClick={() => setPrompt(null)}>
                 Cancel
               </button>
               <button
                 type="button"
                 className="btn btn--danger"
                 onClick={() => {
-                  const camera = confirming;
-                  setConfirming(null);
-                  void deleteCamera(camera, false);
+                  setPrompt(null);
+                  void deleteCamera(prompt.camera, prompt.deleteRecordings);
                 }}
               >
-                Delete
+                {prompt.deleteRecordings ? 'Delete camera and its recordings' : 'Delete'}
               </button>
             </>
           }
         >
-          <p>The camera will be removed from the registry.</p>
-        </Modal>
-      ) : null}
-      {recordingsPrompt ? (
-        <Modal
-          title={`${recordingsPrompt.camera.name} has recordings`}
-          onClose={() => setRecordingsPrompt(null)}
-          actions={
-            <>
-              <button type="button" className="btn" data-autofocus onClick={() => setRecordingsPrompt(null)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn btn--danger"
-                onClick={() => {
-                  const { camera } = recordingsPrompt;
-                  setRecordingsPrompt(null);
-                  void deleteCamera(camera, true);
-                }}
-              >
-                Delete camera and its recordings
-              </button>
-            </>
-          }
-        >
-          <p>{recordingsPrompt.message}</p>
+          <p>{prompt.message}</p>
         </Modal>
       ) : null}
     </>

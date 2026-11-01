@@ -1,5 +1,7 @@
-/* AskFootage, light theme. Every value comes from the tokens in tokens.ts (published on :root);
-   the Camera design reference is the source of those values. Minimal: no gradients, no heavy shadows. */
+/* AskFootage, light theme only. Style: Minimalism & Swiss. Every value comes from the tokens in tokens.ts
+   (published on :root): one accent, neutral greys, 1px hairlines, a 4px spacing scale, left-aligned text,
+   no shadows and no gradients. Interaction states (hover, active, focus-visible, disabled, loading) are
+   defined once, in the "Interaction states" section at the end of this file. */
 
 *,
 *::before,
@@ -7,11 +9,10 @@
   box-sizing: border-box;
 }
 
-/* First, so components that set their own radius keep it; plain links and the zone frame get 4px. */
+/* Focus: a 2px accent ring with an offset, the same on every interactive element. */
 :focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
-  border-radius: var(--radius-focus);
 }
 
 html {
@@ -40,14 +41,13 @@ p {
 h1 {
   font-size: var(--font-size-24);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--tight-tracking);
-  line-height: 1.25;
+  line-height: var(--line-height-tight);
 }
 
 h2 {
-  font-size: var(--font-size-15);
+  font-size: var(--font-size-16);
   font-weight: var(--font-weight-semibold);
-  line-height: 1.4;
+  line-height: var(--line-height-tight);
 }
 
 button,
@@ -98,7 +98,7 @@ a:hover {
 }
 
 .small {
-  font-size: var(--font-size-13);
+  font-size: var(--font-size-12);
 }
 
 .num {
@@ -111,7 +111,7 @@ a:hover {
 }
 
 .inline-error {
-  font-size: var(--font-size-13);
+  font-size: var(--font-size-12);
 }
 
 .stack {
@@ -133,64 +133,35 @@ a:hover {
   gap: var(--space-2);
   min-height: var(--control-height);
   padding: 0 var(--space-4);
-  border: 1px solid var(--color-control-border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background: var(--color-page);
   color: var(--color-text);
   font-size: var(--font-size-14);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-semibold);
   line-height: 1;
   white-space: nowrap;
   text-decoration: none;
-  cursor: pointer;
-}
-
-.btn:hover {
-  background: var(--color-hover-fill);
-  color: var(--color-text);
-}
-
-.btn:disabled,
-.btn[aria-disabled='true'] {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.btn:disabled:hover {
-  background: var(--color-page);
 }
 
 .btn--sm {
   min-height: var(--control-height-small);
   padding: 0 var(--space-3);
-  font-size: var(--font-size-13);
 }
 
 .btn--primary {
   border-color: var(--color-accent);
   background: var(--color-accent);
-  color: #ffffff;
+  color: var(--color-on-accent);
 }
 
-.btn--primary:hover,
-.btn--primary:disabled:hover {
-  border-color: var(--color-accent-hover);
-  background: var(--color-accent-hover);
-  color: #ffffff;
-}
-
-/* A toggle that is on (Saved). */
+/* A toggle that is on (Saved): accent outline and text, no fill. */
 .btn[aria-pressed='true'] {
-  border-color: var(--color-accent-tint-border);
-  background: var(--color-accent-tint);
+  border-color: var(--color-accent);
   color: var(--color-accent);
 }
 
 .btn--danger {
-  color: var(--color-danger);
-}
-
-.btn--danger:hover {
   color: var(--color-danger);
 }
 
@@ -206,11 +177,6 @@ a:hover {
   border-radius: var(--radius-card);
   background: transparent;
   color: var(--color-text);
-  cursor: pointer;
-}
-
-.icon-btn:hover {
-  background: var(--color-hover-fill);
 }
 
 .btn-row {
@@ -226,20 +192,19 @@ a:hover {
 .status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
   padding: var(--status-padding);
-  border: 1px solid var(--color-control-border);
-  border-radius: var(--radius-pill);
-  color: var(--color-status-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  color: var(--color-text-muted);
   font-size: var(--font-size-12);
   font-weight: var(--font-weight-regular);
-  line-height: 1.4;
+  line-height: var(--line-height);
   white-space: nowrap;
 }
 
 .chip--accent {
-  border-color: var(--color-accent-tint-border);
-  background: var(--color-accent-tint);
+  border-color: var(--color-accent);
   color: var(--color-accent);
 }
 
@@ -248,13 +213,11 @@ a:hover {
   width: var(--status-dot);
   height: var(--status-dot);
   border-radius: 50%;
-  background: var(--color-status-dot);
+  background: var(--color-field-border);
 }
 
 .status--ready {
-  border-color: var(--color-ready-border);
-  background: var(--color-accent-tint);
-  color: var(--color-ready-text);
+  color: var(--color-text);
 }
 
 .status--ready .status__dot {
@@ -285,8 +248,8 @@ a:hover {
 }
 
 .field__label {
-  font-size: var(--font-size-13);
-  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
 }
 
 .input,
@@ -306,12 +269,11 @@ a:hover {
 .select {
   min-height: var(--control-height-small);
   padding: 0 var(--space-2);
-  font-size: var(--font-size-13);
 }
 
 .textarea {
   width: 100%;
-  padding: 10px var(--space-3);
+  padding: var(--space-3);
   resize: vertical;
 }
 
@@ -358,14 +320,9 @@ a:hover {
 
 .topbar__brand {
   color: var(--color-text);
-  font-size: var(--font-size-15);
+  font-size: var(--font-size-16);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--tight-tracking);
   text-decoration: none;
-}
-
-.topbar__brand:hover {
-  color: var(--color-text);
 }
 
 .topbar__date {
@@ -374,7 +331,7 @@ a:hover {
   gap: var(--space-2);
   margin-left: auto;
   color: var(--color-text-muted);
-  font-size: var(--font-size-13);
+  font-size: var(--font-size-12);
 }
 
 .app__body {
@@ -395,7 +352,7 @@ a:hover {
   overflow: hidden;
   border-right: 1px solid var(--color-border);
   background: var(--color-page);
-  transition: width var(--drawer-transition) ease;
+  transition: width var(--motion-fast) ease;
 }
 
 .drawer--collapsed {
@@ -403,8 +360,10 @@ a:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .drawer {
-    transition: none;
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
   }
 }
 
@@ -427,21 +386,17 @@ a:hover {
   border-radius: var(--radius-card);
   color: var(--color-text);
   font-size: var(--font-size-14);
-  font-weight: var(--font-weight-medium);
-  line-height: 1.4;
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height);
   text-decoration: none;
   white-space: nowrap;
 }
 
-.nav-item:hover {
-  background: var(--color-hover-fill);
-  color: var(--color-text);
-}
-
+/* The current page: accent outline, accent text, heavier weight. */
 .nav-item[aria-current='page'] {
-  border-color: var(--color-accent-tint-border);
-  background: var(--color-accent-tint);
+  border-color: var(--color-accent);
   color: var(--color-accent);
+  font-weight: var(--font-weight-semibold);
 }
 
 .nav-item svg {
@@ -509,8 +464,7 @@ a:hover {
 .back-link {
   display: inline-block;
   margin-bottom: var(--space-3);
-  font-size: var(--font-size-13);
-  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-14);
 }
 
 /* ---------- Camera ---------- */
@@ -518,7 +472,7 @@ a:hover {
 /* Always in the DOM (a live region that appears late is often not announced); empty, it has no height. */
 .upload-status {
   max-width: 280px;
-  font-size: var(--font-size-13);
+  font-size: var(--font-size-12);
   text-align: right;
 }
 
@@ -536,20 +490,15 @@ a:hover {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: var(--space-1);
   min-width: var(--day-button-width);
   min-height: var(--day-button-height);
   padding: var(--day-button-padding);
-  border: 1px solid var(--color-control-border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   background: var(--color-page);
   color: var(--color-text);
-  line-height: 1.25;
-  cursor: pointer;
-}
-
-.day-btn:hover {
-  background: var(--color-hover-fill);
+  line-height: var(--line-height-tight);
 }
 
 .day-btn__weekday {
@@ -564,7 +513,6 @@ a:hover {
 
 .day-btn[aria-pressed='true'] {
   border-color: var(--color-accent);
-  background: var(--color-accent-tint);
   color: var(--color-accent);
 }
 
@@ -575,7 +523,7 @@ a:hover {
 .summary {
   margin: var(--summary-margin);
   color: var(--color-text-muted);
-  font-size: var(--font-size-13);
+  font-size: var(--font-size-14);
 }
 
 .table-wrap {
@@ -594,16 +542,15 @@ a:hover {
 .table th {
   padding: var(--header-cell-padding);
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-table-header-fill);
   color: var(--color-text-muted);
   font-size: var(--font-size-12);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-semibold);
   text-align: left;
 }
 
 .table td {
   padding: var(--body-cell-padding);
-  border-bottom: 1px solid var(--color-row-divider);
+  border-bottom: 1px solid var(--color-border);
   font-size: var(--font-size-14);
   vertical-align: middle;
 }
@@ -618,12 +565,12 @@ a:hover {
 
 .table__message {
   color: var(--color-text-muted);
-  text-align: center;
+  text-align: left;
 }
 
 .row-note {
   color: var(--color-text-muted);
-  font-size: var(--font-size-13);
+  font-size: var(--font-size-12);
 }
 
 .footnote {
@@ -665,19 +612,6 @@ a:hover {
   margin: 0;
 }
 
-.find--start .find__group {
-  text-align: center;
-}
-
-.find--start .find__head {
-  justify-content: center;
-}
-
-.find--start .examples,
-.find--start .scope {
-  justify-content: center;
-}
-
 .ask {
   display: flex;
   flex-direction: column;
@@ -689,7 +623,7 @@ a:hover {
   flex-direction: column;
   min-width: 0;
   border: 1px solid var(--color-field-border);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   background: var(--color-page);
   text-align: left;
 }
@@ -697,7 +631,8 @@ a:hover {
 /* The whole box shows focus (2px accent ring); the bare textarea inside it needs no ring of its own. */
 .ask__box:focus-within {
   border-color: var(--color-accent);
-  outline: 1px solid var(--color-accent);
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .ask__textarea {
@@ -756,12 +691,12 @@ a:hover {
   align-items: center;
   gap: var(--space-2);
   color: var(--color-text-muted);
-  font-size: var(--font-size-13);
+  font-size: var(--font-size-14);
 }
 
 .results-status {
   margin: var(--summary-margin);
-  font-size: var(--font-size-13);
+  font-size: var(--font-size-14);
 }
 
 .results-status p + p {
@@ -799,7 +734,7 @@ a:hover {
 
 .clip-card__time {
   color: var(--color-text-muted);
-  font-size: var(--font-size-13);
+  font-size: var(--font-size-12);
   font-variant-numeric: tabular-nums;
 }
 
@@ -821,12 +756,12 @@ a:hover {
   align-items: center;
   justify-content: center;
   width: 160px;
-  height: 90px;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background: var(--color-hover-fill);
-  color: var(--color-status-dot);
+  color: var(--color-field-border);
 }
 
 .thumb img {
@@ -836,10 +771,6 @@ a:hover {
 }
 
 /* ---------- Clip detail ---------- */
-
-.clip-detail__title {
-  font-size: var(--font-size-24);
-}
 
 .detail-grid {
   display: grid;
@@ -861,23 +792,24 @@ a:hover {
   display: block;
   width: 100%;
   height: 100%;
-  background: #000000;
+  background: var(--color-text);
 }
 
 .player__placeholder {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   gap: var(--space-1);
   height: 100%;
   padding: var(--space-4);
-  color: var(--color-status-text);
-  text-align: center;
+  color: var(--color-text-muted);
+  text-align: left;
 }
 
 .player__placeholder strong {
-  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
 }
 
 .timeline {
@@ -886,32 +818,29 @@ a:hover {
 
 .timeline__bar {
   position: relative;
-  height: 6px;
+  height: var(--space-2);
   margin: var(--space-3) 0 var(--space-2);
-  border-radius: 3px;
-  background: var(--color-row-divider);
+  background: var(--color-hover-fill);
 }
 
 .timeline__segment {
   position: absolute;
   top: 0;
   bottom: 0;
-  border-radius: 3px;
-  background: var(--color-ready-border);
+  background: var(--color-field-border);
 }
 
 .timeline__match {
   position: absolute;
-  top: -4px;
-  bottom: -4px;
-  min-width: 4px;
-  border-radius: 2px;
+  top: calc(var(--space-1) * -1);
+  bottom: calc(var(--space-1) * -1);
+  min-width: var(--space-1);
   background: var(--color-accent);
 }
 
 .timeline__ticks {
   position: relative;
-  height: 18px;
+  height: var(--space-5);
   color: var(--color-text-muted);
   font-size: var(--font-size-12);
   font-variant-numeric: tabular-nums;
@@ -940,7 +869,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  font-size: var(--font-size-13);
+  font-size: var(--font-size-14);
 }
 
 .facts__row {
@@ -969,16 +898,11 @@ a:hover {
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-1);
-  border: 1px solid var(--color-control-border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   background: var(--color-page);
-  font-size: var(--font-size-13);
+  font-size: var(--font-size-12);
   font-variant-numeric: tabular-nums;
-  cursor: pointer;
-}
-
-.keyframe:hover {
-  background: var(--color-hover-fill);
 }
 
 .keyframe .thumb {
@@ -988,7 +912,6 @@ a:hover {
 
 .keyframe[aria-pressed='true'] {
   border-color: var(--color-accent);
-  background: var(--color-accent-tint);
   color: var(--color-accent);
 }
 
@@ -1040,7 +963,7 @@ a:hover {
   fill: color-mix(in srgb, var(--color-accent) 6%, transparent);
   stroke: var(--color-accent);
   stroke-width: 2px;
-  stroke-dasharray: 6 4;
+  stroke-dasharray: 8 4;
 }
 
 .frame__draft--open {
@@ -1049,13 +972,13 @@ a:hover {
 
 .frame__label {
   position: absolute;
-  padding: 2px 6px;
-  border: 1px solid var(--color-accent-tint-border);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-accent);
   border-radius: var(--radius-control);
   background: var(--color-page);
   color: var(--color-accent);
   font-size: var(--font-size-12);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-regular);
   white-space: nowrap;
   transform: translate(-50%, -50%);
   pointer-events: none;
@@ -1063,8 +986,8 @@ a:hover {
 
 .frame__point {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: var(--space-3);
+  height: var(--space-3);
   border: 2px solid var(--color-page);
   border-radius: 50%;
   background: var(--color-accent);
@@ -1074,8 +997,8 @@ a:hover {
 
 .frame__cursor {
   position: absolute;
-  width: 16px;
-  height: 16px;
+  width: var(--space-4);
+  height: var(--space-4);
   border: 2px solid var(--color-accent);
   border-radius: 50%;
   transform: translate(-50%, -50%);
@@ -1111,7 +1034,7 @@ a:hover {
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--color-row-divider);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .zone-list li:last-child {
@@ -1137,7 +1060,7 @@ a:hover {
 
 .zone-row__name {
   overflow: hidden;
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-semibold);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1150,8 +1073,16 @@ a:hover {
 /* ---------- Narrow screens ---------- */
 
 @media (max-width: 640px) {
+  /* Small screens: a 16px side gutter. */
   .main {
-    padding: var(--space-5) var(--space-4) var(--space-6);
+    padding: var(--space-5) var(--gutter) var(--space-6);
+  }
+
+  /* 16px text in fields, so a phone does not zoom in when one is focused. */
+  .input,
+  .select,
+  .textarea {
+    font-size: var(--font-size-16);
   }
 
   .page-head,
@@ -1170,30 +1101,30 @@ a:hover {
 }
 
 .proof {
-  margin: 0.5rem 0 0;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-accent-tint-border);
-  background: var(--color-accent-tint);
-  border-radius: 6px;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-page);
   color: var(--color-text);
 }
 
 .proof__title {
   margin: 0;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
 }
 
 .proof__range {
-  margin: 0.25rem 0 0;
+  margin: var(--space-1) 0 0;
   color: var(--color-text-muted);
 }
 
 .proof__measures {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-  margin: 0.25rem 0 0;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-1) 0 0;
   padding: 0;
   list-style: none;
   color: var(--color-text-muted);
@@ -1230,12 +1161,7 @@ a:hover {
   background: transparent;
   color: var(--color-text-muted);
   font-size: var(--font-size-14);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-}
-
-.tabs__tab:hover {
-  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
 }
 
 .tabs__tab[aria-selected='true'] {
@@ -1245,7 +1171,7 @@ a:hover {
 
 .cam-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(152px, 1fr));
   gap: var(--space-3);
   margin: 0;
 }
@@ -1264,7 +1190,7 @@ a:hover {
 .cam-card__value {
   font-size: var(--font-size-24);
   font-weight: var(--font-weight-semibold);
-  line-height: 1.25;
+  line-height: var(--line-height-tight);
 }
 
 .table--cameras {
@@ -1281,13 +1207,13 @@ a:hover {
 .cam-status__badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .cam-dot {
   flex: none;
-  width: var(--camera-status-dot);
-  height: var(--camera-status-dot);
+  width: var(--status-dot);
+  height: var(--status-dot);
   border-radius: 50%;
 }
 
@@ -1318,8 +1244,8 @@ a:hover {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
-  background: var(--color-table-header-fill);
-  font-size: var(--font-size-13);
+  background: var(--color-page);
+  font-size: var(--font-size-14);
   overflow-wrap: anywhere;
 }
 
@@ -1330,7 +1256,7 @@ a:hover {
 }
 
 .cam-form__check input {
-  margin-top: 4px;
+  margin-top: var(--space-1);
 }
 
 /* ---------- Dialog ---------- */
@@ -1357,4 +1283,126 @@ a:hover {
 
 .modal__actions {
   justify-content: flex-end;
+}
+
+/* ---------- Toasts ---------- */
+
+.toasts {
+  position: fixed;
+  right: var(--gutter);
+  bottom: var(--gutter);
+  left: var(--gutter);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-page);
+  pointer-events: auto;
+}
+
+.toast--error {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.toast__message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Interaction states (defined once) ---------- */
+
+/* Anything clickable: pointer, and a short colour change. Hover and press are fills, never shadows. */
+.btn,
+.icon-btn,
+.nav-item,
+.day-btn,
+.keyframe,
+.tabs__tab {
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease;
+}
+
+/* Hover */
+.btn:hover,
+.icon-btn:hover,
+.nav-item:hover,
+.day-btn:hover,
+.keyframe:hover {
+  background: var(--color-hover-fill);
+  color: inherit;
+}
+
+.btn--primary:hover {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
+  color: var(--color-on-accent);
+}
+
+.btn[aria-pressed='true']:hover,
+.day-btn[aria-pressed='true']:hover,
+.keyframe[aria-pressed='true']:hover,
+.nav-item[aria-current='page']:hover {
+  color: var(--color-accent);
+}
+
+.btn--danger:hover {
+  color: var(--color-danger);
+}
+
+.tabs__tab:hover {
+  color: var(--color-text);
+}
+
+/* Active (pressed) */
+.btn:active,
+.icon-btn:active,
+.nav-item:active,
+.day-btn:active,
+.keyframe:active {
+  background: var(--color-active-fill);
+}
+
+.btn--primary:active {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
+}
+
+/* Disabled, and loading (a control that is busy is marked aria-disabled, so it looks and acts the same). */
+.btn:disabled,
+.btn[aria-disabled='true'],
+.icon-btn:disabled,
+.icon-btn[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}
+
+.btn:disabled:hover,
+.btn[aria-disabled='true']:hover {
+  background: var(--color-page);
+}
+
+.btn--primary:disabled:hover,
+.btn--primary[aria-disabled='true']:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.btn[aria-busy='true'] {
+  cursor: progress;
 }
