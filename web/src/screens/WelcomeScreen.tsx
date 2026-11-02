@@ -1,4 +1,13 @@
+import { Closing } from '../features/welcome/Closing';
+import { Cost } from '../features/welcome/Cost';
+import { Features } from '../features/welcome/Features';
 import { Hero } from '../features/welcome/Hero';
+import { Integrations } from '../features/welcome/Integrations';
+import { Pipeline } from '../features/welcome/Pipeline';
+import { Privacy } from '../features/welcome/Privacy';
+import { ProofPreview } from '../features/welcome/ProofPreview';
+import { Scenarios } from '../features/welcome/Scenarios';
+import { WelcomeFooter } from '../features/welcome/WelcomeFooter';
 import { WelcomeTopbar } from '../features/welcome/WelcomeTopbar';
 
 const MAIN_ID = 'welcome-main';
@@ -16,7 +25,16 @@ export function WelcomeScreen() {
       <WelcomeTopbar />
       <main className="welcome-main" id={MAIN_ID} tabIndex={-1}>
         <Hero />
+        <Pipeline />
+        <ProofPreview />
+        <Features />
+        <Integrations />
+        <Scenarios />
+        <Privacy />
+        <Cost />
+        <Closing />
       </main>
+      <WelcomeFooter />
     </div>
   );
 }

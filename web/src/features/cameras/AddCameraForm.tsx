@@ -216,7 +216,7 @@ export function AddCameraForm({ cameraCount, write, onAdded }: AddCameraFormProp
           aria-describedby={costId}
           onChange={(event) => setValues((current) => ({ ...current, acknowledgeCost: event.target.checked }))}
         />
-        I understand that searching footage uses my Meta credits
+        I understand that indexing footage for a new object type has a cost, shown above
       </label>
 
       <div className="btn-row">

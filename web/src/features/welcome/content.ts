@@ -120,6 +120,8 @@ export const PRIVACY_POINTS: readonly string[] = [
 export const INDEX_FPS = 5;
 /** About $0.20 per 1,000 frames, per object type, held in cents so the arithmetic stays exact. */
 export const CENTS_PER_1000_FRAMES = 20;
+/** A request is billed for at least this many frames (10 seconds at 5 fps). */
+export const MINIMUM_FRAMES = 50;
 
 /** The worked example: 30 minutes of footage, four object types (person, cardboard box, bag, crate). */
 export const EXAMPLE_MINUTES = 30;
@@ -148,3 +150,34 @@ export function formatNumber(value: number): string {
 export function formatCents(cents: number): string {
   return DOLLARS.format(cents / 100);
 }
+
+// ---------- Pipeline and proof previews (sample content) ----------
+
+export interface PipelineStep {
+  title: string;
+  text: string;
+}
+
+export const PIPELINE: readonly PipelineStep[] = [
+  { title: 'Add footage', text: 'Connect a camera or upload a recording. It is filed under its camera and day.' },
+  { title: 'Index once', text: 'AskFootage finds the objects you pick, one time per object type, and saves the result.' },
+  { title: 'Ask anything', text: 'Ask in plain English. Searching reads the saved index, so asking again costs nothing.' },
+];
+
+/** The sample clip drawn in the proof preview. Shown as sample content; none of it is real footage. */
+export const PROOF_SAMPLE = {
+  clipSeconds: 10,
+  matchStart: 1,
+  matchEnd: 5,
+  relation: 'Person carrying box',
+  timeRange: '0:01-0:05',
+  object: 'Cardboard box',
+  confidence: '0.86',
+} as const;
+
+export const SAMPLE_LABEL = 'Sample content';
+
+// ---------- Closing ----------
+
+export const CLOSING_TITLE = 'See it find a moment in your footage';
+export const CLOSING_TEXT = 'The demo runs on sample footage. Ask a question and open the proof for any clip.';

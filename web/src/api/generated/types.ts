@@ -54,7 +54,7 @@ export interface CameraCreate {
   password: string;
   location?: string | null;
   department?: string | null;
-  /** Must be true: the user accepts that searching footage uses their Meta credits. */
+  /** Must be true: the user accepts that indexing footage has a cost (searching indexed footage is free). */
   acknowledgeCost: true;
 }
 

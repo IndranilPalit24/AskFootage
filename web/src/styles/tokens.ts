@@ -1,7 +1,10 @@
 // Design tokens: the single source of truth, taken from the Camera design reference. applyTokens()
 // publishes them as CSS custom properties on :root, and every stylesheet reads them through var(--...).
-// Light theme only (no dark mode). Style: Minimalism & Swiss: one accent, neutral greys, hairlines, no
-// shadows or gradients, a strict 4px spacing scale. The welcome page adds the trust navy and a light grey.
+// Three layers: primitives (the raw hex values below), semantic tokens (color.text, color.accent, ...)
+// that the stylesheet reads, and component rules in global.css that only ever use the semantic ones.
+// Light is the default; darkColor overrides the same semantic names when the OS asks for dark.
+// Style: Minimalism & Swiss: one accent, neutral greys, hairlines, no shadows or gradients, a strict 4px
+// spacing scale. The welcome page adds the trust navy and a light grey.
 
 export const tokens = {
   font: {
@@ -47,8 +50,10 @@ export const tokens = {
     /** Behind a dialog. */
     scrim: 'rgba(22, 24, 28, 0.45)',
     // Trust colours, used by the welcome page. The trust blue is the accent above.
-    /** Deep navy: the welcome page's hero and closing bands, and its headings. */
+    /** Deep navy: the welcome page's hero and closing bands. */
     navy: '#0F1F3D',
+    /** Headings on the page background (navy in light, near-white in dark). */
+    heading: '#0F1F3D',
     /** Text and the focus ring on navy, 16.4:1. */
     onNavy: '#FFFFFF',
     /** Secondary text on navy, 10.1:1. */
@@ -108,6 +113,29 @@ export const tokens = {
   state: { disabledOpacity: '0.5' },
 } as const;
 
+/**
+ * Dark mode: the semantic colours that change. Anything not listed (status dots, evidence box, white on
+ * navy) keeps its light value. On dark the accent is a lighter blue and text on it is dark, so each pair
+ * keeps its contrast; ui-contrast.test.ts computes every pair in both modes.
+ */
+export const darkColor = {
+  text: '#E6E9EF',
+  page: '#0B1322',
+  textMuted: '#A3ABBC',
+  border: '#27334B',
+  hoverFill: '#16223A',
+  activeFill: '#1D2B47',
+  accent: '#8CAAF8',
+  accentHover: '#B0C4FA',
+  onAccent: '#0B1322',
+  fieldBorder: '#6B7690',
+  danger: '#F87171',
+  scrim: 'rgba(0, 0, 0, 0.6)',
+  navy: '#0A1630',
+  heading: '#EEF2FA',
+  surface: '#0E182B',
+} as const;
+
 const CAPITAL = /[A-Z]/g;
 
 /** "accentTint" -> "accent-tint" */
@@ -139,12 +167,24 @@ export function cssVariables(): Record<string, string> {
   return vars;
 }
 
-/** The tokens as one :root rule. */
-export function tokensCss(): string {
-  const body = Object.entries(cssVariables())
-    .map(([name, value]) => `  ${name}: ${value};`)
+/** The dark overrides as CSS custom properties. */
+export function darkCssVariables(): Record<string, string> {
+  const vars: Record<string, string> = {};
+  for (const [name, value] of Object.entries(darkColor)) vars[`--color-${kebab(name)}`] = value;
+  return vars;
+}
+
+function declarations(vars: Record<string, string>, indent: string): string {
+  return Object.entries(vars)
+    .map(([name, value]) => `${indent}${name}: ${value};`)
     .join('\n');
-  return `:root {\n${body}\n}\n`;
+}
+
+/** The tokens as one :root rule, then the dark overrides inside prefers-color-scheme: dark. */
+export function tokensCss(): string {
+  const light = `:root {\n${declarations(cssVariables(), '  ')}\n}\n`;
+  const dark = `@media (prefers-color-scheme: dark) {\n  :root {\n${declarations(darkCssVariables(), '    ')}\n  }\n}\n`;
+  return light + dark;
 }
 
 export const TOKENS_STYLE_ID = 'askfootage-tokens';
