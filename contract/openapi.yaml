@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AskFootage API",
-    "version": "1.6.0",
-    "description": "Ask a plain-English question about fixed-camera footage and get the matching clips with the evidence for each match. Every path is under /api. Every error has the body {\"error\": {\"code\": \"...\", \"message\": \"...\"}} with a matching HTTP status, and never contains a stack trace, a key, a password or a server path. JSON field names are camelCase. Days are calendar dates (YYYY-MM-DD) and times of day are HH:MM:SS in the camera's local time. Cameras are identified by ids the server gives out in order (CAM-001, CAM-002, ...); a camera's stream password is checked when the camera is added and then dropped: it is never stored, returned or logged. Wherever a camera query parameter is optional, leaving it out means all cameras. Lists are not paginated in v1: days, recordings and search results are bounded by the 7-day window and one day; cameras, zones and saved clips are bounded only by what the single user of the v1 demo creates. Versioning: /api is unversioned because the UI and the API ship together; once released, changes are additive only, and a breaking change (such as paging cameras, zones or saved clips) moves to /api/v2. Still pre-release: 1.1.0 added cameras, made camera ids CAM-NNN and dropped the camera from Status; 1.2.0 adds POST /api/recordings/{id}/index; 1.3.0 adds proofs to SearchResponse (measured proof for clips found from stored object tracks); 1.4.0 adds snapshotUrl to Clip and GET /api/clips/{id}/snapshot (the evidence frame, with the matched objects' boxes drawn on it); 1.5.0 makes DELETE /api/cameras/{id} refuse with 409 camera_has_recordings when the camera still has recordings, unless the new query parameter deleteRecordings is true; 1.6.0 adds GET /api/recordings/{id}/boxes (the stored object tracks, so the player can draw the boxes live). This file is written in JSON syntax, which is valid YAML 1.2, so it can be read without a YAML library."
+    "version": "1.7.0",
+    "description": "Ask a plain-English question about fixed-camera footage and get the matching clips with the evidence for each match. Every path is under /api. Every error has the body {\"error\": {\"code\": \"...\", \"message\": \"...\"}} with a matching HTTP status, and never contains a stack trace, a key, a password or a server path. JSON field names are camelCase. Days are calendar dates (YYYY-MM-DD) and times of day are HH:MM:SS in the camera's local time. Cameras are identified by ids the server gives out in order (CAM-001, CAM-002, ...); a camera's stream password is checked when the camera is added and then dropped: it is never stored, returned or logged. Wherever a camera query parameter is optional, leaving it out means all cameras. Lists are not paginated in v1: days, recordings and search results are bounded by the 7-day window and one day; cameras, zones and saved clips are bounded only by what the single user of the v1 demo creates. Versioning: /api is unversioned because the UI and the API ship together; once released, changes are additive only, and a breaking change (such as paging cameras, zones or saved clips) moves to /api/v2. Still pre-release: 1.1.0 added cameras, made camera ids CAM-NNN and dropped the camera from Status; 1.2.0 adds POST /api/recordings/{id}/index; 1.3.0 adds proofs to SearchResponse (measured proof for clips found from stored object tracks); 1.4.0 adds snapshotUrl to Clip and GET /api/clips/{id}/snapshot (the evidence frame, with the matched objects' boxes drawn on it); 1.5.0 makes DELETE /api/cameras/{id} refuse with 409 camera_has_recordings when the camera still has recordings, unless the new query parameter deleteRecordings is true; 1.6.0 adds GET /api/recordings/{id}/boxes (the stored object tracks, so the player can draw the boxes live). 1.7.0 adds POST /api/concepts and GET /api/concepts/{noun} (search the ready recordings for a new object, once, after the user confirms the estimated cost), needsIndexing on SearchResponse and the 409 code budget_exceeded. This file is written in JSON syntax, which is valid YAML 1.2, so it can be read without a YAML library."
   },
   "paths": {
     "/api/status": {
@@ -13,9 +13,17 @@
         "responses": {
           "200": {
             "description": "Current status",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Status" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -28,11 +36,18 @@
             "description": "The cameras",
             "content": {
               "application/json": {
-                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Camera" } }
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Camera"
+                  }
+                }
               }
             }
           },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       },
       "post": {
@@ -41,16 +56,34 @@
         "description": "The server gives the camera the next id (CAM-001, CAM-002, ...; a number is never reused, even after a delete) and status online. There is no limit on how many cameras can be added. The password is checked for length and then dropped: it is not stored, not returned and not logged. A name that another camera already has, ignoring case, returns 409 with code camera_name_taken.",
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CameraCreate" } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CameraCreate"
+              }
+            }
+          }
         },
         "responses": {
           "201": {
             "description": "The new camera",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Camera" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Camera"
+                }
+              }
+            }
           },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -58,33 +91,71 @@
       "get": {
         "operationId": "getCamera",
         "summary": "One camera",
-        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
         "responses": {
           "200": {
             "description": "The camera",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Camera" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Camera"
+                }
+              }
+            }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       },
       "patch": {
         "operationId": "updateCamera",
         "summary": "Change a camera's status",
-        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CameraUpdate" } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CameraUpdate"
+              }
+            }
+          }
         },
         "responses": {
           "200": {
             "description": "The camera after the change",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Camera" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Camera"
+                }
+              }
+            }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       },
       "delete": {
@@ -92,22 +163,37 @@
         "summary": "Delete a camera and everything recorded on it",
         "description": "A camera with no recordings is deleted at once (204), whatever deleteRecordings says; its zones go with it. A camera with one or more recordings is not deleted unless deleteRecordings is true: the answer is 409 with code camera_has_recordings and a message that says how many recordings and saved clips it has, and nothing is changed. With deleteRecordings=true the camera is deleted together with its recordings, their clips, the saved clips and its zones. A second delete of the same camera returns 404. deleteRecordings must be exactly true or false; any other value returns 422.",
         "parameters": [
-          { "$ref": "#/components/parameters/IdPath" },
+          {
+            "$ref": "#/components/parameters/IdPath"
+          },
           {
             "name": "deleteRecordings",
             "in": "query",
             "required": false,
             "description": "True to delete the camera together with its recordings, clips, saved clips and zones; false (the default) refuses when the camera has recordings",
-            "schema": { "type": "boolean", "default": false },
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
             "example": false
           }
         ],
         "responses": {
-          "204": { "description": "Deleted" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -116,19 +202,34 @@
         "operationId": "listDays",
         "summary": "Recording counts for the last 7 days, oldest first, ending today",
         "description": "Always returns exactly 7 entries; a day with no footage has recordings 0 and ready 0. Without camera, the counts cover all cameras. The last entry is today on the server's clock (in demo mode, the demo dataset's today), so a client can use it as the default day.",
-        "parameters": [{ "$ref": "#/components/parameters/OptionalCameraQuery" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OptionalCameraQuery"
+          }
+        ],
         "responses": {
           "200": {
             "description": "One entry per day",
             "content": {
               "application/json": {
-                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/DaySummary" } }
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DaySummary"
+                  }
+                }
               }
             }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -138,21 +239,36 @@
         "summary": "The recordings on one day, earliest first",
         "description": "Without camera, lists every camera's recordings, ordered by startTime, then camera, then id.",
         "parameters": [
-          { "$ref": "#/components/parameters/DayQuery" },
-          { "$ref": "#/components/parameters/OptionalCameraQuery" }
+          {
+            "$ref": "#/components/parameters/DayQuery"
+          },
+          {
+            "$ref": "#/components/parameters/OptionalCameraQuery"
+          }
         ],
         "responses": {
           "200": {
             "description": "Recordings ordered by startTime",
             "content": {
               "application/json": {
-                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Recording" } }
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Recording"
+                  }
+                }
               }
             }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       },
       "post": {
@@ -165,11 +281,27 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["file", "day", "camera"],
+                "required": [
+                  "file",
+                  "day",
+                  "camera"
+                ],
                 "properties": {
-                  "file": { "type": "string", "contentMediaType": "video/mp4", "description": "The video, MP4 only, at most 200 MiB" },
-                  "day": { "type": "string", "format": "date", "description": "The day the footage was recorded" },
-                  "camera": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "The id of the camera that recorded it, for example CAM-001" }
+                  "file": {
+                    "type": "string",
+                    "contentMediaType": "video/mp4",
+                    "description": "The video, MP4 only, at most 200 MiB"
+                  },
+                  "day": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "The day the footage was recorded"
+                  },
+                  "camera": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,64}$",
+                    "description": "The id of the camera that recorded it, for example CAM-001"
+                  }
                 }
               }
             }
@@ -178,13 +310,29 @@
         "responses": {
           "202": {
             "description": "Accepted; the recording now waits to be processed",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RecordingAccepted" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingAccepted"
+                }
+              }
+            }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "413": { "$ref": "#/components/responses/TooLarge" },
-          "415": { "$ref": "#/components/responses/UnsupportedMediaType" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -193,19 +341,43 @@
         "operationId": "getRecordingVideo",
         "summary": "Stream the recording's video",
         "description": "Streams the footage file (in demo mode, videos/clip1.mp4 for every recording). Supports HTTP Range requests so a player can seek. Returns 404 with the standard error body when the recording is unknown or no footage file is attached.",
-        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
         "responses": {
           "200": {
             "description": "The video",
-            "content": { "video/mp4": { "schema": { "type": "string", "contentMediaType": "video/mp4" } } }
+            "content": {
+              "video/mp4": {
+                "schema": {
+                  "type": "string",
+                  "contentMediaType": "video/mp4"
+                }
+              }
+            }
           },
           "206": {
             "description": "Part of the video, for a Range request",
-            "content": { "video/mp4": { "schema": { "type": "string", "contentMediaType": "video/mp4" } } }
+            "content": {
+              "video/mp4": {
+                "schema": {
+                  "type": "string",
+                  "contentMediaType": "video/mp4"
+                }
+              }
+            }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -214,15 +386,31 @@
         "operationId": "getRecordingBoxes",
         "summary": "The boxes of the objects found in a recording, frame by frame",
         "description": "The stored object tracks of the recording, for the player to draw boxes over the playing video. Boxes are in pixels of the frameWidth x frameHeight frame; a frame number n is at second n / fps from the start of the recording. A track has a point only on frames where the object was detected. Hands are left out. Short isolated runs of a non-person object (under one second) are treated as detector noise and left out. A recording that is known but has no stored tracks returns an empty tracks list; 404 when the recording is unknown.",
-        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
         "responses": {
           "200": {
             "description": "The boxes",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RecordingBoxes" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingBoxes"
+                }
+              }
+            }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -231,17 +419,37 @@
         "operationId": "indexRecording",
         "summary": "Start indexing a recording so it becomes searchable",
         "description": "Only a recording with status waiting can be indexed. On acceptance its status becomes preparing and the work continues after the reply: preparing (making the working copy), then indexing (finding objects), then ready. If the work fails, the status goes back to waiting so it can be retried. No request body. Not idempotent: a second call while the first is still running returns 409. When this build has no indexing backend, the reply is 503 with code indexing_not_configured and nothing changes.",
-        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
         "responses": {
           "202": {
             "description": "Accepted; the recording is now being prepared",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IndexAccepted" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexAccepted"
+                }
+              }
+            }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" },
-          "503": { "$ref": "#/components/responses/IndexingNotConfigured" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/IndexingNotConfigured"
+          }
         }
       }
     },
@@ -252,16 +460,34 @@
         "description": "Synchronous in v1. Without camera, every camera's footage is searched. Only ready recordings are searched; note explains anything the answer left out (for example a recording still being indexed), and is null when there is nothing to add. clips is empty when nothing matched.",
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SearchRequest" } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              }
+            }
+          }
         },
         "responses": {
           "200": {
             "description": "The matching clips, earliest first",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SearchResponse" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -269,15 +495,31 @@
       "get": {
         "operationId": "getClip",
         "summary": "One clip with its evidence",
-        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
         "responses": {
           "200": {
             "description": "The clip",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Clip" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Clip"
+                }
+              }
+            }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -286,15 +528,32 @@
         "operationId": "getClipSnapshot",
         "summary": "The evidence snapshot of a clip",
         "description": "A JPEG of the frame where the match began, with the object's box drawn in red and the person's box in a neutral grey. Made when a search finds the clip from stored object tracks. Returns 404 with the standard error body when the clip is unknown or has no snapshot.",
-        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
         "responses": {
           "200": {
             "description": "The snapshot",
-            "content": { "image/jpeg": { "schema": { "type": "string", "contentMediaType": "image/jpeg" } } }
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "contentMediaType": "image/jpeg"
+                }
+              }
+            }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -302,19 +561,34 @@
       "get": {
         "operationId": "listZones",
         "summary": "All zones, or only one camera's, ordered by name",
-        "parameters": [{ "$ref": "#/components/parameters/OptionalCameraQuery" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OptionalCameraQuery"
+          }
+        ],
         "responses": {
           "200": {
             "description": "The zones",
             "content": {
               "application/json": {
-                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Zone" } }
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Zone"
+                  }
+                }
               }
             }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       },
       "post": {
@@ -323,17 +597,37 @@
         "description": "Zone names are unique per camera, ignoring case; sending the same request again returns 409 with code zone_name_taken.",
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ZoneCreate" } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZoneCreate"
+              }
+            }
+          }
         },
         "responses": {
           "201": {
             "description": "The new zone",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Zone" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Zone"
+                }
+              }
+            }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -341,32 +635,68 @@
       "put": {
         "operationId": "replaceZone",
         "summary": "Rename or redraw a zone",
-        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ZoneUpdate" } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZoneUpdate"
+              }
+            }
+          }
         },
         "responses": {
           "200": {
             "description": "The zone after the change",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Zone" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Zone"
+                }
+              }
+            }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       },
       "delete": {
         "operationId": "deleteZone",
         "summary": "Delete a zone",
         "description": "A second delete of the same zone returns 404.",
-        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
         "responses": {
-          "204": { "description": "Deleted" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -374,18 +704,31 @@
       "get": {
         "operationId": "listSavedClips",
         "summary": "Saved clips, newest save first, optionally only those from one day",
-        "parameters": [{ "$ref": "#/components/parameters/OptionalDayQuery" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OptionalDayQuery"
+          }
+        ],
         "responses": {
           "200": {
             "description": "The saved clips",
             "content": {
               "application/json": {
-                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SavedClip" } }
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SavedClip"
+                  }
+                }
               }
             }
           },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       },
       "post": {
@@ -394,17 +737,37 @@
         "description": "A clip can be saved once; saving it again returns 409 with code already_saved.",
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SavedClipCreate" } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedClipCreate"
+              }
+            }
+          }
         },
         "responses": {
           "201": {
             "description": "The saved clip",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SavedClip" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedClip"
+                }
+              }
+            }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -412,31 +775,221 @@
       "patch": {
         "operationId": "updateSavedClip",
         "summary": "Change a saved clip's note",
-        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SavedClipUpdate" } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedClipUpdate"
+              }
+            }
+          }
         },
         "responses": {
           "200": {
             "description": "The saved clip after the change",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SavedClip" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedClip"
+                }
+              }
+            }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       },
       "delete": {
         "operationId": "deleteSavedClip",
         "summary": "Remove a clip from the saved list",
         "description": "The clip itself stays. A second delete of the same saved clip returns 404.",
-        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
         "responses": {
-          "204": { "description": "Removed" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "204": {
+            "description": "Removed"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/concepts": {
+      "post": {
+        "summary": "Search the recordings that lack a new object, once",
+        "description": "Queues ONE pass for the noun over the ready recordings that have no stored tracks for it (the recordings of day and camera, or the 7 days ending today). This is the only call that can spend: confirm must be exactly true. The estimate is the sum over the recordings of 0.20 dollars per 1,000 frames at 5 frames per second, at least 50 frames per recording; if the spending cap could not pay for it (with the passes already waiting counted) the answer is 409 budget_exceeded and nothing starts. Idempotent per noun: while a pass for the noun is queued or running, asking again returns that pass with 200 and starts nothing; so does asking when no recording lacks the noun (state done, no recordings). A failed pass can be asked for again. Poll GET /api/concepts/{noun}; when it is done, search again. Without a key the pass replays saved results and spends nothing; a noun with no saved result fails with a fixed message. A build that cannot search for new objects answers 503.",
+        "operationId": "requestConcept",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConceptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted; the pass is queued and runs after the reply",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConceptJob"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The pass that already exists (nothing new started)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConceptJob"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The change clashes with existing data (code already_saved, zone_name_taken or camera_name_taken), the camera still has recordings and deleteRecordings was not true (code camera_has_recordings), the recording is not waiting to be indexed (code recording_not_waiting), or the spending cap could not pay for a pass over a new object (code budget_exceeded)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A parameter or body field is missing or breaks a rule (code validation_error); the message names the field. A JSON body over 64 KiB is refused with the message body: is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Something went wrong on the server (code internal_error); no details are exposed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "This build has no indexing backend (code indexing_not_configured, message Indexing is not configured in this build)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/concepts/{noun}": {
+      "get": {
+        "summary": "Where the pass for an object is",
+        "description": "The state of the latest pass asked for this object since the server started, for polling. 404 when none was asked for; 503 when this build cannot search for new objects.",
+        "operationId": "getConcept",
+        "parameters": [
+          {
+            "name": "noun",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "The object in plain English, such as forklift (URL-encode spaces)",
+              "examples": [
+                "forklift"
+              ],
+              "title": "Noun"
+            },
+            "description": "The object in plain English, such as forklift (URL-encode spaces)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pass for the object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConceptJob"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such camera, recording, clip, zone, saved clip or requested object pass, or no footage file (code not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A parameter or body field is missing or breaks a rule (code validation_error); the message names the field. A JSON body over 64 KiB is refused with the message body: is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Something went wrong on the server (code internal_error); no details are exposed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "This build has no indexing backend (code indexing_not_configured, message Indexing is not configured in this build)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -447,299 +1000,863 @@
         "name": "id",
         "in": "path",
         "required": true,
-        "schema": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" }
+        "schema": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        }
       },
       "OptionalCameraQuery": {
         "name": "camera",
         "in": "query",
         "required": false,
         "description": "A camera id; leave it out for all cameras",
-        "schema": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+        "schema": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
         "example": "CAM-001"
       },
       "DayQuery": {
         "name": "day",
         "in": "query",
         "required": true,
-        "schema": { "type": "string", "format": "date" },
+        "schema": {
+          "type": "string",
+          "format": "date"
+        },
         "example": "2026-10-29"
       },
       "OptionalDayQuery": {
         "name": "day",
         "in": "query",
         "required": false,
-        "schema": { "type": "string", "format": "date" },
+        "schema": {
+          "type": "string",
+          "format": "date"
+        },
         "example": "2026-10-29"
       }
     },
     "responses": {
       "NotFound": {
         "description": "No such camera, recording, clip, zone or saved clip, or no footage file (code not_found)",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       },
       "Conflict": {
         "description": "The change clashes with existing data (code already_saved, zone_name_taken or camera_name_taken), the camera still has recordings and deleteRecordings was not true (code camera_has_recordings), or the recording is not waiting to be indexed (code recording_not_waiting)",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       },
       "TooLarge": {
         "description": "The upload is over 200 MiB (code file_too_large)",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       },
       "UnsupportedMediaType": {
         "description": "The upload is not an MP4 video (code unsupported_media_type)",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       },
       "ValidationFailed": {
         "description": "A parameter or body field is missing or breaks a rule (code validation_error); the message names the field. A JSON body over 64 KiB is refused with the message body: is too large",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       },
       "ServerError": {
         "description": "Something went wrong on the server (code internal_error); no details are exposed",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       },
       "IndexingNotConfigured": {
         "description": "This build has no indexing backend (code indexing_not_configured, message Indexing is not configured in this build)",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       }
     },
     "schemas": {
       "Error": {
         "type": "object",
-        "required": ["error"],
-        "properties": { "error": { "$ref": "#/components/schemas/ErrorDetail" } }
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        }
       },
       "ErrorDetail": {
         "type": "object",
-        "required": ["code", "message"],
+        "required": [
+          "code",
+          "message"
+        ],
         "properties": {
           "code": {
             "type": "string",
             "description": "Stable, machine-readable: validation_error, not_found, method_not_allowed (405, also a refused CORS preflight), already_saved, zone_name_taken, camera_name_taken, camera_has_recordings, recording_not_waiting, file_too_large, unsupported_media_type, indexing_not_configured or internal_error"
           },
-          "message": { "type": "string", "description": "Plain-English explanation, safe to show to a person; never contains a submitted password" }
+          "message": {
+            "type": "string",
+            "description": "Plain-English explanation, safe to show to a person; never contains a submitted password"
+          }
         }
       },
       "Status": {
         "type": "object",
-        "required": ["demoMode"],
+        "required": [
+          "demoMode"
+        ],
         "properties": {
-          "demoMode": { "type": "boolean", "description": "True when the app serves the seeded demo data" }
+          "demoMode": {
+            "type": "boolean",
+            "description": "True when the app serves the seeded demo data"
+          }
         }
       },
       "Camera": {
         "type": "object",
         "required": [
-          "id", "name", "location", "department", "ip", "status", "rtspUrlMasked",
-          "zoneCount", "recordingCount", "savedClipCount", "createdAt"
+          "id",
+          "name",
+          "location",
+          "department",
+          "ip",
+          "status",
+          "rtspUrlMasked",
+          "zoneCount",
+          "recordingCount",
+          "savedClipCount",
+          "createdAt"
         ],
         "properties": {
-          "id": { "type": "string", "pattern": "^CAM-[0-9]{3,}$", "description": "Given by the server in order: CAM-001, CAM-002, ... (CAM-1000 after CAM-999); never reused, even after a delete" },
-          "name": { "type": "string", "minLength": 1, "maxLength": 80 },
-          "location": { "type": ["string", "null"], "description": "Where the camera is, or null" },
-          "department": { "type": ["string", "null"], "description": "Who looks after it, or null" },
-          "ip": { "type": "string", "description": "IPv4 address or host name of the camera" },
-          "status": { "type": "string", "enum": ["online", "standby", "offline"], "description": "online: streaming; standby: reachable but not recording; offline: not reachable" },
-          "rtspUrlMasked": { "type": "string", "description": "rtsp://<username>:****@<ip>:554/cam/realmonitor?channel=1&subtype=1, where <username> is the stream username percent-encoded (every character except A-Z a-z 0-9 - . _ ~ becomes %XX of its UTF-8 bytes, upper-case hex) and the password is always the four characters ****. The real password is never part of any response." },
-          "zoneCount": { "type": "integer", "minimum": 0 },
-          "recordingCount": { "type": "integer", "minimum": 0 },
-          "savedClipCount": { "type": "integer", "minimum": 0, "description": "Saved clips from this camera's recordings" },
-          "createdAt": { "type": "string", "format": "date-time", "description": "UTC, ending in Z" }
+          "id": {
+            "type": "string",
+            "pattern": "^CAM-[0-9]{3,}$",
+            "description": "Given by the server in order: CAM-001, CAM-002, ... (CAM-1000 after CAM-999); never reused, even after a delete"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where the camera is, or null"
+          },
+          "department": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who looks after it, or null"
+          },
+          "ip": {
+            "type": "string",
+            "description": "IPv4 address or host name of the camera"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "online",
+              "standby",
+              "offline"
+            ],
+            "description": "online: streaming; standby: reachable but not recording; offline: not reachable"
+          },
+          "rtspUrlMasked": {
+            "type": "string",
+            "description": "rtsp://<username>:****@<ip>:554/cam/realmonitor?channel=1&subtype=1, where <username> is the stream username percent-encoded (every character except A-Z a-z 0-9 - . _ ~ becomes %XX of its UTF-8 bytes, upper-case hex) and the password is always the four characters ****. The real password is never part of any response."
+          },
+          "zoneCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "recordingCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "savedClipCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Saved clips from this camera's recordings"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC, ending in Z"
+          }
         }
       },
       "CameraCreate": {
         "type": "object",
-        "required": ["name", "ip", "username", "password", "acknowledgeCost"],
+        "required": [
+          "name",
+          "ip",
+          "username",
+          "password",
+          "acknowledgeCost"
+        ],
         "properties": {
-          "name": { "type": "string", "minLength": 1, "maxLength": 80, "description": "Not blank after trimming (stored trimmed); unique ignoring case (409 camera_name_taken)" },
-          "ip": { "type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$", "description": "An IPv4 address (four numbers 0-255 separated by dots) or a host name (labels of letters, digits and inner hyphens separated by dots). No spaces, scheme, port, user or path. A value made only of digits and dots must be a valid IPv4 address." },
-          "username": { "type": "string", "minLength": 1, "maxLength": 64, "description": "The stream username; shown inside rtspUrlMasked" },
-          "password": { "type": "string", "minLength": 1, "maxLength": 128, "writeOnly": true, "description": "The stream password. Checked for length, then dropped: never stored, returned or logged" },
-          "location": { "type": ["string", "null"], "maxLength": 80, "default": null, "description": "Optional; blank after trimming means null" },
-          "department": { "type": ["string", "null"], "maxLength": 80, "default": null, "description": "Optional; blank after trimming means null" },
-          "acknowledgeCost": { "type": "boolean", "const": true, "description": "Must be true: the user accepts that searching footage uses their Meta credits" }
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Not blank after trimming (stored trimmed); unique ignoring case (409 camera_name_taken)"
+          },
+          "ip": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$",
+            "description": "An IPv4 address (four numbers 0-255 separated by dots) or a host name (labels of letters, digits and inner hyphens separated by dots). No spaces, scheme, port, user or path. A value made only of digits and dots must be a valid IPv4 address."
+          },
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "The stream username; shown inside rtspUrlMasked"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "writeOnly": true,
+            "description": "The stream password. Checked for length, then dropped: never stored, returned or logged"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 80,
+            "default": null,
+            "description": "Optional; blank after trimming means null"
+          },
+          "department": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 80,
+            "default": null,
+            "description": "Optional; blank after trimming means null"
+          },
+          "acknowledgeCost": {
+            "type": "boolean",
+            "const": true,
+            "description": "Must be true: the user accepts that searching footage uses their Meta credits"
+          }
         }
       },
       "CameraUpdate": {
         "type": "object",
-        "required": ["status"],
+        "required": [
+          "status"
+        ],
         "properties": {
-          "status": { "type": "string", "enum": ["online", "standby", "offline"] }
+          "status": {
+            "type": "string",
+            "enum": [
+              "online",
+              "standby",
+              "offline"
+            ]
+          }
         }
       },
       "DaySummary": {
         "type": "object",
-        "required": ["day", "recordings", "ready"],
+        "required": [
+          "day",
+          "recordings",
+          "ready"
+        ],
         "properties": {
-          "day": { "type": "string", "format": "date" },
-          "recordings": { "type": "integer", "minimum": 0, "description": "Recordings made on this day" },
-          "ready": { "type": "integer", "minimum": 0, "description": "Of those, how many can be searched" }
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "recordings": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Recordings made on this day"
+          },
+          "ready": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Of those, how many can be searched"
+          }
         }
       },
       "Recording": {
         "type": "object",
-        "required": ["id", "camera", "day", "startTime", "lengthSeconds", "status"],
+        "required": [
+          "id",
+          "camera",
+          "day",
+          "startTime",
+          "lengthSeconds",
+          "status"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
-          "camera": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "The id of the camera that made it" },
-          "day": { "type": "string", "format": "date" },
-          "startTime": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$", "description": "Time of day the recording starts" },
-          "lengthSeconds": { "type": "integer", "minimum": 0 },
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "camera": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "description": "The id of the camera that made it"
+          },
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "startTime": {
+            "type": "string",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$",
+            "description": "Time of day the recording starts"
+          },
+          "lengthSeconds": {
+            "type": "integer",
+            "minimum": 0
+          },
           "status": {
             "type": "string",
-            "enum": ["waiting", "preparing", "indexing", "ready"],
+            "enum": [
+              "waiting",
+              "preparing",
+              "indexing",
+              "ready"
+            ],
             "description": "waiting: not started; preparing: making the working copy; indexing: finding objects; ready: searchable"
           }
         }
       },
       "RecordingAccepted": {
         "type": "object",
-        "required": ["id", "status"],
+        "required": [
+          "id",
+          "status"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
-          "status": { "type": "string", "enum": ["waiting"] }
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "waiting"
+            ]
+          }
         }
       },
       "IndexAccepted": {
         "type": "object",
-        "required": ["id", "status"],
+        "required": [
+          "id",
+          "status"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
-          "status": { "type": "string", "enum": ["preparing"] }
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "preparing"
+            ]
+          }
         }
       },
       "Evidence": {
         "type": "object",
-        "required": ["kind", "text"],
+        "required": [
+          "kind",
+          "text"
+        ],
         "properties": {
-          "kind": { "type": "string", "enum": ["carrying", "in_zone", "dwell"] },
-          "text": { "type": "string", "description": "Short chip text, for example Carrying · 16 s" }
+          "kind": {
+            "type": "string",
+            "enum": [
+              "carrying",
+              "in_zone",
+              "dwell"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "description": "Short chip text, for example Carrying · 16 s"
+          }
         }
       },
       "KeyFrame": {
         "type": "object",
-        "required": ["atSeconds", "imageUrl"],
+        "required": [
+          "atSeconds",
+          "imageUrl"
+        ],
         "properties": {
-          "atSeconds": { "type": "integer", "minimum": 0, "description": "Seconds from the start of the recording" },
-          "imageUrl": { "type": ["string", "null"], "description": "Still image of the frame, or null when none was made" }
+          "atSeconds": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Seconds from the start of the recording"
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Still image of the frame, or null when none was made"
+          }
         }
       },
       "Clip": {
         "type": "object",
         "required": [
-          "id", "recordingId", "camera", "day", "startTime", "startSeconds", "endSeconds", "label",
-          "evidence", "zone", "whyMatched", "keyFrames", "thumbnailUrl", "snapshotUrl"
+          "id",
+          "recordingId",
+          "camera",
+          "day",
+          "startTime",
+          "startSeconds",
+          "endSeconds",
+          "label",
+          "evidence",
+          "zone",
+          "whyMatched",
+          "keyFrames",
+          "thumbnailUrl",
+          "snapshotUrl"
         ],
         "properties": {
-          "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
-          "recordingId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
-          "camera": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "The id of the camera that made the recording" },
-          "day": { "type": "string", "format": "date" },
-          "startTime": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$", "description": "Time of day the clip starts" },
-          "startSeconds": { "type": "integer", "minimum": 0, "description": "Seconds from the start of the recording" },
-          "endSeconds": { "type": "integer", "minimum": 1, "description": "Seconds from the start of the recording; greater than startSeconds" },
-          "label": { "type": "string", "description": "One line, neutral words only, for example Person carrying a box through the loading dock" },
-          "evidence": { "type": "array", "items": { "$ref": "#/components/schemas/Evidence" } },
-          "zone": { "type": ["string", "null"], "description": "Name of the zone involved, or null" },
-          "whyMatched": { "type": "string", "description": "Two or three plain sentences explaining the match" },
-          "keyFrames": { "type": "array", "items": { "$ref": "#/components/schemas/KeyFrame" } },
-          "thumbnailUrl": { "type": ["string", "null"] },
-          "snapshotUrl": { "type": ["string", "null"], "description": "URL of the evidence snapshot (GET /api/clips/{id}/snapshot), or null when none was made. Only clips found from stored object tracks can have one." }
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "recordingId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "camera": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "description": "The id of the camera that made the recording"
+          },
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "startTime": {
+            "type": "string",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$",
+            "description": "Time of day the clip starts"
+          },
+          "startSeconds": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Seconds from the start of the recording"
+          },
+          "endSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Seconds from the start of the recording; greater than startSeconds"
+          },
+          "label": {
+            "type": "string",
+            "description": "One line, neutral words only, for example Person carrying a box through the loading dock"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            }
+          },
+          "zone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the zone involved, or null"
+          },
+          "whyMatched": {
+            "type": "string",
+            "description": "Two or three plain sentences explaining the match"
+          },
+          "keyFrames": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KeyFrame"
+            }
+          },
+          "thumbnailUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "snapshotUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "URL of the evidence snapshot (GET /api/clips/{id}/snapshot), or null when none was made. Only clips found from stored object tracks can have one."
+          }
         }
       },
       "SearchRequest": {
         "type": "object",
-        "required": ["question", "day"],
+        "required": [
+          "question",
+          "day"
+        ],
         "properties": {
-          "question": { "type": "string", "minLength": 1, "maxLength": 300, "description": "Not blank after trimming" },
-          "day": { "type": "string", "format": "date" },
-          "camera": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9_-]{1,64}$", "default": null, "description": "A camera id; null or left out searches every camera" }
-        }
-      },
-      "SearchResponse": {
-        "type": "object",
-        "required": ["question", "day", "clips", "note", "proofs"],
-        "properties": {
-          "question": { "type": "string", "description": "The question as received, trimmed" },
-          "day": { "type": "string", "format": "date" },
-          "clips": { "type": "array", "items": { "$ref": "#/components/schemas/Clip" } },
-          "note": { "type": ["string", "null"], "description": "What the answer left out and why, or null" },
-          "proofs": {
-            "type": "array",
-            "items": { "$ref": "#/components/schemas/ClipProof" },
-            "description": "Measured proof for clips found from stored object tracks, one per such clip; empty when every clip came from the demo keyword search"
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "Not blank after trimming"
+          },
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "camera": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "default": null,
+            "description": "A camera id; null or left out searches every camera"
           }
         }
       },
+      "SearchResponse": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "clips": {
+            "items": {
+              "$ref": "#/components/schemas/Clip"
+            },
+            "type": "array",
+            "title": "Clips"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "proofs": {
+            "items": {
+              "$ref": "#/components/schemas/ClipProof"
+            },
+            "type": "array",
+            "title": "Proofs",
+            "description": "Measured proof for clips found from stored object tracks, one per such clip; empty when every clip came from the demo keyword search"
+          },
+          "needsIndexing": {
+            "items": {
+              "$ref": "#/components/schemas/NeedsIndexing"
+            },
+            "type": "array",
+            "title": "Needsindexing",
+            "description": "Objects the question names that some searched ready recordings have no stored tracks for, each with the estimated cost of searching for it. Search itself never spends: POST /api/concepts does, once the user confirms. Empty when nothing is missing or this build cannot search for new objects"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question",
+          "day",
+          "clips",
+          "note",
+          "proofs",
+          "needsIndexing"
+        ],
+        "title": "SearchResponse",
+        "description": "The matching clips, earliest first, and what the answer left out."
+      },
       "BoxPoint": {
         "type": "object",
-        "required": ["frame", "x1", "y1", "x2", "y2"],
+        "required": [
+          "frame",
+          "x1",
+          "y1",
+          "x2",
+          "y2"
+        ],
         "properties": {
-          "frame": { "type": "integer", "minimum": 0 },
-          "x1": { "type": "number" },
-          "y1": { "type": "number" },
-          "x2": { "type": "number" },
-          "y2": { "type": "number" }
+          "frame": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "x1": {
+            "type": "number"
+          },
+          "y1": {
+            "type": "number"
+          },
+          "x2": {
+            "type": "number"
+          },
+          "y2": {
+            "type": "number"
+          }
         }
       },
       "BoxTrack": {
         "type": "object",
-        "required": ["trackId", "label", "role", "points"],
+        "required": [
+          "trackId",
+          "label",
+          "role",
+          "points"
+        ],
         "properties": {
-          "trackId": { "type": "integer", "minimum": 0 },
-          "label": { "type": "string", "description": "A neutral object noun, such as person or cardboard box" },
-          "role": { "type": "string", "enum": ["person", "object"], "description": "person for a person; object for anything else (drawn highlighted)" },
-          "points": { "type": "array", "items": { "$ref": "#/components/schemas/BoxPoint" }, "description": "Ordered by frame; frames without a point had no detection" }
+          "trackId": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string",
+            "description": "A neutral object noun, such as person or cardboard box"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "person",
+              "object"
+            ],
+            "description": "person for a person; object for anything else (drawn highlighted)"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoxPoint"
+            },
+            "description": "Ordered by frame; frames without a point had no detection"
+          }
         }
       },
       "RecordingBoxes": {
         "type": "object",
-        "required": ["recordingId", "frameWidth", "frameHeight", "fps", "tracks"],
+        "required": [
+          "recordingId",
+          "frameWidth",
+          "frameHeight",
+          "fps",
+          "tracks"
+        ],
         "properties": {
-          "recordingId": { "type": "string" },
-          "frameWidth": { "type": "number", "exclusiveMinimum": 0, "description": "Width in pixels of the frame the boxes are in" },
-          "frameHeight": { "type": "number", "exclusiveMinimum": 0 },
-          "fps": { "type": "number", "exclusiveMinimum": 0, "description": "Frames per second of the analysed video: frame n is at n / fps seconds" },
-          "tracks": { "type": "array", "items": { "$ref": "#/components/schemas/BoxTrack" } }
+          "recordingId": {
+            "type": "string"
+          },
+          "frameWidth": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Width in pixels of the frame the boxes are in"
+          },
+          "frameHeight": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "fps": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Frames per second of the analysed video: frame n is at n / fps seconds"
+          },
+          "tracks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoxTrack"
+            }
+          }
         }
       },
       "ProofMeasure": {
         "type": "object",
-        "required": ["name", "value"],
+        "required": [
+          "name",
+          "value"
+        ],
         "properties": {
-          "name": { "type": "string", "description": "For example frames_together, motion_agreement, frames_inside or coverage" },
-          "value": { "type": "number" }
+          "name": {
+            "type": "string",
+            "description": "For example frames_together, motion_agreement, frames_inside or coverage"
+          },
+          "value": {
+            "type": "number"
+          }
         }
       },
       "ProofBox": {
         "type": "object",
-        "required": ["frame", "trackId", "label", "x1", "y1", "x2", "y2"],
+        "required": [
+          "frame",
+          "trackId",
+          "label",
+          "x1",
+          "y1",
+          "x2",
+          "y2"
+        ],
         "properties": {
-          "frame": { "type": "integer", "minimum": 0 },
-          "trackId": { "type": "integer", "minimum": 0 },
-          "label": { "type": "string", "description": "A neutral object noun, such as person or cardboard box" },
-          "x1": { "type": "number" },
-          "y1": { "type": "number" },
-          "x2": { "type": "number" },
-          "y2": { "type": "number" }
+          "frame": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "trackId": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string",
+            "description": "A neutral object noun, such as person or cardboard box"
+          },
+          "x1": {
+            "type": "number"
+          },
+          "y1": {
+            "type": "number"
+          },
+          "x2": {
+            "type": "number"
+          },
+          "y2": {
+            "type": "number"
+          }
         }
       },
       "ClipProof": {
         "type": "object",
         "required": [
-          "clipId", "relation", "startFrame", "endFrame", "startSeconds", "endSeconds",
-          "trackIds", "trackLabels", "measures", "boxes"
+          "clipId",
+          "relation",
+          "startFrame",
+          "endFrame",
+          "startSeconds",
+          "endSeconds",
+          "trackIds",
+          "trackLabels",
+          "measures",
+          "boxes"
         ],
         "properties": {
-          "clipId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "The clip in clips this proves" },
-          "relation": { "type": "string", "enum": ["carrying", "in_zone", "dwell"] },
-          "startFrame": { "type": "integer", "minimum": 0 },
-          "endFrame": { "type": "integer", "minimum": 0, "description": "Inclusive" },
-          "startSeconds": { "type": "number", "minimum": 0, "description": "Seconds from the start of the recording" },
-          "endSeconds": { "type": "number", "minimum": 0, "description": "End of the last frame, in the same unit" },
-          "trackIds": { "type": "array", "items": { "type": "integer" }, "description": "Track ids used, such as [person, box]" },
-          "trackLabels": { "type": "array", "items": { "type": "string" }, "description": "The label of each track, in the same order" },
-          "measures": { "type": "array", "items": { "$ref": "#/components/schemas/ProofMeasure" } },
-          "boxes": { "type": "array", "items": { "$ref": "#/components/schemas/ProofBox" }, "description": "First, middle and last box of each track" }
+          "clipId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "description": "The clip in clips this proves"
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "carrying",
+              "in_zone",
+              "dwell"
+            ]
+          },
+          "startFrame": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "endFrame": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Inclusive"
+          },
+          "startSeconds": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Seconds from the start of the recording"
+          },
+          "endSeconds": {
+            "type": "number",
+            "minimum": 0,
+            "description": "End of the last frame, in the same unit"
+          },
+          "trackIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Track ids used, such as [person, box]"
+          },
+          "trackLabels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The label of each track, in the same order"
+          },
+          "measures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProofMeasure"
+            }
+          },
+          "boxes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProofBox"
+            },
+            "description": "First, middle and last box of each track"
+          }
         }
       },
       "Point": {
@@ -747,59 +1864,301 @@
         "description": "[x, y] as fractions of the frame's width and height, from the top-left corner",
         "minItems": 2,
         "maxItems": 2,
-        "items": { "type": "number", "minimum": 0, "maximum": 1 }
+        "items": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
       },
       "Zone": {
         "type": "object",
-        "required": ["id", "camera", "name", "points"],
+        "required": [
+          "id",
+          "camera",
+          "name",
+          "points"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
-          "camera": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "The id of the camera the zone is drawn on" },
-          "name": { "type": "string", "minLength": 1, "maxLength": 60 },
-          "points": { "type": "array", "minItems": 3, "maxItems": 50, "items": { "$ref": "#/components/schemas/Point" } }
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "camera": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "description": "The id of the camera the zone is drawn on"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "points": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            }
+          }
         }
       },
       "ZoneCreate": {
         "type": "object",
-        "required": ["camera", "name", "points"],
+        "required": [
+          "camera",
+          "name",
+          "points"
+        ],
         "properties": {
-          "camera": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "The id of the camera to draw on (404 if unknown)" },
-          "name": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Not blank after trimming; unique per camera, ignoring case (409 zone_name_taken)" },
-          "points": { "type": "array", "minItems": 3, "maxItems": 50, "items": { "$ref": "#/components/schemas/Point" } }
+          "camera": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "description": "The id of the camera to draw on (404 if unknown)"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Not blank after trimming; unique per camera, ignoring case (409 zone_name_taken)"
+          },
+          "points": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            }
+          }
         }
       },
       "ZoneUpdate": {
         "type": "object",
-        "required": ["name", "points"],
+        "required": [
+          "name",
+          "points"
+        ],
         "properties": {
-          "name": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Not blank after trimming; unique per camera, ignoring case (409 zone_name_taken); a zone may change the case of its own name" },
-          "points": { "type": "array", "minItems": 3, "maxItems": 50, "items": { "$ref": "#/components/schemas/Point" } }
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Not blank after trimming; unique per camera, ignoring case (409 zone_name_taken); a zone may change the case of its own name"
+          },
+          "points": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            }
+          }
         }
       },
       "SavedClip": {
         "type": "object",
-        "required": ["id", "clip", "note", "savedAt"],
+        "required": [
+          "id",
+          "clip",
+          "note",
+          "savedAt"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
-          "clip": { "$ref": "#/components/schemas/Clip" },
-          "note": { "type": "string", "maxLength": 500 },
-          "savedAt": { "type": "string", "format": "date-time", "description": "UTC, ending in Z" }
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "clip": {
+            "$ref": "#/components/schemas/Clip"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "savedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC, ending in Z"
+          }
         }
       },
       "SavedClipCreate": {
         "type": "object",
-        "required": ["clipId"],
+        "required": [
+          "clipId"
+        ],
         "properties": {
-          "clipId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
-          "note": { "type": "string", "maxLength": 500, "default": "" }
+          "clipId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "default": ""
+          }
         }
       },
       "SavedClipUpdate": {
         "type": "object",
-        "required": ["note"],
+        "required": [
+          "note"
+        ],
         "properties": {
-          "note": { "type": "string", "maxLength": 500 }
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
         }
+      },
+      "ConceptJob": {
+        "properties": {
+          "noun": {
+            "type": "string",
+            "title": "Noun",
+            "description": "The object, in its one spelling"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "description": "queued, then running, then done or failed. A failed pass can be asked for again"
+          },
+          "recordingIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recordingids",
+            "description": "The recordings the pass covers"
+          },
+          "estimatedCostUsd": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Estimatedcostusd",
+            "description": "US dollars the pass was estimated to cost when it was asked for"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "A fixed sentence saying why a failed pass failed; null in every other state"
+          }
+        },
+        "type": "object",
+        "required": [
+          "noun",
+          "state",
+          "recordingIds",
+          "estimatedCostUsd",
+          "message"
+        ],
+        "title": "ConceptJob",
+        "description": "One pass that searches recordings for one object."
+      },
+      "ConceptRequest": {
+        "properties": {
+          "noun": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Noun",
+            "description": "The object in plain English, such as forklift or traffic cone: letters, digits, spaces, hyphens and apostrophes; not blank after trimming; people are not objects to search for. Stored and returned in its one spelling (box becomes cardboard box)"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true,
+            "title": "Confirm",
+            "description": "Must be true: the user accepts the estimated cost shown in needsIndexing"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day",
+            "description": "Only the recordings of this day; leave it out for the 7 days ending today. Send the day of the search so the cost matches the estimate that was shown"
+          },
+          "camera": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Camera",
+            "description": "Only this camera's recordings; null or left out means all"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "noun",
+          "confirm"
+        ],
+        "title": "ConceptRequest",
+        "description": "Ask for one pass that searches the ready recordings that lack a new object."
+      },
+      "NeedsIndexing": {
+        "properties": {
+          "noun": {
+            "type": "string",
+            "title": "Noun",
+            "description": "The object, in its one spelling (box is cardboard box)"
+          },
+          "estimatedCostUsd": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Estimatedcostusd",
+            "description": "US dollars one pass over recordingIds is estimated to cost: 0.20 per 1,000 frames at 5 frames per second, at least 50 frames per recording"
+          },
+          "recordingIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recordingids",
+            "description": "The searched ready recordings that lack it"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "not_indexed",
+              "queued",
+              "running"
+            ],
+            "title": "State",
+            "description": "not_indexed: nothing asked yet; queued and running: a pass is on its way"
+          }
+        },
+        "type": "object",
+        "required": [
+          "noun",
+          "estimatedCostUsd",
+          "recordingIds",
+          "state"
+        ],
+        "title": "NeedsIndexing",
+        "description": "An object the question names that some ready recordings have not been searched for."
       }
     }
   }

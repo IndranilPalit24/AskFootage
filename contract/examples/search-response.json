@@ -190,5 +190,6 @@
     }
   ],
   "note": "1 recording on this day is still being indexed, so it was not searched.",
-  "proofs": []
+  "proofs": [],
+  "needsIndexing": []
 }
