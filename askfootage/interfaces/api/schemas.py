@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Annotated, Literal
 
 from pydantic import (
@@ -24,9 +25,11 @@ from pydantic import (
 )
 from pydantic.alias_generators import to_camel
 
-from askfootage.application import cameras
+from askfootage.application import cameras, nouns
 from askfootage.application.cameras import CameraDraft, CameraOverview
 from askfootage.application.clips import SavedClipWithCamera
+from askfootage.application.concepts import ConceptJob as ConceptJobResult
+from askfootage.application.concepts import IndexingNeed
 from askfootage.application.errors import InvalidInputError
 from askfootage.application.recording_boxes import RecordingBoxesView
 from askfootage.application.recordings import ServiceStatus
@@ -34,6 +37,7 @@ from askfootage.application.saved_clips import MAX_NOTE_LENGTH
 from askfootage.application.search import MAX_QUESTION_LENGTH, SearchResult
 from askfootage.application.search_relations import ClipProof as ClipProofResult
 from askfootage.application.zones import MAX_ZONE_NAME_LENGTH, MAX_ZONE_POINTS, MIN_ZONE_POINTS
+from askfootage.domain.tracks import LABEL_MAX
 from askfootage.ports import library_store as ports
 
 ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
@@ -548,6 +552,38 @@ class ClipProof(ResponseModel):
         )
 
 
+class NeedsIndexing(ResponseModel):
+    """An object the question names that some ready recordings have not been searched for."""
+
+    noun: str = Field(description="The object, in its one spelling (box is cardboard box)")
+    estimated_cost_usd: float = Field(
+        ge=0,
+        description=(
+            "US dollars one pass over recordingIds is estimated to cost: 0.20 per 1,000 "
+            "frames at 5 frames per second, at least 50 frames per recording"
+        ),
+    )
+    recording_ids: list[str] = Field(description="The searched ready recordings that lack it")
+    state: Literal["not_indexed", "queued", "running"] = Field(
+        description="not_indexed: nothing asked yet; queued and running: a pass is on its way"
+    )
+
+    @classmethod
+    def from_need(cls, need: IndexingNeed) -> NeedsIndexing:
+        """The response model for one need."""
+        return cls(
+            noun=need.noun,
+            estimated_cost_usd=_dollars(need.estimated_cost),
+            recording_ids=list(need.recording_ids),
+            state=need.state,
+        )
+
+
+def _dollars(amount: Decimal) -> float:
+    """A cost for JSON: whole ten-thousandths of a dollar, which every estimate is."""
+    return float(round(amount, 4))
+
+
 class SearchResponse(ResponseModel):
     """The matching clips, earliest first, and what the answer left out."""
 
@@ -559,6 +595,14 @@ class SearchResponse(ResponseModel):
         description=(
             "Measured proof for clips found from stored object tracks, one per such clip; "
             "empty when every clip came from the demo keyword search"
+        )
+    )
+    needs_indexing: list[NeedsIndexing] = Field(
+        description=(
+            "Objects the question names that some searched ready recordings have no stored "
+            "tracks for, each with the estimated cost of searching for it. Search itself never "
+            "spends: POST /api/concepts does, once the user confirms. Empty when nothing is "
+            "missing or this build cannot search for new objects"
         )
     )
 
@@ -575,6 +619,72 @@ class SearchResponse(ResponseModel):
             ],
             note=result.note,
             proofs=[ClipProof.from_result(proof) for proof in result.proofs],
+            needs_indexing=[NeedsIndexing.from_need(need) for need in result.needs_indexing],
+        )
+
+
+# --- Concepts (a new object to search for) ------------------------------------------------------
+
+
+class ConceptRequest(RequestModel):
+    """Ask for one pass that searches the ready recordings that lack a new object."""
+
+    noun: Annotated[
+        str,
+        Field(
+            min_length=1,
+            max_length=LABEL_MAX,
+            description=(
+                "The object in plain English, such as forklift or traffic cone: letters, "
+                "digits, spaces, hyphens and apostrophes; not blank after trimming; people are "
+                "not objects to search for. "
+                "Stored and returned in its one spelling (box becomes "
+                "cardboard box)"
+            ),
+        ),
+        AfterValidator(_by_rule(nouns.check_noun)),
+    ]
+    confirm: Annotated[Literal[True], BeforeValidator(_true_only)] = Field(
+        description="Must be true: the user accepts the estimated cost shown in needsIndexing"
+    )
+    day: Day | None = Field(
+        default=None,
+        description=(
+            "Only the recordings of this day; leave it out for the 7 days ending today. Send "
+            "the day of the search so the cost matches the estimate that was shown"
+        ),
+    )
+    camera: Id | None = Field(
+        default=None, description="Only this camera's recordings; null or left out means all"
+    )
+
+
+class ConceptJob(ResponseModel):
+    """One pass that searches recordings for one object."""
+
+    noun: str = Field(description="The object, in its one spelling")
+    state: Literal["queued", "running", "done", "failed"] = Field(
+        description=(
+            "queued, then running, then done or failed. A failed pass can be asked for again"
+        )
+    )
+    recording_ids: list[str] = Field(description="The recordings the pass covers")
+    estimated_cost_usd: float = Field(
+        ge=0, description="US dollars the pass was estimated to cost when it was asked for"
+    )
+    message: str | None = Field(
+        description="A fixed sentence saying why a failed pass failed; null in every other state"
+    )
+
+    @classmethod
+    def from_job(cls, job: ConceptJobResult) -> ConceptJob:
+        """The response model for one pass."""
+        return cls(
+            noun=job.noun,
+            state=job.state,
+            recording_ids=list(job.recording_ids),
+            estimated_cost_usd=_dollars(job.estimated_cost),
+            message=job.message,
         )
 
 

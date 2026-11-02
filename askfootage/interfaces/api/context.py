@@ -9,6 +9,7 @@ from typing import Annotated
 
 from fastapi import BackgroundTasks, Depends, Request
 
+from askfootage.application.concepts import ConceptService
 from askfootage.application.ingest_video import IndexingPipeline
 from askfootage.application.library import IdFactory, Library
 from askfootage.application.recordings import FootageSource
@@ -40,6 +41,8 @@ class ApiContext:
     tracks, question_parser and frame_size feed search over stored tracks; with tracks
     None (or a recording without tracks) search uses the demo keyword matcher. snapshots,
     when set, makes and serves the evidence snapshot of each clip found from tracks.
+    concepts is None when the build cannot search for a new object (POST /api/concepts is
+    503, and search lists no needsIndexing).
     """
 
     library: Library
@@ -54,6 +57,7 @@ class ApiContext:
     question_parser: QuestionParser | None = None
     frame_size: FrameSizeSource | None = None
     snapshots: SnapshotStore | None = None
+    concepts: ConceptService | None = None
     schedule_after_reply: JobScheduler = run_after_reply
 
 

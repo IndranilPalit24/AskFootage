@@ -1,4 +1,4 @@
-"""The 23 operations of contract/openapi.yaml, all under /api.
+"""The 25 operations of contract/openapi.yaml, all under /api.
 
 Each handler validates its input (path, query and body models), calls one application
 use case and shapes the result into the contract's models. Failures are raised as
@@ -27,6 +27,7 @@ from pydantic import BeforeValidator
 
 from askfootage.application import (
     cameras,
+    concepts,
     ingest_video,
     recording_boxes,
     recordings,
@@ -35,6 +36,7 @@ from askfootage.application import (
     zones,
 )
 from askfootage.application.errors import NotFoundError
+from askfootage.domain.tracks import LABEL_MAX
 from askfootage.interfaces.api.context import Context, snapshot_url_of
 from askfootage.interfaces.api.errors import error_responses, json_error_responses
 from askfootage.interfaces.api.footage import VideoFileResponse
@@ -44,6 +46,8 @@ from askfootage.interfaces.api.schemas import (
     CameraCreate,
     CameraUpdate,
     Clip,
+    ConceptJob,
+    ConceptRequest,
     Day,
     DaySummary,
     IndexAccepted,
@@ -92,6 +96,15 @@ DeleteRecordingsQuery = Annotated[
             "zones; false (the default) refuses when the camera has recordings"
         ),
         examples=[False],
+    ),
+]
+NounPath = Annotated[
+    str,
+    Path(
+        min_length=1,
+        max_length=LABEL_MAX,
+        description="The object in plain English, such as forklift (URL-encode spaces)",
+        examples=["forklift"],
     ),
 ]
 DayQuery = Annotated[Day, Query(examples=["2026-10-29"])]
@@ -408,8 +421,76 @@ async def search_footage(body: SearchRequest, context: Context) -> SearchRespons
         parser=context.question_parser,
         frame_size=context.frame_size,
         snapshots=context.snapshots,
+        concepts=context.concepts,
     )
     return SearchResponse.from_result(result, snapshot_url_of(context))
+
+
+# --- Concepts: searching for a new object -------------------------------------------------------
+
+
+@router.post(
+    "/concepts",
+    operation_id="requestConcept",
+    response_description="Accepted; the pass is queued and runs after the reply",
+    status_code=202,
+    summary="Search the recordings that lack a new object, once",
+    description=(
+        "Queues ONE pass for the noun over the ready recordings that have no stored tracks "
+        "for it (the recordings of day and camera, or the 7 days ending today). This is the "
+        "only call that can spend: confirm must be exactly true. The estimate is the sum over "
+        "the recordings of 0.20 dollars per 1,000 frames at 5 frames per second, at least 50 "
+        "frames per recording; if the spending cap could not pay for it (with the passes "
+        "already waiting counted) the answer is 409 budget_exceeded and nothing starts. "
+        "Idempotent per noun: while a pass for the noun is queued or running, asking again "
+        "returns that pass with 200 and starts nothing; so does asking when no recording "
+        "lacks the noun (state done, no recordings). A failed pass can be asked for again. "
+        "Poll GET /api/concepts/{noun}; when it is done, search again. Without a key the "
+        "pass replays saved results and spends nothing; a noun with no saved result fails "
+        "with a fixed message. A build that cannot search for new objects answers 503."
+    ),
+    responses={
+        200: {
+            "model": ConceptJob,
+            "description": "The pass that already exists (nothing new started)",
+        },
+        **error_responses(409, 422, 500, 503),
+    },
+)
+async def request_concept(
+    body: ConceptRequest, context: Context, background: BackgroundTasks, response: Response
+) -> ConceptJob:
+    """Queue one pass for a noun (after the reply), or return the one already there."""
+    result = concepts.request_concept(
+        context.concepts,
+        body.noun,
+        confirm=body.confirm,
+        day=body.day,
+        camera=body.camera,
+        today=context.today(),
+    )
+    if result.run is not None:
+        context.schedule_after_reply(background, result.run)
+    else:
+        response.status_code = 200
+    return ConceptJob.from_job(result.job)
+
+
+@router.get(
+    "/concepts/{noun}",
+    operation_id="getConcept",
+    response_description="The pass for the object",
+    summary="Where the pass for an object is",
+    description=(
+        "The state of the latest pass asked for this object since the server started, for "
+        "polling. 404 when none was asked for; 503 when this build cannot search for new "
+        "objects."
+    ),
+    responses=error_responses(404, 422, 500, 503),
+)
+async def get_concept(noun: NounPath, context: Context) -> ConceptJob:
+    """The pass for one noun."""
+    return ConceptJob.from_job(concepts.get_concept(context.concepts, noun))
 
 
 @router.get(
