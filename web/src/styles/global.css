@@ -1,7 +1,8 @@
-/* AskFootage, light and dark (follows the system setting). Style: Minimalism & Swiss. Every value comes from the tokens in tokens.ts
-   (published on :root): one accent, neutral greys, 1px hairlines, a 4px spacing scale, left-aligned text,
-   no shadows and no gradients. Interaction states (hover, active, focus-visible, disabled, loading) are
-   defined once, in the "Interaction states" section at the end of this file. */
+/* AskFootage, light and dark (follows the system setting). A calm, precise review tool: one accent, neutral
+   cool greys on a grey canvas with white cards, 1px hairlines, a three-step elevation scale, a strict 4px
+   spacing scale, left-aligned text, no gradients and no glow. Every value comes from the tokens in tokens.ts
+   (published on :root). Interaction states (hover, active, focus-visible, disabled, loading) are defined
+   once, in the "Interaction states" section near the end of this file. */
 
 *,
 *::before,
@@ -38,8 +39,9 @@ p {
   margin: 0;
 }
 
+/* One strong title per screen: 20px, semibold. */
 h1 {
-  font-size: var(--font-size-24);
+  font-size: var(--font-size-20);
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
 }
@@ -101,8 +103,25 @@ a:hover {
   font-size: var(--font-size-12);
 }
 
+/* Tabular numerals for every count and time; the monospace stack for ids and timestamps. */
 .num {
   font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* A section label: uppercase, 12px, muted. Used sparingly, never for a sentence. */
+.label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.04em;
+  line-height: var(--line-height-tight);
+  text-transform: uppercase;
 }
 
 .error-text,
@@ -138,7 +157,7 @@ a:hover {
   background: var(--color-page);
   color: var(--color-text);
   font-size: var(--font-size-14);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
   line-height: 1;
   white-space: nowrap;
   text-decoration: none;
@@ -147,6 +166,7 @@ a:hover {
 .btn--sm {
   min-height: var(--control-height-small);
   padding: 0 var(--space-3);
+  font-size: var(--font-size-13);
 }
 
 .btn--primary {
@@ -155,9 +175,17 @@ a:hover {
   color: var(--color-on-accent);
 }
 
+/* A quiet action: no outline until it is hovered or focused. */
+.btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
 /* A toggle that is on (Saved): accent outline and text, no fill. */
 .btn[aria-pressed='true'] {
   border-color: var(--color-accent);
+  background: var(--color-page);
   color: var(--color-accent);
 }
 
@@ -203,9 +231,40 @@ a:hover {
   white-space: nowrap;
 }
 
+/* Mock mode must never be mistaken for real footage: a bordered chip in the top bar, always visible. */
+.chip--mock {
+  border-color: var(--color-text);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-weight: var(--font-weight-medium);
+}
+
+.config-error {
+  max-width: var(--content-max-width);
+  margin: var(--space-8) auto;
+  padding: 0 var(--gutter);
+}
+
 .chip--accent {
   border-color: var(--color-accent);
   color: var(--color-accent);
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A recording's status: a dot and its word, always together. Ready is green, in progress amber, waiting grey. */
+.status {
+  padding: 0;
+  border: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-13);
 }
 
 .status__dot {
@@ -216,21 +275,10 @@ a:hover {
   background: var(--color-field-border);
 }
 
-.status--ready {
-  color: var(--color-text);
-}
-
-.status--ready .status__dot {
-  background: var(--color-accent);
-}
-
-.chip-list {
+.row-start {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 /* ---------- Form fields ---------- */
@@ -249,7 +297,7 @@ a:hover {
 
 .field__label {
   font-size: var(--font-size-14);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
 }
 
 .input,
@@ -283,12 +331,13 @@ a:hover {
   opacity: 1;
 }
 
-/* ---------- Cards ---------- */
+/* ---------- Cards and states ---------- */
 
 .card {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   background: var(--color-page);
+  box-shadow: var(--elevation-1);
 }
 
 .card--padded {
@@ -299,10 +348,88 @@ a:hover {
   padding: var(--space-4);
 }
 
+/* An empty, failed or not-found state: what happened, and one helpful action. */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border: 1px dashed var(--color-field-border);
+  border-radius: var(--radius-card);
+  background: var(--color-page);
+}
+
+.empty__title {
+  font-size: var(--font-size-16);
+  font-weight: var(--font-weight-semibold);
+}
+
+.empty__text {
+  max-width: 56ch;
+  color: var(--color-text-muted);
+}
+
+.empty__action {
+  margin-top: var(--space-2);
+}
+
+/* Skeletons: a quiet pulse of the final shape, instead of a spinner. */
+.skeleton {
+  display: block;
+  border-radius: var(--radius-control);
+  background: var(--color-active-fill);
+  animation: skeleton-pulse 1.4s var(--motion-ease) infinite alternate;
+}
+
+.skeleton--line {
+  height: var(--space-3);
+}
+
+.skeleton--title {
+  width: 60%;
+  height: var(--space-4);
+}
+
+.skeleton--short {
+  width: 35%;
+}
+
+.skeleton--poster {
+  flex: none;
+  width: var(--poster-width);
+  aspect-ratio: 16 / 9;
+}
+
+.skeleton--ask {
+  width: 100%;
+  height: 168px;
+  border-radius: var(--radius-card);
+}
+
+.skeleton--stage {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-card);
+  background: var(--color-player-bg);
+  opacity: 0.9;
+}
+
+@keyframes skeleton-pulse {
+  from {
+    opacity: 0.45;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
 /* ---------- Shell ---------- */
 
 .app {
   min-height: 100vh;
+  background: var(--color-canvas);
 }
 
 .topbar {
@@ -319,10 +446,30 @@ a:hover {
 }
 
 .topbar__brand {
-  color: var(--color-text);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-heading);
   font-size: var(--font-size-16);
   font-weight: var(--font-weight-semibold);
   text-decoration: none;
+}
+
+.topbar__brand:hover {
+  color: var(--color-heading);
+}
+
+.topbar__mark {
+  flex: none;
+}
+
+.topbar__tagline {
+  display: none;
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-13);
+  white-space: nowrap;
 }
 
 .topbar__date {
@@ -331,7 +478,9 @@ a:hover {
   gap: var(--space-2);
   margin-left: auto;
   color: var(--color-text-muted);
+  font-family: var(--font-mono);
   font-size: var(--font-size-12);
+  font-variant-numeric: tabular-nums;
 }
 
 .app__body {
@@ -352,7 +501,7 @@ a:hover {
   overflow: hidden;
   border-right: 1px solid var(--color-border);
   background: var(--color-page);
-  transition: width var(--motion-fast) ease;
+  transition: width var(--motion-fast) var(--motion-ease);
 }
 
 .drawer--collapsed {
@@ -364,6 +513,7 @@ a:hover {
   *::before,
   *::after {
     transition: none !important;
+    animation: none !important;
   }
 }
 
@@ -377,6 +527,7 @@ a:hover {
 }
 
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -384,19 +535,33 @@ a:hover {
   padding: var(--nav-item-padding);
   border: 1px solid transparent;
   border-radius: var(--radius-card);
-  color: var(--color-text);
+  color: var(--color-text-muted);
   font-size: var(--font-size-14);
-  font-weight: var(--font-weight-regular);
+  font-weight: var(--font-weight-medium);
   line-height: var(--line-height);
   text-decoration: none;
   white-space: nowrap;
 }
 
-/* The current page: accent outline, accent text, heavier weight. */
+/* The current page: a filled row, a 3px accent bar on its left edge, and the full-strength text. */
 .nav-item[aria-current='page'] {
-  border-color: var(--color-accent);
+  background: var(--color-hover-fill);
+  color: var(--color-text);
+}
+
+.nav-item[aria-current='page']::before {
+  position: absolute;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  left: calc(var(--space-1) * -1 - 1px);
+  width: 3px;
+  border-radius: var(--radius-control);
+  background: var(--color-accent);
+  content: '';
+}
+
+.nav-item[aria-current='page'] svg {
   color: var(--color-accent);
-  font-weight: var(--font-weight-semibold);
 }
 
 .nav-item svg {
@@ -424,6 +589,15 @@ a:hover {
 .main__inner {
   max-width: var(--content-max-width);
   margin: 0 auto;
+}
+
+/* Screens that hold lists, tables or the player use the wider column. */
+.main__inner:has(.screen--wide) {
+  max-width: var(--wide-max-width);
+}
+
+.main__inner:has(.workspace) {
+  max-width: var(--workspace-max-width);
 }
 
 .page-head {
@@ -462,12 +636,21 @@ a:hover {
 }
 
 .back-link {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   margin-bottom: var(--space-3);
-  font-size: var(--font-size-14);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-13);
+  text-decoration: none;
 }
 
-/* ---------- Camera ---------- */
+.back-link:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+/* ---------- Camera recordings ---------- */
 
 /* Always in the DOM (a live region that appears late is often not announced); empty, it has no height. */
 .upload-status {
@@ -479,9 +662,8 @@ a:hover {
 .day-strip {
   display: flex;
   gap: var(--space-2);
-  padding-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
   overflow-x: auto;
-  border-bottom: 1px solid var(--color-border);
 }
 
 .day-btn {
@@ -508,6 +690,7 @@ a:hover {
 
 .day-btn__date {
   font-size: var(--font-size-14);
+  font-variant-numeric: tabular-nums;
   font-weight: var(--font-weight-semibold);
 }
 
@@ -523,40 +706,73 @@ a:hover {
 .summary {
   margin: var(--summary-margin);
   color: var(--color-text-muted);
-  font-size: var(--font-size-14);
+  font-size: var(--font-size-13);
+  font-variant-numeric: tabular-nums;
 }
 
+/* ---------- Tables ---------- */
+
+/* Positioned, so a visually hidden header (position: absolute) is clipped here instead of widening the page. */
 .table-wrap {
+  position: relative;
   overflow-x: auto;
   overflow-y: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
+  background: var(--color-page);
+  box-shadow: var(--elevation-1);
 }
 
 .table {
   width: 100%;
   min-width: var(--table-min-width);
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .table th {
-  padding: var(--header-cell-padding);
+  padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--color-border);
+  background: var(--color-page);
   color: var(--color-text-muted);
   font-size: var(--font-size-12);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.04em;
   text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .table td {
-  padding: var(--body-cell-padding);
+  padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--color-border);
-  font-size: var(--font-size-14);
+  font-size: var(--font-size-13);
   vertical-align: middle;
 }
 
 .table tbody tr:last-child td {
   border-bottom: 0;
+}
+
+/* Numbers line up on the right, in tabular digits. */
+.table .cell-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.table td.cell-id {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.table tbody tr {
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+
+.table tbody tr:hover,
+.table tbody tr:focus-within {
+  background: var(--color-hover-fill);
 }
 
 .table__actions {
@@ -566,6 +782,42 @@ a:hover {
 .table__message {
   color: var(--color-text-muted);
   text-align: left;
+}
+
+/* Row actions rest quietly (no outline, the text keeps full contrast) and get their outline when the row is
+   hovered or holds keyboard focus. Touch screens always show the outline. */
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.row-actions .btn {
+  border-color: transparent;
+  background: transparent;
+}
+
+tr:hover .row-actions .btn,
+tr:focus-within .row-actions .btn {
+  border-color: var(--color-border);
+  background: var(--color-page);
+}
+
+@media (hover: none) {
+  .row-actions .btn {
+    border-color: var(--color-border);
+  }
+}
+
+.table__poster {
+  display: block;
+  width: var(--row-poster-width);
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--radius-control);
+  background: var(--color-active-fill);
+  object-fit: cover;
 }
 
 .row-note {
@@ -579,10 +831,37 @@ a:hover {
   font-size: var(--font-size-12);
 }
 
+@media (min-width: 961px) {
+  /* Wide screens: the table is not its own scroll box, so the header can stick under the top bar. */
+  .table-wrap {
+    overflow: visible;
+  }
+
+  .table th {
+    position: sticky;
+    top: var(--topbar-height);
+    z-index: 1;
+  }
+
+  .table thead th:first-child {
+    border-top-left-radius: var(--radius-card);
+  }
+
+  .table thead th:last-child {
+    border-top-right-radius: var(--radius-card);
+  }
+}
+
+@media (min-width: 900px) {
+  .topbar__tagline {
+    display: block;
+  }
+}
+
 /* ---------- Find Footage ---------- */
 
 /* Start screen (no search yet): the column fills the space under the topbar and the group sits in its
-   middle, like a chat app. Once a search starts, .find--start goes and the group moves to the top. */
+   middle. Once a search starts, .find--start goes and the group moves to the top. */
 .main:has(> .main__inner > .find--start) {
   display: flex;
   flex-direction: column;
@@ -607,6 +886,20 @@ a:hover {
   flex: 1;
 }
 
+.find__group {
+  width: 100%;
+}
+
+/* The one focal headline of the app: 28px, only on the start screen. */
+.find--start h1 {
+  font-size: var(--font-size-28);
+  letter-spacing: -0.01em;
+}
+
+.find--start .page-head__subtitle {
+  font-size: var(--font-size-16);
+}
+
 /* The empty live region stays in the DOM (so the first status line is announced) but takes no space. */
 .find--start > .results-status {
   margin: 0;
@@ -619,12 +912,15 @@ a:hover {
 }
 
 .ask__box {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  overflow: hidden;
   border: 1px solid var(--color-field-border);
   border-radius: var(--radius-card);
   background: var(--color-page);
+  box-shadow: var(--elevation-2);
   text-align: left;
 }
 
@@ -638,8 +934,8 @@ a:hover {
 .ask__textarea {
   display: block;
   width: 100%;
-  min-height: 96px;
-  padding: var(--space-3) var(--space-4) 0;
+  min-height: 88px;
+  padding: var(--space-4) var(--space-4) 0;
   border: 0;
   background: transparent;
   font-size: var(--font-size-16);
@@ -657,8 +953,16 @@ a:hover {
 
 .ask__actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
-  padding: var(--space-2);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+
+.ask__state {
+  margin-right: auto;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-13);
 }
 
 .ask__submit {
@@ -666,9 +970,40 @@ a:hover {
   padding: 0;
 }
 
+/* While a search runs: a bar sweeps along the top edge of the box. */
+.ask__progress {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  overflow: hidden;
+  background: var(--color-active-fill);
+}
+
+.ask__progress::after {
+  display: block;
+  width: 30%;
+  height: 100%;
+  background: var(--color-accent);
+  content: '';
+  animation: ask-sweep 1.1s var(--motion-ease) infinite;
+}
+
+@keyframes ask-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(340%);
+  }
+}
+
 .examples {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
   margin: 0;
   padding: 0;
@@ -680,6 +1015,10 @@ a:hover {
   max-width: 100%;
   padding-top: var(--space-1);
   padding-bottom: var(--space-1);
+  border-color: var(--color-border);
+  background: var(--color-page);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
   line-height: 1.4;
   text-align: left;
   white-space: normal;
@@ -691,7 +1030,7 @@ a:hover {
   align-items: center;
   gap: var(--space-2);
   color: var(--color-text-muted);
-  font-size: var(--font-size-14);
+  font-size: var(--font-size-13);
 }
 
 .results-status {
@@ -707,10 +1046,14 @@ a:hover {
   margin-top: var(--space-2);
 }
 
+.results-status__count {
+  font-variant-numeric: tabular-nums;
+}
+
 .clip-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -719,8 +1062,9 @@ a:hover {
 .clip-card,
 .saved-row {
   display: flex;
+  align-items: flex-start;
   gap: var(--space-4);
-  padding: var(--space-4);
+  padding: var(--space-3);
 }
 
 .clip-card__body,
@@ -734,34 +1078,46 @@ a:hover {
 
 .clip-card__time {
   color: var(--color-text-muted);
+  font-family: var(--font-mono);
   font-size: var(--font-size-12);
   font-variant-numeric: tabular-nums;
 }
 
 .clip-card__label {
   overflow: hidden;
-  font-size: var(--font-size-14);
+  font-size: var(--font-size-16);
   font-weight: var(--font-weight-semibold);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The match reason in plain words: at most two lines. */
+.clip-card__reason {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: var(--font-size-13);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .clip-card__actions {
   margin-top: auto;
 }
 
+/* A poster frame: a real still when there is one, otherwise a neutral dark tile that says so. */
 .thumb {
+  position: relative;
   display: flex;
   flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 160px;
+  align-items: flex-end;
+  width: var(--poster-width);
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
-  background: var(--color-hover-fill);
-  color: var(--color-field-border);
+  background: var(--color-player-bg);
+  color: var(--color-on-player-muted);
 }
 
 .thumb img {
@@ -770,12 +1126,117 @@ a:hover {
   object-fit: cover;
 }
 
-/* ---------- Clip detail ---------- */
+.thumb__empty {
+  padding: var(--space-2);
+  font-size: var(--font-size-12);
+}
 
-.detail-grid {
+.thumb__duration {
+  position: absolute;
+  right: var(--space-1);
+  bottom: var(--space-1);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-control);
+  background: var(--color-player-bg);
+  color: var(--color-on-player);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-12);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The compact evidence block under a result: quiet, so the reason above it stays the lead. */
+.proof {
+  margin: 0;
+  padding: var(--space-2) 0 0;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--font-size-12);
+}
+
+.proof__title {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.proof__range {
+  margin: var(--space-1) 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.proof__measures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Clip detail: the review workspace ---------- */
+
+.workspace__head {
+  margin-bottom: var(--space-4);
+}
+
+.workspace__meta {
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-13);
+  font-variant-numeric: tabular-nums;
+}
+
+.workspace__grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+}
+
+/* Save clip, the one primary action of the screen, spans the rail. */
+.rail > .btn {
+  width: 100%;
+}
+
+.workspace__main,
+.rail {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-4);
+  min-width: 0;
+}
+
+/* Wide screens: the player left, the evidence rail right. */
+@media (min-width: 961px) {
+  .workspace__grid {
+    grid-template-columns: minmax(0, 1fr) var(--rail-width);
+    align-items: start;
+  }
+
+  .rail {
+    position: sticky;
+    top: calc(var(--topbar-height) + var(--space-4));
+  }
+}
+
+/* The stage: a dark letterbox for the picture, the scrubber and the key hints. */
+.stage {
+  overflow: hidden;
+  border: 1px solid var(--color-player-track);
+  border-radius: var(--radius-card);
+  background: var(--color-player-bg);
+  color: var(--color-on-player);
+  box-shadow: var(--elevation-1);
+}
+
+.stage:focus-visible,
+.stage :focus-visible {
+  outline-color: var(--color-on-player);
 }
 
 .player {
@@ -783,9 +1244,7 @@ a:hover {
   width: 100%;
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  background: var(--color-hover-fill);
+  background: var(--color-player-bg);
 }
 
 .player video {
@@ -793,7 +1252,12 @@ a:hover {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: var(--color-text);
+  background: var(--color-player-bg);
+}
+
+/* Our own controls (the scrubber below) replace the browser's bar where the browser lets us hide it. */
+.player video::-webkit-media-controls {
+  display: none !important;
 }
 
 /* The wrapper goes full screen (not the video), so the boxes stay on the picture. */
@@ -810,17 +1274,17 @@ a:hover {
   top: var(--space-2);
   right: var(--space-2);
   padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--color-on-navy);
+  border: 1px solid var(--color-player-track);
   border-radius: var(--radius-control);
-  background: var(--color-navy);
-  color: var(--color-on-navy);
+  background: var(--color-player-bg);
+  color: var(--color-on-player);
   font: inherit;
   font-size: var(--font-size-12);
   cursor: pointer;
 }
 
 .player__fullscreen:hover {
-  background: var(--color-navy-border);
+  background: var(--color-player-track);
 }
 
 /* Boxes over the picture: they never take the pointer, so the video controls underneath keep working. */
@@ -851,14 +1315,168 @@ a:hover {
   justify-content: center;
   gap: var(--space-1);
   height: 100%;
-  padding: var(--space-4);
-  color: var(--color-text-muted);
+  padding: var(--space-5);
+  color: var(--color-on-player-muted);
   text-align: left;
 }
 
 .player__placeholder strong {
-  color: var(--color-text);
+  color: var(--color-on-player);
   font-weight: var(--font-weight-semibold);
+}
+
+/* The scrubber: current time, a track with the matched interval and event markers, and the length. */
+.scrubber {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-3);
+  border-top: 1px solid var(--color-player-track);
+}
+
+.scrubber__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.scrubber__play {
+  flex: none;
+  width: var(--control-height-small);
+  height: var(--control-height-small);
+  border: 1px solid var(--color-player-track);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-on-player);
+}
+
+.scrubber__play:hover {
+  background: var(--color-player-track);
+}
+
+.scrubber__time {
+  flex: none;
+  color: var(--color-on-player);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-13);
+  font-variant-numeric: tabular-nums;
+}
+
+.scrubber__time--total {
+  color: var(--color-on-player-muted);
+}
+
+.scrubber__track {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: var(--space-6);
+}
+
+.scrubber__rail,
+.scrubber__match {
+  position: absolute;
+  top: 50%;
+  height: var(--space-2);
+  border-radius: var(--radius-control);
+  transform: translateY(-50%);
+}
+
+.scrubber__rail {
+  right: 0;
+  left: 0;
+  background: var(--color-player-track);
+}
+
+/* The matched interval, in the accent. */
+.scrubber__match {
+  min-width: var(--space-1);
+  background: var(--color-player-accent);
+}
+
+.scrubber__marker {
+  position: absolute;
+  top: calc(50% - var(--space-3));
+  width: 2px;
+  height: var(--space-6);
+  margin-left: -1px;
+  background: var(--color-on-player-muted);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* The slider sits on top of the rail: its track is invisible, its thumb is the playhead. */
+.scrubber__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+}
+
+.scrubber__input::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+
+.scrubber__input::-moz-range-track {
+  height: 100%;
+  background: transparent;
+}
+
+.scrubber__input::-webkit-slider-thumb {
+  width: var(--space-1);
+  height: var(--space-6);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--color-on-player);
+  appearance: none;
+}
+
+.scrubber__input::-moz-range-thumb {
+  width: var(--space-1);
+  height: var(--space-6);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--color-on-player);
+}
+
+.scrubber__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  color: var(--color-on-player-muted);
+  font-size: var(--font-size-12);
+}
+
+.scrubber__legend .mono {
+  color: var(--color-on-player);
+}
+
+.shortcut-hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  border-top: 1px solid var(--color-player-track);
+  color: var(--color-on-player-muted);
+  font-size: var(--font-size-12);
+  list-style: none;
+}
+
+.shortcut-hint kbd {
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-player-track);
+  border-radius: var(--radius-control);
+  color: var(--color-on-player);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-12);
 }
 
 .timeline {
@@ -869,7 +1487,8 @@ a:hover {
   position: relative;
   height: var(--space-2);
   margin: var(--space-3) 0 var(--space-2);
-  background: var(--color-hover-fill);
+  border-radius: var(--radius-control);
+  background: var(--color-active-fill);
 }
 
 .timeline__segment {
@@ -891,6 +1510,7 @@ a:hover {
   position: relative;
   height: var(--space-5);
   color: var(--color-text-muted);
+  font-family: var(--font-mono);
   font-size: var(--font-size-12);
   font-variant-numeric: tabular-nums;
 }
@@ -908,17 +1528,84 @@ a:hover {
   transform: translateX(-100%);
 }
 
+/* The evidence rail. */
 .why {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
+.why__reason {
+  font-size: var(--font-size-14);
+}
+
+.facts-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--font-size-13);
+}
+
+.facts-grid dt {
+  color: var(--color-text-muted);
+}
+
+.facts-grid dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-medium);
+}
+
+.facts-grid__pair {
+  display: contents;
+}
+
+.other-matches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.other-match {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.other-match .thumb {
+  width: 96px;
+}
+
+.other-match__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--font-size-13);
+}
+
+.other-match__label {
+  font-weight: var(--font-weight-medium);
+}
+
+.other-match:hover .other-match__label {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
 .facts {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  font-size: var(--font-size-14);
+  font-size: var(--font-size-13);
 }
 
 .facts__row {
@@ -935,7 +1622,7 @@ a:hover {
 .keyframes {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -944,24 +1631,46 @@ a:hover {
 .keyframe {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-1);
   padding: var(--space-1);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-control);
   background: var(--color-page);
+  font-family: var(--font-mono);
   font-size: var(--font-size-12);
   font-variant-numeric: tabular-nums;
 }
 
 .keyframe .thumb {
   width: 128px;
-  height: 72px;
+}
+
+.keyframe--plain {
+  padding: var(--space-1) var(--space-3);
 }
 
 .keyframe[aria-pressed='true'] {
   border-color: var(--color-accent);
   color: var(--color-accent);
+}
+
+.snapshot {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.snapshot__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-control);
+  background: var(--color-player-bg);
+}
+
+.snapshot figcaption {
+  font-size: var(--font-size-12);
 }
 
 /* ---------- Zones ---------- */
@@ -977,9 +1686,8 @@ a:hover {
   width: 100%;
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
-  background: var(--color-hover-fill);
+  background: var(--color-player-bg);
   user-select: none;
 }
 
@@ -987,12 +1695,38 @@ a:hover {
   cursor: crosshair;
 }
 
+.frame__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.frame__empty {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  max-width: 44ch;
+  color: var(--color-on-player-muted);
+  font-size: var(--font-size-13);
+}
+
 .frame__caption {
   position: absolute;
   right: var(--space-3);
   bottom: var(--space-2);
-  color: var(--color-text-muted);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--color-player-bg);
+  color: var(--color-on-player-muted);
   font-size: var(--font-size-12);
+}
+
+/* The box that holds exactly the still, so zones are drawn on the picture and not on its letterbox. */
+.frame__picture {
+  position: absolute;
 }
 
 .frame__overlay {
@@ -1003,14 +1737,14 @@ a:hover {
 }
 
 .frame__zone {
-  fill: color-mix(in srgb, var(--color-accent) 10%, transparent);
-  stroke: var(--color-accent);
+  fill: color-mix(in srgb, var(--color-player-accent) 18%, transparent);
+  stroke: var(--color-player-accent);
   stroke-width: 2px;
 }
 
 .frame__draft {
-  fill: color-mix(in srgb, var(--color-accent) 6%, transparent);
-  stroke: var(--color-accent);
+  fill: color-mix(in srgb, var(--color-player-accent) 12%, transparent);
+  stroke: var(--color-player-accent);
   stroke-width: 2px;
   stroke-dasharray: 8 4;
 }
@@ -1022,10 +1756,10 @@ a:hover {
 .frame__label {
   position: absolute;
   padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--color-accent);
+  border: 1px solid var(--color-player-accent);
   border-radius: var(--radius-control);
-  background: var(--color-page);
-  color: var(--color-accent);
+  background: var(--color-player-bg);
+  color: var(--color-player-accent);
   font-size: var(--font-size-12);
   font-weight: var(--font-weight-regular);
   white-space: nowrap;
@@ -1037,9 +1771,9 @@ a:hover {
   position: absolute;
   width: var(--space-3);
   height: var(--space-3);
-  border: 2px solid var(--color-page);
+  border: 2px solid var(--color-player-bg);
   border-radius: 50%;
-  background: var(--color-accent);
+  background: var(--color-player-accent);
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
@@ -1048,7 +1782,7 @@ a:hover {
   position: absolute;
   width: var(--space-4);
   height: var(--space-4);
-  border: 2px solid var(--color-accent);
+  border: 2px solid var(--color-player-accent);
   border-radius: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
@@ -1119,6 +1853,14 @@ a:hover {
   min-width: 0;
 }
 
+/* Zones: the camera view with the zone list beside it on wide screens. */
+@media (min-width: 961px) {
+  .zones-grid {
+    grid-template-columns: minmax(0, 1fr) var(--rail-width);
+    align-items: start;
+  }
+}
+
 /* ---------- Narrow screens ---------- */
 
 @media (max-width: 640px) {
@@ -1140,6 +1882,10 @@ a:hover {
     flex-direction: column;
   }
 
+  .thumb {
+    width: 100%;
+  }
+
   .page-head__actions {
     align-items: flex-start;
   }
@@ -1147,49 +1893,10 @@ a:hover {
   .upload-status {
     text-align: left;
   }
-}
 
-.proof {
-  margin: var(--space-2) 0 0;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: var(--color-page);
-  color: var(--color-text);
-}
-
-.proof__title {
-  margin: 0;
-  font-size: var(--font-size-14);
-  font-weight: var(--font-weight-semibold);
-}
-
-.proof__range {
-  margin: var(--space-1) 0 0;
-  color: var(--color-text-muted);
-}
-
-.proof__measures {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  margin: var(--space-1) 0 0;
-  padding: 0;
-  list-style: none;
-  color: var(--color-text-muted);
-}
-
-.snapshot {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-}
-
-.snapshot__image {
-  display: block;
-  width: 100%;
-  height: auto;
-  border-radius: var(--radius-card);
+  .scrubber {
+    padding: var(--space-3);
+  }
 }
 
 /* ---------- Cameras page ---------- */
@@ -1210,7 +1917,7 @@ a:hover {
   background: transparent;
   color: var(--color-text-muted);
   font-size: var(--font-size-14);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
 }
 
 .tabs__tab[aria-selected='true'] {
@@ -1218,18 +1925,24 @@ a:hover {
   color: var(--color-text);
 }
 
+/* The registry counts: one quiet line of numbers above the table, not four equal cards. */
 .cam-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(152px, 1fr));
-  gap: var(--space-3);
-  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0 0 var(--space-3);
+  padding: 0;
 }
 
 .cam-card {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  flex-direction: row-reverse;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: var(--space-2);
   margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-13);
 }
 
 .cam-card dd {
@@ -1237,9 +1950,11 @@ a:hover {
 }
 
 .cam-card__value {
-  font-size: var(--font-size-24);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-16);
+  font-variant-numeric: tabular-nums;
   font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-tight);
 }
 
 .table--cameras {
@@ -1250,7 +1965,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .cam-status__badge {
@@ -1266,10 +1981,13 @@ a:hover {
   border-radius: 50%;
 }
 
+.status--ready .status__dot,
 .cam-dot--online {
   background: var(--color-status-online);
 }
 
+.status[data-status='indexing'] .status__dot,
+.status[data-status='preparing'] .status__dot,
 .cam-dot--standby {
   background: var(--color-status-standby);
 }
@@ -1282,6 +2000,7 @@ a:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-2);
 }
 
@@ -1294,7 +2013,8 @@ a:hover {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background: var(--color-page);
-  font-size: var(--font-size-14);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-13);
   overflow-wrap: anywhere;
 }
 
@@ -1328,6 +2048,7 @@ a:hover {
   width: 100%;
   max-width: 440px;
   padding: var(--space-5);
+  box-shadow: var(--elevation-2);
 }
 
 .modal__actions {
@@ -1358,7 +2079,21 @@ a:hover {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   background: var(--color-page);
+  box-shadow: var(--elevation-2);
   pointer-events: auto;
+  animation: toast-in var(--motion-fast) var(--motion-ease);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .toast--error {
@@ -1399,7 +2134,7 @@ a:hover {
 }
 
 .welcome h2 {
-  font-size: var(--font-size-24);
+  font-size: var(--font-size-20);
 }
 
 .welcome h3 {
@@ -1529,7 +2264,7 @@ a:hover {
 
 .welcome-hero__title {
   color: var(--color-on-navy);
-  font-size: var(--font-size-32);
+  font-size: var(--font-size-28);
   text-wrap: balance;
 }
 
@@ -1912,6 +2647,7 @@ a:hover {
   }
 }
 
+
 /* ---------- Interaction states (defined once) ---------- */
 
 /* Anything clickable: pointer, and a short colour change. Hover and press are fills, never shadows. */
@@ -1920,12 +2656,14 @@ a:hover {
 .nav-item,
 .day-btn,
 .keyframe,
+.scrubber__play,
+.player__fullscreen,
 .tabs__tab {
   cursor: pointer;
   transition:
-    background-color var(--motion-fast) ease,
-    border-color var(--motion-fast) ease,
-    color var(--motion-fast) ease;
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 /* Hover */
@@ -1956,6 +2694,15 @@ a:hover {
 }
 
 .tabs__tab:hover {
+  color: var(--color-text);
+}
+
+.nav-item:hover {
+  color: var(--color-text);
+}
+
+.btn--ghost:hover,
+.btn--ghost:active {
   color: var(--color-text);
 }
 
@@ -2005,8 +2752,8 @@ a:hover {
 .welcome-ask {
   cursor: pointer;
   transition:
-    background-color var(--motion-fast) ease,
-    border-color var(--motion-fast) ease;
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
 }
 
 .welcome-ask:hover {
@@ -2081,4 +2828,237 @@ a:hover {
 
 .needs-indexing__action {
   margin: 0;
+}
+
+/* ---------- Sign-in (/sign-in) ----------
+   A quiet two-panel page: the brand panel (warm off-white) on the left third, the form on the right two thirds.
+   It is a page, not a gate: AskFootage has no authentication. */
+
+.signin {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.signin__brand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-7) var(--space-6);
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface-warm);
+}
+
+.signin__wordmark {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-heading);
+  font-size: var(--font-size-20);
+  font-weight: var(--font-weight-semibold);
+}
+
+.signin__plan {
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  margin-block: auto;
+}
+
+.signin__pitch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.signin__headline {
+  color: var(--color-heading);
+  font-size: var(--font-size-28);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.signin__headline span {
+  display: block;
+}
+
+.signin__tagline {
+  max-width: 36ch;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-14);
+}
+
+.signin__side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--color-page);
+}
+
+.signin__main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-7) var(--gutter);
+}
+
+.signin__main:focus {
+  outline: none;
+}
+
+.signin__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 400px;
+}
+
+.signin__lead {
+  margin-bottom: var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.signin__method,
+.signin__demo {
+  width: 100%;
+  min-height: var(--space-8);
+}
+
+.signin__method {
+  justify-content: flex-start;
+}
+
+/* Not available in this build: visibly muted, still reachable by keyboard, explained by the note below. */
+.signin__method[aria-disabled='true'] {
+  background: var(--color-canvas);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.signin__divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-13);
+}
+
+.signin__divider::before,
+.signin__divider::after {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+  content: '';
+}
+
+.signin__note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-13);
+}
+
+.signin__access {
+  margin-top: var(--space-5);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-13);
+}
+
+.signin__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+}
+
+.signin__footer a {
+  color: var(--color-text-muted);
+}
+
+.signin__footer a:hover {
+  color: var(--color-accent);
+}
+
+/* Tablet: the brand panel becomes a slim band with the wordmark; the plan and the pitch step aside. */
+@media (max-width: 1024px) {
+  .signin {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+
+  .signin__brand {
+    padding: var(--space-4) var(--space-5);
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .signin__plan,
+  .signin__pitch {
+    display: none;
+  }
+}
+
+/* Phone: the form comes first on the page, 16px gutter, nothing wider than the screen. */
+@media (max-width: 640px) {
+  .signin__brand {
+    padding: var(--space-3) var(--gutter);
+  }
+
+  .signin__main {
+    padding: var(--space-6) var(--gutter);
+  }
+
+  .signin__footer {
+    justify-content: flex-start;
+    padding: var(--space-4) var(--gutter);
+  }
+}
+
+/* ---------- Long lists and the permanent disclosure ---------- */
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-13);
+}
+
+.pager__range,
+.pager__page {
+  font-variant-numeric: tabular-nums;
+}
+
+.disclosure {
+  margin: 0;
+  padding: var(--space-4) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+}
+
+.signin__disclosure {
+  padding: 0 var(--space-5) var(--space-4);
+}
+
+.signin__disclosure .disclosure {
+  padding: 0;
+  text-align: right;
+}
+
+.welcome-footer .disclosure {
+  padding-bottom: var(--space-4);
+}
+
+.app-footer {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-page);
 }

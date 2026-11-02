@@ -1,6 +1,6 @@
 import type { ClipProof, ProofRelation } from '../../api/generated/types';
 
-const RELATION_LABELS: Record<ProofRelation, string> = {
+export const RELATION_LABELS: Record<ProofRelation, string> = {
   carrying: 'Carrying',
   in_zone: 'In zone',
   dwell: 'Waiting (dwell)',
@@ -14,18 +14,18 @@ const MEASURE_LABELS: Record<string, string> = {
 };
 
 /** "frames_together" -> "Frames together" for names the UI does not know. */
-function measureLabel(name: string): string {
+export function measureLabel(name: string): string {
   const known = MEASURE_LABELS[name];
   if (known) return known;
   const spaced = name.replace(/_/g, ' ');
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-function formatValue(value: number): string {
+export function formatValue(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
-function formatSeconds(seconds: number): string {
+export function formatSeconds(seconds: number): string {
   return `${Math.round(seconds * 10) / 10} s`;
 }
 

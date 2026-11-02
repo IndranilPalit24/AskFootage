@@ -51,6 +51,24 @@ export function pointsLabel(count: number): string {
   return count === 1 ? '1 point' : `${count} points`;
 }
 
+/** The zone frame is 16:9 (CSS aspect-ratio), and a still is drawn inside it with object-fit: contain. */
+export const FRAME_ASPECT = 16 / 9;
+
+/**
+ * Where a still of the given width/height ratio sits inside the 16:9 frame, as fractions of the frame: the
+ * same "as large as fits, centred" rule as containRect in the player, so zones stay on the picture whatever
+ * its shape. No aspect (no picture yet) means the whole frame.
+ */
+export function pictureBox(aspect: number | null): { left: number; top: number; width: number; height: number } {
+  if (aspect === null || !Number.isFinite(aspect) || aspect <= 0) return { left: 0, top: 0, width: 1, height: 1 };
+  if (aspect >= FRAME_ASPECT) {
+    const height = FRAME_ASPECT / aspect;
+    return { left: 0, top: (1 - height) / 2, width: 1, height };
+  }
+  const width = aspect / FRAME_ASPECT;
+  return { left: (1 - width) / 2, top: 0, width, height: 1 };
+}
+
 export function percent(fraction: number): string {
   return `${(fraction * 100).toFixed(2)}%`;
 }

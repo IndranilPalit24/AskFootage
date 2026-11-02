@@ -3,19 +3,20 @@ import type { SavedClip } from '../api/generated/types';
 import { useApiClient } from '../app/ApiContext';
 import { useAppData } from '../app/AppDataContext';
 import { useSavedClipActions } from '../app/SavedClipsContext';
+import { Link } from 'react-router-dom';
+import { EmptyState } from '../components/EmptyState';
+import { ClipListSkeleton } from '../components/Skeletons';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { SavedClipRow } from '../features/saved/SavedClipRow';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { formatShortDay } from '../lib/dates';
 
 const ALL_DAYS = '';
 
-const loading = (
-  <p className="muted" role="status">
-    Loading saved clips…
-  </p>
-);
+const loading = <ClipListSkeleton label="Loading saved clips…" />;
 
 export function SavedClipsScreen() {
+  usePageTitle('Saved clips');
   const client = useApiClient();
   const { days } = useAppData();
   const { unsave } = useSavedClipActions();
@@ -50,24 +51,34 @@ export function SavedClipsScreen() {
   let body;
   if (saved.error && !saved.data) {
     body = (
-      <div role="alert">
-        <p className="error-text">{saved.error.message}</p>
-        <p className="results-status__action">
+      <EmptyState
+        tone="error"
+        title="Saved clips could not be loaded"
+        action={
           <button type="button" className="btn" onClick={saved.reload}>
             Try again
           </button>
-        </p>
-      </div>
+        }
+      >
+        <span className="error-text">{saved.error.message}</span>
+      </EmptyState>
     );
   } else if (!saved.data) {
     body = loading;
   } else if (saved.data.length === 0) {
     body = (
-      <p className="muted">
+      <EmptyState
+        title={dayFilter ? 'Nothing saved for this day' : 'Your saved clips appear here'}
+        action={
+          <Link to="/" className="btn btn--primary">
+            Find footage
+          </Link>
+        }
+      >
         {dayFilter
           ? `No saved clips from ${formatShortDay(dayFilter)}.`
           : 'No saved clips yet. Use Save clip on any result to keep it here.'}
-      </p>
+      </EmptyState>
     );
   } else {
     body = (
@@ -80,7 +91,7 @@ export function SavedClipsScreen() {
   }
 
   return (
-    <>
+    <div className="screen--wide">
       <div className="page-head">
         <div>
           <h1 ref={headingRef} tabIndex={-1}>
@@ -111,6 +122,6 @@ export function SavedClipsScreen() {
         {announcement}
       </p>
       {body}
-    </>
+    </div>
   );
 }

@@ -1,19 +1,25 @@
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import type { Clip, ClipProof } from '../../api/generated/types';
-import { ClipThumb } from '../../components/ClipThumb';
+import { useApiClient } from '../../app/ApiContext';
+import { ClipThumb, clipPosterPath } from '../../components/ClipThumb';
 import { SaveClipButton } from '../../components/SaveClipButton';
-import { formatClipRange } from '../../lib/time';
+import { clipDuration, formatClipRange, formatDuration } from '../../lib/time';
 import { EvidenceChips } from '../evidence/EvidenceChips';
 import { ProofPanel } from '../evidence/ProofPanel';
 
-/** One result: the still, the time range and camera, the label, the evidence, and Open / Save clip. */
+/**
+ * One result, a dense row: the poster frame with its length, the time range and camera, the label, the match
+ * reason in plain words, the evidence, and Open / Save clip.
+ */
 export const ClipCard = memo(function ClipCard({ clip, cameraName, proof }: { clip: Clip; cameraName: string; proof?: ClipProof }) {
+  const client = useApiClient();
   const labelId = `clip-label-${clip.id}`;
+  const posterPath = clipPosterPath(clip);
   return (
     <li>
       <article className="card clip-card" aria-labelledby={labelId}>
-        <ClipThumb url={clip.thumbnailUrl} />
+        <ClipThumb url={posterPath === null ? null : client.assetUrl(posterPath)} duration={formatDuration(clipDuration(clip))} />
         <div className="clip-card__body">
           <p className="clip-card__time">
             {formatClipRange(clip)}
@@ -23,6 +29,7 @@ export const ClipCard = memo(function ClipCard({ clip, cameraName, proof }: { cl
           <h2 className="clip-card__label" id={labelId} title={clip.label}>
             {clip.label}
           </h2>
+          <p className="clip-card__reason">{clip.whyMatched}</p>
           <EvidenceChips evidence={clip.evidence} />
           {proof ? <ProofPanel proof={proof} /> : null}
           <div className="btn-row clip-card__actions">

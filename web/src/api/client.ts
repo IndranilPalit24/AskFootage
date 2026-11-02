@@ -22,6 +22,7 @@ import type {
   ZoneUpdate,
 } from './generated/types';
 import { MockApiClient } from './mockClient';
+import { resolveApiChoice, type ApiChoice } from './mode';
 
 export interface DeleteCameraOptions {
   deleteRecordings?: boolean;
@@ -237,11 +238,11 @@ export class FetchApiClient implements ApiClient {
 }
 
 /**
- * The real client when VITE_API_URL is set at build time (for example http://localhost:8000),
- * otherwise the in-memory demo client.
+ * The client for an explicit choice (see mode.ts): the real one for VITE_API_URL, the in-memory demo one
+ * only for VITE_API_MODE=mock. An unconfigured choice throws: there is no silent fallback to fake data.
  */
-export function createApiClient(): ApiClient {
-  const baseUrl = import.meta.env.VITE_API_URL;
-  if (baseUrl) return new FetchApiClient(baseUrl);
-  return new MockApiClient({ latencyMs: 250 });
+export function createApiClient(choice: ApiChoice = resolveApiChoice(import.meta.env)): ApiClient {
+  if (choice.kind === 'api') return new FetchApiClient(choice.baseUrl);
+  if (choice.kind === 'mock') return new MockApiClient({ latencyMs: 250, withFootagelessRecordings: true });
+  throw new Error(choice.reason);
 }

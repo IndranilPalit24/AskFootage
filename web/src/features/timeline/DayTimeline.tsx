@@ -30,7 +30,9 @@ interface DayTimelineProps {
 export function DayTimeline({ recordings, matchStart, matchEnd, label }: DayTimelineProps) {
   return (
     <section className="card timeline" aria-labelledby="timeline-heading">
-      <h2 id="timeline-heading">Day timeline</h2>
+      <h2 id="timeline-heading" className="label">
+        Day timeline
+      </h2>
       <div className="timeline__bar" role="img" aria-label={label}>
         {/* One pass: recordings not measured yet (length 0) have no segment. */}
         {recordings.flatMap((recording) =>

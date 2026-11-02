@@ -6,6 +6,7 @@ import { ClipDetailScreen } from '../screens/ClipDetailScreen';
 import { FindFootageScreen } from '../screens/FindFootageScreen';
 import { NotFoundScreen } from '../screens/NotFoundScreen';
 import { RecordingPlayerScreen } from '../screens/RecordingPlayerScreen';
+import { SignInScreen } from '../features/signin/SignInScreen';
 import { SavedClipsScreen } from '../screens/SavedClipsScreen';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { ZonesScreen } from '../screens/ZonesScreen';
@@ -18,7 +19,7 @@ import { SelectedDayProvider } from './SelectedDayContext';
 import { ToastProvider } from './ToastContext';
 
 /** The whole app for one API client. The router comes from outside (BrowserRouter, or MemoryRouter in tests). */
-export function App({ client }: { client: ApiClient }) {
+export function App({ client, mock = false }: { client: ApiClient; mock?: boolean }) {
   return (
     <ApiClientProvider client={client}>
       <ToastProvider>
@@ -29,7 +30,9 @@ export function App({ client }: { client: ApiClient }) {
                 <Routes>
                   {/* The welcome page has its own top bar and width, so it sits outside the app shell. */}
                   <Route path="welcome" element={<WelcomeScreen />} />
-                  <Route element={<AppShell />}>
+                  {/* Sign-in is a page, not a gate: no route redirects to it. */}
+                  <Route path="sign-in" element={<SignInScreen />} />
+                  <Route element={<AppShell mock={mock} />}>
                     <Route index element={<FindFootageScreen />} />
                     <Route path="cameras" element={<CamerasScreen />} />
                     <Route path="cameras/:id/recordings" element={<CameraRecordingsScreen />} />

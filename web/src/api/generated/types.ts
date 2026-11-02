@@ -78,6 +78,13 @@ export interface Recording {
   startTime: TimeOfDay;
   lengthSeconds: number;
   status: RecordingStatus;
+  /** A poster frame from the middle of the recording (GET /api/recordings/{id}/poster); null when no footage is attached. */
+  posterUrl: string | null;
+  /**
+   * False when the recording is listed and counted but has no video behind it: its video, poster and snapshot
+   * routes answer 404 footage_not_included, its posterUrl is null and it is never a search match.
+   */
+  hasFootage: boolean;
 }
 
 export interface RecordingAccepted {
@@ -118,6 +125,8 @@ export interface Clip {
   thumbnailUrl: string | null;
   /** A JPEG of the frame where the match began, with the boxes drawn on it; null when there is none. */
   snapshotUrl: string | null;
+  /** A real still of the footage near the start of the match (GET /api/recordings/{id}/poster?t=); null when there is none. */
+  posterUrl: string | null;
 }
 
 export interface SearchRequest {

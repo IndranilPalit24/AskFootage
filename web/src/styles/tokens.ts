@@ -3,27 +3,35 @@
 // Three layers: primitives (the raw hex values below), semantic tokens (color.text, color.accent, ...)
 // that the stylesheet reads, and component rules in global.css that only ever use the semantic ones.
 // Light is the default; darkColor overrides the same semantic names when the OS asks for dark.
-// Style: Minimalism & Swiss: one accent, neutral greys, hairlines, no shadows or gradients, a strict 4px
-// spacing scale. The welcome page adds the trust navy and a light grey.
+// Style: a calm, precise review tool: one accent, neutral cool greys, hairlines, an elevation scale of
+// three steps (0 none, 1 hairline lift, 2 raised), no gradients or glow, a strict 4px spacing scale.
+// The app canvas is the light grey (surface) with white cards on it; the player sits on a dark letterbox.
 
 export const tokens = {
   font: {
-    /** Inter 400/600 from Google Fonts (index.html), then the system UI font. */
+    /** Inter 400/500/600, bundled with the app (@fontsource/inter, imported in main.tsx), then the system UI font. */
     family: 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    /** Ids, camera numbers and timestamps. Always paired with tabular numerals. */
+    mono: 'ui-monospace, SFMono-Regular, "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace',
     baseSize: '14px',
     lineHeight: '1.5',
     lineHeightTight: '1.25',
     /**
-     * Five sizes: caption, body, section heading, page title, and the welcome page's one headline (32).
-     * Hierarchy comes from size and weight only.
+     * Six sizes: 12 caption and section label, 13 dense table and card text, 14 body, 16 section heading,
+     * 20 page title, 28 the one focal headline (Find Footage start, welcome page). Hierarchy comes from
+     * size and weight only.
      */
-    size: { 12: '12px', 14: '14px', 16: '16px', 24: '24px', 32: '32px' },
-    /** Two weights. */
-    weight: { regular: '400', semibold: '600' },
+    size: { 12: '12px', 13: '13px', 14: '14px', 16: '16px', 20: '20px', 28: '28px' },
+    /** Three weights: text, labels and buttons, titles. */
+    weight: { regular: '400', medium: '500', semibold: '600' },
   },
   color: {
     text: '#16181C',
     page: '#FFFFFF',
+    /** The app canvas behind the cards (the cards and bars are the page colour); same grey as surface in light. */
+    canvas: '#F6F7F9',
+    /** The sign-in page's brand panel: a warm off-white; muted text on it is 5.6:1. */
+    surfaceWarm: '#F7F5F1',
     textMuted: '#5B6170',
     /** The one hairline colour: cards, tables, dividers, buttons, the drawer and the top bar. */
     border: '#E3E5E9',
@@ -64,6 +72,15 @@ export const tokens = {
     surface: '#F6F7F9',
     /** Outline of a matched object on an evidence frame, and its label fill (white label text 4.8:1). */
     evidenceBox: '#DC2626',
+    /** The player letterbox and the scrubber panel: the same near-black in light and dark. */
+    playerBg: '#0B0F17',
+    /** Text on the player letterbox (15.8:1) and the quieter readout text (8.3:1). */
+    onPlayer: '#E6E9EF',
+    onPlayerMuted: '#A3ABBC',
+    /** The accent on the letterbox: the dark-mode accent blue, 8.4:1 there (the light accent is under 3:1 on it). */
+    playerAccent: '#8CAAF8',
+    /** Scrubber track on the letterbox, and the hairline of the player panel. */
+    playerTrack: '#2A3448',
   },
   size: {
     topbarHeight: '56px',
@@ -79,6 +96,13 @@ export const tokens = {
     textMeasure: '640px',
     /** Side gutter of the content on small screens. */
     gutter: '16px',
+    /** Clip detail and tables: the wider workspace column, and the evidence rail beside the player. */
+    wideMaxWidth: '1120px',
+    workspaceMaxWidth: '1280px',
+    railWidth: '360px',
+    /** A result card's poster frame (16:9) and the small poster in a table row. */
+    posterWidth: '192px',
+    rowPosterWidth: '64px',
     controlHeight: '40px',
     controlHeightSmall: '36px',
     iconButton: '44px',
@@ -108,7 +132,14 @@ export const tokens = {
     statusPadding: '4px 8px',
   },
   focusRing: { width: '2px', offset: '2px' },
-  motion: { fast: '150ms' },
+  /** Elevation: 0 flat (hairline only), 1 a card on the canvas, 2 a popover, dialog or toast. */
+  elevation: {
+    0: 'none',
+    1: '0 1px 2px rgba(15, 31, 61, 0.08)',
+    2: '0 4px 12px rgba(15, 31, 61, 0.14)',
+  },
+  /** 150ms ease-out on hover and focus (the 120 to 180 ms band); switched off for reduced motion. */
+  motion: { fast: '150ms', ease: 'cubic-bezier(0.2, 0, 0, 1)' },
   /** Interaction states are defined once in global.css from these. */
   state: { disabledOpacity: '0.5' },
 } as const;
@@ -121,6 +152,8 @@ export const tokens = {
 export const darkColor = {
   text: '#E6E9EF',
   page: '#0B1322',
+  canvas: '#070C17',
+  surfaceWarm: '#0E1626',
   textMuted: '#A3ABBC',
   border: '#27334B',
   hoverFill: '#16223A',
@@ -145,19 +178,23 @@ function kebab(name: string): string {
 
 /** Every token as a CSS custom property name and value, e.g. --color-accent: #1D4ED8. */
 export function cssVariables(): Record<string, string> {
-  const { font, color, size, radius, space, layout, focusRing, motion, state } = tokens;
+  const { font, color, size, radius, space, layout, focusRing, motion, state, elevation } = tokens;
   const vars: Record<string, string> = {
     '--font-family': font.family,
+    '--font-mono': font.mono,
     '--font-size-base': font.baseSize,
     '--line-height': font.lineHeight,
     '--line-height-tight': font.lineHeightTight,
     '--font-weight-regular': font.weight.regular,
+    '--font-weight-medium': font.weight.medium,
     '--font-weight-semibold': font.weight.semibold,
     '--focus-ring-width': focusRing.width,
     '--focus-ring-offset': focusRing.offset,
     '--motion-fast': motion.fast,
+    '--motion-ease': motion.ease,
     '--opacity-disabled': state.disabledOpacity,
   };
+  for (const [step, value] of Object.entries(elevation)) vars[`--elevation-${step}`] = value;
   for (const [step, value] of Object.entries(font.size)) vars[`--font-size-${step}`] = value;
   for (const [name, value] of Object.entries(color)) vars[`--color-${kebab(name)}`] = value;
   for (const [name, value] of Object.entries(size)) vars[`--${kebab(name)}`] = value;

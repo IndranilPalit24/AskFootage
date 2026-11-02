@@ -5,13 +5,13 @@ import { useApiClient } from './ApiContext';
 
 export type SearchState =
   | { phase: 'idle' }
-  | { phase: 'loading'; question: string; day: string }
-  | { phase: 'done'; question: string; day: string; response: SearchResponse }
-  | { phase: 'error'; question: string; day: string; error: string };
+  | { phase: 'loading'; question: string; day: string; camera: string }
+  | { phase: 'done'; question: string; day: string; camera: string; response: SearchResponse }
+  | { phase: 'error'; question: string; day: string; camera: string; error: string };
 
 export interface SearchActions {
-  /** Asks the question about one day; a newer call wins over an older one still running. */
-  run: (question: string, day: string) => void;
+  /** Asks the question about one day (and one camera, or every camera when camera is ''); a newer call wins over an older one still running. */
+  run: (question: string, day: string, camera?: string) => void;
 }
 
 // The last search lives above the routes, so "Back to results" finds it again.
@@ -24,17 +24,17 @@ export function SearchProvider({ children }: { children: ReactNode }) {
   const latest = useRef(0);
 
   const run = useCallback(
-    (question: string, day: string) => {
+    (question: string, day: string, camera = '') => {
       latest.current += 1;
       const requestId = latest.current;
-      setState({ phase: 'loading', question, day });
+      setState({ phase: 'loading', question, day, camera });
       // No camera: the search covers every camera.
-      client.search({ question, day }).then(
+      client.search(camera === '' ? { question, day } : { question, day, camera }).then(
         (response) => {
-          if (latest.current === requestId) setState({ phase: 'done', question, day, response });
+          if (latest.current === requestId) setState({ phase: 'done', question, day, camera, response });
         },
         (error: unknown) => {
-          if (latest.current === requestId) setState({ phase: 'error', question, day, error: errorMessage(error) });
+          if (latest.current === requestId) setState({ phase: 'error', question, day, camera, error: errorMessage(error) });
         },
       );
     },

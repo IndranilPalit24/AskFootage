@@ -46,13 +46,28 @@ const PATHS = {
   upload: <path d="M9 12V3M5.5 6.5L9 3l3.5 3.5M3 12.5V15h12v-2.5" />,
   /** Folder outline with a tab. */
   folder: <path d="M2 4.5h5l1.5 2H16v8H2z" />,
+  /** A solid-edged triangle: play. */
+  play: <path d="M5 3.5v11l9-5.5z" />,
+  /** Two bars: pause. */
+  pause: <path d="M5.5 3.5v11M12.5 3.5v11" />,
+  /** An arrow pointing left. */
+  arrowLeft: <path d="M15 9H3m5-5L3 9l5 5" />,
+  /** A shield: protected access. */
+  shield: <path d="M9 1.8 15 4v4.6c0 3.6-2.5 6.1-6 7.6-3.5-1.5-6-4-6-7.6V4z" />,
+  /** A building with a door: an organization. */
+  building: (
+    <>
+      <path d="M3.5 16V2.5h8V16M11.5 7h3V16M2 16h14" />
+      <path d="M6 5.5h2M6 8.5h2M6 11.5h2" />
+    </>
+  ),
   /** A tick. */
   check: <path d="M3.5 9.5L7 13l7.5-8" />,
 } as const;
 
 export type IconName = keyof typeof PATHS;
 
-export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
+export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   return (
     <svg
       width={size}
