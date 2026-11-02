@@ -234,7 +234,14 @@ def search_day(
     """
     question = check_question(question)
     require_camera_filter(library, camera_id)
-    recordings = library.recordings.list_recordings(camera_id, day)
+    # A recording without footage is listed and counted elsewhere but is never searched,
+    # never a match, and never reported as "still being indexed". A day with only such
+    # recordings has no footage to search, and says so with the usual note.
+    recordings = [
+        recording
+        for recording in library.recordings.list_recordings(camera_id, day)
+        if recording.has_footage
+    ]
     if not recordings:
         note = NO_FOOTAGE_NOTE if camera_id is not None else NO_FOOTAGE_ANY_CAMERA_NOTE
         return SearchResult(question=question, day=day, clips=[], note=note)

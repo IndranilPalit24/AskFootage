@@ -9,7 +9,7 @@ from typing import Protocol
 
 from askfootage.application.cameras import camera_sort_key
 from askfootage.application.clips import ClipWithCamera, camera_of_clip
-from askfootage.application.errors import NotFoundError
+from askfootage.application.errors import FootageNotIncludedError, NotFoundError
 from askfootage.application.library import (
     CAMERA_NOT_FOUND,
     IdFactory,
@@ -113,15 +113,31 @@ class FootageSource(Protocol):
 def find_footage(library: Library, footage: FootageSource, recording_id: str) -> Path:
     """The footage file of a known recording.
 
-    Raises NotFoundError when the recording is unknown or has no footage file.
+    Raises FootageNotIncludedError when the recording is listed but has no footage
+    (has_footage is False; no file is ever looked up for it), and NotFoundError when the
+    recording is unknown or its footage file is missing.
     """
     recording = library.recordings.get_recording(recording_id)
     if recording is None:
         raise NotFoundError("Recording not found.")
+    if not recording.has_footage:
+        raise FootageNotIncludedError()
     path = footage.footage_for(recording)
     if path is None:
         raise NotFoundError("Footage file not attached.")
     return path
+
+
+def require_clip_footage(library: Library, clip_id: str) -> None:
+    """Check that the clip exists and its recording has footage.
+
+    Raises NotFoundError for an unknown clip and FootageNotIncludedError when the clip's
+    recording has no footage (so there is nothing to show a snapshot of).
+    """
+    found = get_clip(library, clip_id)
+    recording = library.recordings.get_recording(found.clip.recording_id)
+    if recording is not None and not recording.has_footage:
+        raise FootageNotIncludedError()
 
 
 def get_clip(library: Library, clip_id: str) -> ClipWithCamera:

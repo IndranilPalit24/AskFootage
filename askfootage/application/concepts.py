@@ -161,7 +161,7 @@ class ConceptService:
         """
         needs: list[IndexingNeed] = []
         for noun in nouns_in_question(question, zone_names):
-            lacking = [r for r in ready if not self.is_indexed(r.id, noun)]
+            lacking = [r for r in ready if r.has_footage and not self.is_indexed(r.id, noun)]
             if not lacking:
                 continue
             with self._lock:
@@ -187,7 +187,7 @@ class ConceptService:
         camera: str | None,
         today: date,
     ) -> ConceptRequestResult:
-        """Queue the pass for `noun` over the ready recordings that lack it, or return its pass.
+        """Queue the pass for `noun` over the ready recordings (with footage) that lack it.
 
         The recordings are those of `day` (every day of the 7 ending `today` without one),
         from `camera` or every camera. Raises InvalidInputError for a bad noun or confirm
@@ -233,7 +233,7 @@ class ConceptService:
             recording
             for each in days
             for recording in self._library.recordings.list_recordings(camera, each)
-            if recording.status == "ready"
+            if recording.status == "ready" and recording.has_footage
         ]
         return sorted(found, key=lambda r: (r.day, r.start_time, r.id))
 
@@ -281,7 +281,7 @@ class ConceptService:
         """One recording's part of a pass; a recording that vanished or is not ready is skipped."""
         backend = self._backend
         recording = self._library.recordings.get_recording(recording_id)
-        if recording is None:
+        if recording is None or not recording.has_footage:
             return
         perception = backend.perception
         if backend.budget is not None:
