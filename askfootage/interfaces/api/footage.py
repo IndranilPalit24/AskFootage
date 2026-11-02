@@ -20,13 +20,18 @@ DEMO_VIDEO_NAME = "clip1.mp4"
 
 
 class DemoFootageSource:
-    """Demo mode: every known recording plays <videos_dir>/clip1.mp4, when that file exists."""
+    """Demo mode: every recording with footage plays <videos_dir>/clip1.mp4, when it exists.
+
+    A recording without footage (has_footage False) plays nothing: never the stock clip.
+    """
 
     def __init__(self, videos_dir: Path) -> None:
         self._video = videos_dir / DEMO_VIDEO_NAME
 
     def footage_for(self, recording: Recording) -> Path | None:
-        """The demo video, or None when it is not there."""
+        """The demo video, or None when it is not there or the recording has no footage."""
+        if not recording.has_footage:
+            return None
         return self._video if self._video.is_file() else None
 
 

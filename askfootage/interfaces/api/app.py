@@ -25,6 +25,7 @@ from starlette.types import Receive, Scope, Send
 from askfootage.application.concepts import ConceptService
 from askfootage.application.ingest_video import IndexingPipeline
 from askfootage.application.library import IdFactory, Library, new_id
+from askfootage.application.posters import PosterStore
 from askfootage.application.recordings import FootageSource
 from askfootage.application.search import Interpreter, QuestionInterpreter
 from askfootage.application.search_relations import FrameSizeSource, frame_size_source_of
@@ -33,13 +34,14 @@ from askfootage.interfaces.api.body_limit import BodyLimitMiddleware
 from askfootage.interfaces.api.context import ApiContext, JobScheduler, run_after_reply
 from askfootage.interfaces.api.errors import InternalErrorMiddleware, install_error_handlers
 from askfootage.interfaces.api.footage import DemoFootageSource
+from askfootage.interfaces.api.poster_renderer import FfmpegPosterRenderer
 from askfootage.interfaces.api.routes import router
 from askfootage.interfaces.api.upload import MAX_UPLOAD_BYTES
 from askfootage.ports.language_model import QuestionParser
 from askfootage.ports.track_store import TrackStore
 from askfootage.settings import Settings, load_settings
 
-API_VERSION = "1.7.0"
+API_VERSION = "1.9.0"
 """The contract version this app serves (info.version in contract/openapi.yaml)."""
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_VIDEOS_DIR = REPO_ROOT / "videos"
@@ -48,6 +50,8 @@ DEMO_SEED_FILE = REPO_ROOT / "contract" / "examples" / "demo-seed.json"
 """The demo dataset, loaded into an empty database on start-up."""
 DEMO_DATABASE_NAME = "demo.sqlite"
 """The demo database's file name inside settings.data_dir."""
+POSTERS_DIR_NAME = "posters"
+"""The poster cache's folder name inside the data directory."""
 UI_DEV_ORIGIN = "http://localhost:5173"
 """The UI's dev server: the only origin CORS lets in."""
 CORS_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
@@ -72,6 +76,7 @@ def create_app(
     snapshots: SnapshotStore | None = None,
     footage: FootageSource | None = None,
     concepts: ConceptService | None = None,
+    posters: PosterStore | None = None,
 ) -> FastAPI:
     """Build the AskFootage API.
 
@@ -90,6 +95,9 @@ def create_app(
     `footage` says which file plays for a recording (default: the demo clip).
     `snapshots` makes and serves the evidence snapshot of each clip found from tracks (none in
     demo mode).
+
+    `posters` makes and serves the poster frame of each recording (default: ffmpeg, cached in
+    <settings.data_dir>/posters when settings are known; none otherwise).
 
     `concepts` searches the ready recordings for a new object (POST /api/concepts) and lets
     search list the objects it could add. None by default, as in demo mode: that route
@@ -112,6 +120,8 @@ def create_app(
         library = open_demo_library(settings)
         if tracks is None and indexing is None:
             tracks = open_track_store(settings)
+    if posters is None and settings is not None:
+        posters = open_poster_store(settings.data_dir / POSTERS_DIR_NAME)
     store_of_tracks = tracks if tracks is not None else (indexing.tracks if indexing else None)
     app = FastAPI(
         title="AskFootage API",
@@ -143,6 +153,7 @@ def create_app(
         frame_size=frame_size if frame_size is not None else frame_size_source_of(store_of_tracks),
         snapshots=snapshots,
         concepts=concepts,
+        posters=posters,
     )
     install_error_handlers(app)
     app.include_router(router)
@@ -164,15 +175,27 @@ def create_app(
 def open_demo_library(settings: Settings) -> Library:
     """Open (and seed, when empty) the demo database in settings.data_dir.
 
-    The SQLite adapter owns the database file, its schema version and any migration.
+    The SQLite adapter owns the database file, its schema version and any migration. With
+    settings.demo_volume (ASKFOOTAGE_DEMO_VOLUME=1) the generated demo volume is added after
+    the seed; it is off by default. Adding it again changes nothing.
     """
     # The one place the SQLite adapter is imported: lazily, so tests never need it.
     from askfootage.adapters.sqlite.store import SqliteLibraryStore, seed_demo_data
+    from askfootage.adapters.sqlite.volume_seed import add_volume
 
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     store = SqliteLibraryStore(settings.data_dir / DEMO_DATABASE_NAME)
     seed_demo_data(store, DEMO_SEED_FILE)
+    if settings.demo_volume:
+        add_volume(store)
     return Library.from_store(store)
+
+
+def open_poster_store(directory: Path) -> PosterStore:
+    """Posters made with ffmpeg and kept in `directory` (created on first use)."""
+    from askfootage.adapters.media.ffmpeg import run_command
+
+    return PosterStore(directory, FfmpegPosterRenderer(runner=run_command))
 
 
 def open_track_store(settings: Settings) -> TrackStore:

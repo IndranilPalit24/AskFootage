@@ -12,6 +12,7 @@ from fastapi import BackgroundTasks, Depends, Request
 from askfootage.application.concepts import ConceptService
 from askfootage.application.ingest_video import IndexingPipeline
 from askfootage.application.library import IdFactory, Library
+from askfootage.application.posters import PosterStore, has_footage
 from askfootage.application.recordings import FootageSource
 from askfootage.application.search import Interpreter
 from askfootage.application.search_relations import FrameSizeSource
@@ -41,6 +42,8 @@ class ApiContext:
     tracks, question_parser and frame_size feed search over stored tracks; with tracks
     None (or a recording without tracks) search uses the demo keyword matcher. snapshots,
     when set, makes and serves the evidence snapshot of each clip found from tracks.
+    posters, when set, makes and serves a poster frame per recording (no store: no
+    posterUrl and the poster route is 404).
     concepts is None when the build cannot search for a new object (POST /api/concepts is
     503, and search lists no needsIndexing).
     """
@@ -58,6 +61,7 @@ class ApiContext:
     frame_size: FrameSizeSource | None = None
     snapshots: SnapshotStore | None = None
     concepts: ConceptService | None = None
+    posters: PosterStore | None = None
     schedule_after_reply: JobScheduler = run_after_reply
 
 
@@ -69,6 +73,26 @@ def snapshot_url_of(context: ApiContext) -> Callable[[str], str | None]:
         if snapshots is not None and snapshots.has(clip_id):
             return f"/api/clips/{clip_id}/snapshot"
         return None
+
+    return url
+
+
+def poster_url_of(context: ApiContext) -> Callable[[str, int | None], str | None]:
+    """(recording id, second) -> the poster URL, or None when there is no footage to show.
+
+    The answer for each recording is remembered for the one response this is made for.
+    """
+    known: dict[str, bool] = {}
+
+    def url(recording_id: str, at_seconds: int | None = None) -> str | None:
+        if context.posters is None:
+            return None
+        if recording_id not in known:
+            known[recording_id] = has_footage(context.library, context.footage, recording_id)
+        if not known[recording_id]:
+            return None
+        base = f"/api/recordings/{recording_id}/poster"
+        return base if at_seconds is None else f"{base}?t={at_seconds}"
 
     return url
 

@@ -1,7 +1,7 @@
 """One error shape for every failure: {"error": {"code": ..., "message": ...}}.
 
-Codes: validation_error 422, not_found 404, method_not_allowed 405, already_saved,
-zone_name_taken, camera_name_taken, camera_has_recordings, recording_not_waiting and
+Codes: validation_error 422, not_found and footage_not_included 404, method_not_allowed 405,
+already_saved, zone_name_taken, camera_name_taken, camera_has_recordings, recording_not_waiting and
 budget_exceeded 409, file_too_large 413, unsupported_media_type 415, internal_error 500,
 indexing_not_configured 503.
 Messages are fixed or built from our own words: they name the field at fault but never
@@ -28,6 +28,7 @@ from askfootage.application.errors import (
     ApplicationError,
     BudgetRefusedError,
     CameraNameTakenError,
+    FootageNotIncludedError,
     IndexingNotConfiguredError,
     InvalidInputError,
     NotFoundError,
@@ -74,6 +75,22 @@ RESPONSE_DESCRIPTIONS: dict[int, str] = {
         "message Indexing is not configured in this build)"
     ),
 }
+
+
+FOOTAGE_404_DESCRIPTION = (
+    "No such recording or clip, no footage file or snapshot (code not_found), or the "
+    "recording is listed but has no video behind it (code footage_not_included)"
+)
+
+
+def footage_error_responses() -> dict[int | str, dict[str, Any]]:
+    """404 (not_found or footage_not_included), 422 and 500 for the footage routes."""
+    responses = json_error_responses(422, 500)
+    responses[404] = {
+        "description": FOOTAGE_404_DESCRIPTION,
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}},
+    }
+    return responses
 
 
 def error_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:
@@ -234,6 +251,8 @@ async def _on_request_validation(request: Request, exc: Exception) -> JSONRespon
 
 async def _on_application_error(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ApplicationError)
+    if isinstance(exc, FootageNotIncludedError):
+        return error_response(404, "footage_not_included", exc.message)
     if isinstance(exc, NotFoundError):
         return error_response(404, "not_found", exc.message)
     if isinstance(exc, InvalidInputError):

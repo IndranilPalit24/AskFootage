@@ -29,6 +29,7 @@ from askfootage.application import (
     cameras,
     concepts,
     ingest_video,
+    posters,
     recording_boxes,
     recordings,
     saved_clips,
@@ -37,8 +38,8 @@ from askfootage.application import (
 )
 from askfootage.application.errors import NotFoundError
 from askfootage.domain.tracks import LABEL_MAX
-from askfootage.interfaces.api.context import Context, snapshot_url_of
-from askfootage.interfaces.api.errors import error_responses, json_error_responses
+from askfootage.interfaces.api.context import Context, poster_url_of, snapshot_url_of
+from askfootage.interfaces.api.errors import error_responses, footage_error_responses
 from askfootage.interfaces.api.footage import VideoFileResponse
 from askfootage.interfaces.api.schemas import (
     ID_PATTERN,
@@ -284,7 +285,8 @@ async def list_recordings(
 ) -> list[Recording]:
     """The recordings on one day, from one camera or all of them, ordered by startTime."""
     found = recordings.list_recordings(context.library, camera, day)
-    return [Recording.from_port(recording) for recording in found]
+    poster_url = poster_url_of(context)
+    return [Recording.from_port(recording, poster_url) for recording in found]
 
 
 @router.post(
@@ -318,9 +320,10 @@ async def add_recording(request: Request, context: Context) -> RecordingAccepted
     status_code=200,
     summary="Stream the recording's video",
     description=(
-        "Streams the footage file (in demo mode, videos/clip1.mp4 for every recording). "
-        "Supports HTTP Range requests so a player can seek. Returns 404 with the standard "
-        "error body when the recording is unknown or no footage file is attached."
+        "Streams the footage file (in demo mode, videos/clip1.mp4 for every recording that has "
+        "footage). Supports HTTP Range requests so a player can seek. Returns 404 with the "
+        "standard error body when the recording is unknown or no footage file is attached, and "
+        "with code footage_not_included when the recording has none (hasFootage false)."
     ),
     response_class=VideoFileResponse,
     responses={
@@ -329,7 +332,7 @@ async def add_recording(request: Request, context: Context) -> RecordingAccepted
             "description": "Part of the video, for a Range request",
             "content": {"video/mp4": {"schema": _MP4_SCHEMA}},
         },
-        **json_error_responses(404, 422, 500),
+        **footage_error_responses(),
     },
 )
 async def get_recording_video(id: IdPath, context: Context) -> VideoFileResponse:
@@ -340,6 +343,47 @@ async def get_recording_video(id: IdPath, context: Context) -> VideoFileResponse
     except OSError:
         raise NotFoundError("Footage file not attached.") from None
     return VideoFileResponse(path, stat_result)
+
+
+PosterSecondQuery = Annotated[
+    float | None,
+    Query(
+        alias="t",
+        ge=0,
+        le=posters.MAX_SECOND,
+        description=(
+            "Second of the recording to take the poster from; rounded down and kept inside "
+            "the recording. Left out, the middle of the recording"
+        ),
+        examples=[12],
+    ),
+]
+
+
+@router.get(
+    "/recordings/{id}/poster",
+    operation_id="getRecordingPoster",
+    status_code=200,
+    summary="A poster frame of a recording",
+    description=(
+        "One JPEG still, about 640 px wide, taken from the footage at t seconds (default: the "
+        "middle of the recording) and kept for next time. Returns 404 with the standard "
+        "error body when the recording is unknown, has no footage attached, is a recording "
+        "without footage (code footage_not_included), or the frame cannot be made (for "
+        "example ffmpeg is not installed)."
+    ),
+    response_class=FileResponse,
+    responses={
+        200: {"description": "The poster", "content": {"image/jpeg": {"schema": _JPEG_SCHEMA}}},
+        **footage_error_responses(),
+    },
+)
+async def get_recording_poster(
+    id: IdPath, context: Context, at_seconds: PosterSecondQuery = None
+) -> FileResponse:
+    """The recording's poster frame; 404 when it has none or cannot be made."""
+    path = posters.get_poster(context.library, context.footage, context.posters, id, at_seconds)
+    return FileResponse(path, media_type="image/jpeg")
 
 
 @router.get(
@@ -423,7 +467,7 @@ async def search_footage(body: SearchRequest, context: Context) -> SearchRespons
         snapshots=context.snapshots,
         concepts=context.concepts,
     )
-    return SearchResponse.from_result(result, snapshot_url_of(context))
+    return SearchResponse.from_result(result, snapshot_url_of(context), poster_url_of(context))
 
 
 # --- Concepts: searching for a new object -------------------------------------------------------
@@ -505,7 +549,9 @@ async def get_concept(noun: NounPath, context: Context) -> ConceptJob:
 async def get_clip(id: IdPath, context: Context) -> Clip:
     """One clip with its evidence and its camera."""
     found = recordings.get_clip(context.library, id)
-    return Clip.from_port(found.clip, found.camera, snapshot_url_of(context))
+    return Clip.from_port(
+        found.clip, found.camera, snapshot_url_of(context), poster_url_of(context)
+    )
 
 
 @router.get(
@@ -517,17 +563,18 @@ async def get_clip(id: IdPath, context: Context) -> Clip:
         "A JPEG of the frame where the match began, with the object's box drawn in red and "
         "the person's box in a neutral grey. Made when a search finds the clip from stored "
         "object tracks. Returns 404 with the standard error body when the clip is unknown or "
-        "has no snapshot."
+        "has no snapshot, and with code footage_not_included when the clip's recording has "
+        "no footage (hasFootage false)."
     ),
     response_class=FileResponse,
     responses={
         200: {"description": "The snapshot", "content": {"image/jpeg": {"schema": _JPEG_SCHEMA}}},
-        **json_error_responses(404, 422, 500),
+        **footage_error_responses(),
     },
 )
 async def get_clip_snapshot(id: IdPath, context: Context) -> FileResponse:
     """The clip's evidence snapshot; 404 when the clip or its snapshot does not exist."""
-    recordings.get_clip(context.library, id)
+    recordings.require_clip_footage(context.library, id)
     snapshots = context.snapshots
     if snapshots is None or not snapshots.has(id):
         raise NotFoundError("Snapshot not found.")
@@ -610,7 +657,10 @@ async def delete_zone(id: IdPath, context: Context) -> Response:
 async def list_saved_clips(context: Context, day: OptionalDayQuery = None) -> list[SavedClip]:
     """Saved clips, newest save first."""
     found = saved_clips.list_saved_clips(context.library, day)
-    return [SavedClip.from_found(saved, snapshot_url_of(context)) for saved in found]
+    return [
+        SavedClip.from_found(saved, snapshot_url_of(context), poster_url_of(context))
+        for saved in found
+    ]
 
 
 @router.post(
@@ -627,7 +677,7 @@ async def save_clip(body: SavedClipCreate, context: Context) -> SavedClip:
     saved = saved_clips.save_clip(
         context.library, body.clip_id, body.note, context.utc_now(), make_id=context.make_id
     )
-    return SavedClip.from_found(saved, snapshot_url_of(context))
+    return SavedClip.from_found(saved, snapshot_url_of(context), poster_url_of(context))
 
 
 @router.patch(
@@ -640,7 +690,7 @@ async def save_clip(body: SavedClipCreate, context: Context) -> SavedClip:
 async def update_saved_clip(id: IdPath, body: SavedClipUpdate, context: Context) -> SavedClip:
     """Replace a saved clip's note."""
     updated = saved_clips.update_note(context.library, id, body.note)
-    return SavedClip.from_found(updated, snapshot_url_of(context))
+    return SavedClip.from_found(updated, snapshot_url_of(context), poster_url_of(context))
 
 
 @router.delete(

@@ -307,6 +307,15 @@ class DaySummary(ResponseModel):
         return cls(day=summary.day, recordings=summary.recordings, ready=summary.ready)
 
 
+PosterUrl = Callable[[str, int | None], str | None]
+"""Maps (recording id, second) to the URL of a poster frame, or None when there is none."""
+
+
+def no_poster(recording_id: str, at_seconds: int | None = None) -> str | None:
+    """The PosterUrl for an app with no posters."""
+    return None
+
+
 class Recording(ResponseModel):
     """One continuous video from one camera."""
 
@@ -316,9 +325,22 @@ class Recording(ResponseModel):
     start_time: str = Field(pattern=TIME_PATTERN)
     length_seconds: int = Field(ge=0)
     status: ports.RecordingStatus
+    poster_url: str | None = Field(
+        description=(
+            "URL of a poster frame from the middle of the recording "
+            "(GET /api/recordings/{id}/poster), or null when no footage is attached"
+        )
+    )
+    has_footage: bool = Field(
+        description=(
+            "False when the recording is listed and counted but has no video behind it: its "
+            "video, poster and snapshot routes answer 404 footage_not_included, and it is "
+            "never a search match"
+        )
+    )
 
     @classmethod
-    def from_port(cls, recording: ports.Recording) -> Recording:
+    def from_port(cls, recording: ports.Recording, poster_url: PosterUrl = no_poster) -> Recording:
         """The response model for a stored recording."""
         return cls(
             id=recording.id,
@@ -327,6 +349,8 @@ class Recording(ResponseModel):
             start_time=recording.start_time.strftime("%H:%M:%S"),
             length_seconds=recording.length_seconds,
             status=recording.status,
+            poster_url=poster_url(recording.id, None),
+            has_footage=recording.has_footage,
         )
 
 
@@ -450,10 +474,20 @@ class Clip(ResponseModel):
             "made. Only clips found from stored object tracks can have one."
         )
     )
+    poster_url: str | None = Field(
+        description=(
+            "URL of a poster frame at the clip's first matched second "
+            "(GET /api/recordings/{id}/poster?t=), or null when no footage is attached"
+        )
+    )
 
     @classmethod
     def from_port(
-        cls, clip: ports.Clip, camera: str, snapshot_url: SnapshotUrl = no_snapshot
+        cls,
+        clip: ports.Clip,
+        camera: str,
+        snapshot_url: SnapshotUrl = no_snapshot,
+        poster_url: PosterUrl = no_poster,
     ) -> Clip:
         """The response model for a stored clip and its recording's camera."""
         return cls(
@@ -474,6 +508,7 @@ class Clip(ResponseModel):
             ],
             thumbnail_url=clip.thumbnail_url,
             snapshot_url=snapshot_url(clip.id),
+            poster_url=poster_url(clip.recording_id, clip.start_seconds),
         )
 
 
@@ -608,14 +643,18 @@ class SearchResponse(ResponseModel):
 
     @classmethod
     def from_result(
-        cls, result: SearchResult, snapshot_url: SnapshotUrl = no_snapshot
+        cls,
+        result: SearchResult,
+        snapshot_url: SnapshotUrl = no_snapshot,
+        poster_url: PosterUrl = no_poster,
     ) -> SearchResponse:
         """The response model for a search result."""
         return cls(
             question=result.question,
             day=result.day,
             clips=[
-                Clip.from_port(found.clip, found.camera, snapshot_url) for found in result.clips
+                Clip.from_port(found.clip, found.camera, snapshot_url, poster_url)
+                for found in result.clips
             ],
             note=result.note,
             proofs=[ClipProof.from_result(proof) for proof in result.proofs],
@@ -737,12 +776,15 @@ class SavedClip(ResponseModel):
 
     @classmethod
     def from_found(
-        cls, found: SavedClipWithCamera, snapshot_url: SnapshotUrl = no_snapshot
+        cls,
+        found: SavedClipWithCamera,
+        snapshot_url: SnapshotUrl = no_snapshot,
+        poster_url: PosterUrl = no_poster,
     ) -> SavedClip:
         """The response model for a saved clip and its camera; savedAt is UTC to the second."""
         saved = found.saved
         saved_at = saved.saved_at.astimezone(UTC).replace(microsecond=0)
-        clip = Clip.from_port(saved.clip, found.camera, snapshot_url)
+        clip = Clip.from_port(saved.clip, found.camera, snapshot_url, poster_url)
         return cls(id=saved.id, clip=clip, note=saved.note, saved_at=saved_at)
 
 

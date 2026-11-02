@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     demo_mode: bool = Field(default=False, validation_alias="ASKFOOTAGE_DEMO")
     """True to replay saved API responses instead of making live calls."""
 
+    demo_volume: bool = Field(default=False, validation_alias="ASKFOOTAGE_DEMO_VOLUME")
+    """True to add the generated demo volume (invented cameras, zones and recordings without
+    footage) to the library the app serves. Off unless asked for; the documented demo start
+    (scripts/run_demo.py) turns it on."""
+
     @field_validator("api_key", mode="before")
     @classmethod
     def _blank_or_safe_key(cls, value: object) -> object:
