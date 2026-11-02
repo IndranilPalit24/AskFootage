@@ -13,7 +13,7 @@ export const tokens = {
     family: 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
     /** Ids, camera numbers and timestamps. Always paired with tabular numerals. */
     mono: 'ui-monospace, SFMono-Regular, "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace',
-    baseSize: '16px',
+    baseSize: '13px',
     lineHeight: '1.5',
     lineHeightTight: '1.25',
     /**
@@ -21,7 +21,7 @@ export const tokens = {
      * 20 page title, 28 the one focal headline (Find Footage start, welcome page). Hierarchy comes from
      * size and weight only.
      */
-    size: { 12: '13px', 13: '15px', 14: '16px', 16: '18px', 20: '32px', 28: '40px' },
+    size: { 12: '11px', 13: '12px', 14: '13px', 16: '14.5px', 20: '24px', 28: '26px' },
     /** Three weights: text, labels and buttons, titles. */
     weight: { regular: '400', medium: '500', semibold: '600' },
   },
@@ -94,8 +94,8 @@ export const tokens = {
     playerTrack: '#2A3448',
   },
   size: {
-    topbarHeight: '72px',
-    drawerWidth: '216px',
+    topbarHeight: '52px',
+    drawerWidth: '208px',
     drawerWidthCollapsed: '76px',
     /** App screens: the content column never grows past this. */
     contentMaxWidth: '840px',
@@ -114,13 +114,13 @@ export const tokens = {
     /** A result card's poster frame (16:9) and the small poster in a table row. */
     posterWidth: '192px',
     rowPosterWidth: '64px',
-    controlHeight: '40px',
-    controlHeightSmall: '36px',
+    controlHeight: '36px',
+    controlHeightSmall: '32px',
     iconButton: '44px',
     /** Result card poster frame (4:3) and the thumbnail of a saved clip or a compact match row. */
     resultFrameWidth: '320px',
     thumbWidth: '160px',
-    navItemMinHeight: '44px',
+    navItemMinHeight: '40px',
     dayButtonWidth: '76px',
     dayButtonHeight: '60px',
     /** Every status dot. */
@@ -136,7 +136,7 @@ export const tokens = {
   /** Strict 4px scale. */
   space: { 1: '4px', 2: '8px', 3: '12px', 4: '16px', 5: '24px', 6: '32px', 7: '40px', 8: '48px', 9: '64px', 10: '80px' },
   layout: {
-    mainPadding: '28px 32px 64px',
+    mainPadding: '20px 28px 12px',
     drawerPadding: '16px 12px',
     navItemPadding: '8px 12px',
     dayButtonPadding: '8px',

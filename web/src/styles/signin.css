@@ -5,12 +5,12 @@
    AskFootage has no authentication: the first method is shown disabled and the SSO method asks for a demo access code. */
 
 .signin {
-  --signin-title: clamp(30px, 3.05vw, 48px);
-  --signin-lead: clamp(17px, 1.67vw, 26px);
-  --signin-button-text: clamp(17px, 1.53vw, 24px);
-  --signin-headline: clamp(30px, 3.2vw, 50px);
-  --signin-tagline: clamp(16px, 1.53vw, 24px);
-  --signin-wordmark: clamp(32px, 3.33vw, 52px);
+  --signin-title: clamp(24px, 2.4vw, 38px);
+  --signin-lead: clamp(14px, 1.35vw, 20px);
+  --signin-button-text: clamp(14px, 1.25vw, 18px);
+  --signin-headline: clamp(24px, 2.55vw, 40px);
+  --signin-tagline: clamp(13px, 1.25vw, 19px);
+  --signin-wordmark: clamp(26px, 2.65vw, 42px);
   display: grid;
   grid-template-columns: 2fr 3fr;
   min-height: 100vh;
@@ -116,7 +116,7 @@
 }
 
 .signin__lead {
-  margin: var(--space-2) 0 var(--space-7);
+  margin: var(--space-2) 0 var(--space-5);
   color: var(--color-text-muted);
   font-size: var(--signin-lead);
   text-align: center;
@@ -128,7 +128,7 @@
   justify-content: center;
   gap: var(--space-4);
   width: 100%;
-  min-height: 70px;
+  min-height: 56px;
   padding: 0 var(--space-4);
   border: 1px solid var(--color-button-border);
   border-radius: var(--radius-control);
@@ -195,7 +195,7 @@
 }
 
 .signin__access {
-  margin: var(--space-9) 0 0;
+  margin: var(--space-5) 0 0;
   color: var(--color-text);
   font-size: var(--font-size-16);
   text-align: center;
@@ -305,11 +305,11 @@
   }
 
   .signin__wordmark {
-    font-size: 28px;
+    font-size: 22px;
   }
 
   .signin__headline {
-    font-size: 20px;
+    font-size: 16px;
   }
 
   .signin__footer {
@@ -406,7 +406,7 @@
 
 .info__main h1 {
   margin: 0 0 var(--space-3);
-  font-size: 32px;
+  font-size: 26px;
   line-height: 1.2;
 }
 

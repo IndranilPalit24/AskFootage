@@ -3881,3 +3881,164 @@ tr:focus-within .row-actions .btn {
     max-width: 100%;
   }
 }
+
+/* ---------- One page: the shell is exactly the window high; long lists scroll inside their own box ---------- */
+
+.app-footer {
+  padding: var(--space-2) var(--space-5);
+}
+
+@media (min-width: 961px) {
+  .app {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .drawer {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .app__col {
+    height: 100%;
+    min-height: 0;
+  }
+
+  /* Only a safety net: the pages are built to fit, so this does not normally scroll. */
+  .app__col > .main {
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .main:has(> .main__inner > .find--start) {
+    min-height: 0;
+  }
+
+  .table-wrap {
+    max-height: calc(100dvh - 260px);
+    overflow: auto;
+  }
+
+  .table th {
+    top: 0;
+  }
+
+  .table thead th:first-child,
+  .table thead th:last-child {
+    border-radius: 0;
+  }
+
+  .clip-list--saved {
+    max-height: calc(100dvh - 170px);
+    overflow: auto;
+  }
+}
+
+/* Cameras: heading, tabs and four cards sit above the table. */
+.screen--wide:has(.table--activity) .table-wrap {
+  max-height: calc(100dvh - 270px);
+}
+
+.cam-cards {
+  margin-bottom: var(--space-3);
+}
+
+.cam-card {
+  padding: var(--space-2) var(--space-4);
+}
+
+.cam-card__value {
+  font-size: calc(var(--font-size-16) * 1.5);
+}
+
+.tabs {
+  margin-bottom: var(--space-3);
+}
+
+.page-head {
+  margin-bottom: var(--space-3);
+}
+
+.table td {
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
+}
+
+.saved-row {
+  grid-template-columns: var(--thumb-width) minmax(0, 1fr) minmax(0, 1fr);
+  padding: var(--space-3);
+}
+
+.thumb--four-three {
+  width: var(--thumb-width);
+}
+
+.clip-list--saved {
+  gap: var(--space-2);
+}
+
+.find .result {
+  padding: var(--space-4);
+}
+
+.results-status {
+  margin: var(--space-3) 0 var(--space-2);
+}
+
+.zone-hint {
+  margin-top: var(--space-1);
+}
+
+@media (max-width: 960px) {
+  .thumb--four-three {
+    width: 100%;
+  }
+}
+
+/* Sign-in: the whole page fits the window on a desktop (no page scroll). */
+@media (min-width: 769px) {
+  .signin {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .signin__brand {
+    min-height: 0;
+    padding-top: var(--space-5);
+    padding-bottom: var(--space-5);
+  }
+
+  .signin__plan {
+    max-height: 36dvh;
+    margin-block: auto;
+  }
+
+  .signin__main {
+    min-height: 0;
+    padding-top: var(--space-4);
+    padding-bottom: var(--space-4);
+  }
+}
+
+.screen--wide:has(.table--cameras) .table-wrap {
+  max-height: calc(100dvh - 342px);
+}
+
+.cam-actions {
+  justify-content: flex-start;
+}
+
+.table .icon-btn {
+  width: var(--control-height-small);
+  height: var(--control-height-small);
+}
+
+@media (max-width: 960px) {
+  .saved-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
