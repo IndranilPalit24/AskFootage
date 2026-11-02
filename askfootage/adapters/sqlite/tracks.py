@@ -69,6 +69,8 @@ _POINTS_OF_TRACKS = """
     WHERE t.recording_id = ? AND t.label = ?
     ORDER BY t.track_id, p.frame
 """
+# The labels a recording has tracks for.
+_LABELS_OF_VIDEO = "SELECT DISTINCT label FROM tracks WHERE recording_id = ? ORDER BY label"
 
 
 class SqliteTrackStore:
@@ -114,6 +116,14 @@ class SqliteTrackStore:
         with self._library._transaction(write=False) as db:
             rows = db.execute(_POINTS_OF_TRACKS, (video_id, label)).fetchall()
         return _tracks_from_rows(label, rows)
+
+    def labels_for(self, video_id: str) -> list[str]:
+        """The distinct labels this video has tracks for, sorted (TrackLabelIndex).
+
+        An unknown video, or one without tracks, returns an empty list.
+        """
+        with self._library._transaction(write=False) as db:
+            return [row[0] for row in db.execute(_LABELS_OF_VIDEO, (video_id,)).fetchall()]
 
     def concept_done(self, video_id: str, concept: str) -> bool:
         """Whether this concept was already searched for this video.
