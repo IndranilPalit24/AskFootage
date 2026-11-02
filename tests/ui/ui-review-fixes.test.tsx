@@ -1,6 +1,6 @@
 // Fixes from the hostile review: keys are handled once, stale failure explanations are dropped, zones follow the
 // still's own shape, the review rail only uses a search that contains the clip, and a few small guarantees.
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import packageJson from '../../web/package.json';
 import { MockApiClient } from '../../web/src/api/mockClient';
@@ -151,7 +151,7 @@ describe('the review rail only uses a search that contains the clip', () => {
     fireEvent.change(await screen.findByLabelText('Ask about the footage'), { target: { value: 'someone carrying a box' } });
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
     const cards = await screen.findAllByRole('article');
-    fireEvent.click(within(cards[0]).getByRole('link', { name: 'Open' }));
+    fireEvent.click(within(cards[0]).getByRole('link', { name: /^Open( clip)?$/ }));
     const rail = await screen.findByRole('complementary', { name: 'Evidence' });
     expect(rail.querySelector('[aria-label="Measurements"]')).toBeNull();
     expect(within(rail).queryByText('Other matches')).toBeNull();
@@ -159,15 +159,13 @@ describe('the review rail only uses a search that contains the clip', () => {
 });
 
 describe('sign-in Privacy link and dependencies', () => {
-  it('Privacy is an in-app link that lands on the welcome page and scrolls to its section', async () => {
-    const scroll = vi.fn();
-    Element.prototype.scrollIntoView = scroll;
-    renderApp('/sign-in');
+  it('Privacy is an in-app link to the public Privacy page', async () => {
+    // CHANGED on purpose (was /welcome#privacy): sign-in now has its own Privacy and Security pages.
+    renderApp('/sign-in', undefined, { session: false });
     const link = screen.getByRole('link', { name: 'Privacy' });
-    expect(link.getAttribute('href')).toBe('/welcome#privacy');
+    expect(link.getAttribute('href')).toBe('/privacy');
     fireEvent.click(link);
-    await waitFor(() => expect(scroll).toHaveBeenCalled());
-    expect(scroll.mock.contexts[0]).toBe(document.getElementById('privacy'));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Privacy' })).toBeTruthy();
     expect(screen.queryByText('Sign in to AskFootage')).toBeNull();
   });
 

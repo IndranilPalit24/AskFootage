@@ -266,6 +266,8 @@ npm run dev
 
 Open the address it prints (the API only accepts requests from `http://localhost:5173`). In PowerShell, the web reads the API address from `$env:VITE_API_URL` (for example `'http://localhost:8000'`), set before `npm run dev`. Questions here are answered by the keyword demo matcher over seeded clips, so this shows the interface and the evidence panel, not real perception.
 
+**Sign-in is a demo gate, not security.** AskFootage has no accounts and no authentication. The web app opens on a sign-in page: "Continue with Microsoft" is disabled (no single sign-on is built), and "Continue with company SSO" asks for a 6-digit demo access code, which the API checks (`POST /api/auth/demo-code`). On success the web app sets a flag in the browser tab (`sessionStorage`) so the pages open. That flag is a UI convenience only: the rest of the API is not authenticated, and nothing is protected by it. Codes are created with the access CLI and are never in the source, the README or the web bundle. In the web app's mock mode no code is valid (tests inject their own). The API limits wrong codes to 5 a minute per client and 50 a minute across all clients (then 429 with `Retry-After`); the counts are in memory, so this assumes one server process and no reverse proxy (the client is the socket address; `X-Forwarded-For` is deliberately ignored).
+
 ### 6. Try the ingest and evaluate command lines (no key, no spend)
 
 `--fake` uses a deterministic made-up perception (one person walking right with one object moving alongside), so the carrying rule fires. It needs no key and no ffmpeg and costs nothing. It does need a video file to exist, because the "preparation" step copies it.

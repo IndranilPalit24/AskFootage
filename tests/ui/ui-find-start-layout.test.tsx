@@ -114,7 +114,7 @@ describe('Find Footage start screen layout', () => {
     expect(getComputedStyle(find).justifyContent).not.toBe('center');
     expect(getComputedStyle(screen.getByRole('main')).display).not.toBe('flex');
 
-    expect(await screen.findByText('1 clip')).toBeTruthy();
+    expect(await screen.findByText('1 result')).toBeTruthy();
     expect([...find.classList]).toEqual(['find']);
     expect([...find.children].map((element) => element.className)).toEqual([
       'find__group',

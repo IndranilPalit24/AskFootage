@@ -77,10 +77,10 @@ describe('Find Footage scope', () => {
     const client = new MockApiClient();
     const search = vi.spyOn(client, 'search');
     const box = await openFind(client);
-    const select = screen.getByLabelText<HTMLSelectElement>('Cameras:');
+    const select = screen.getByLabelText<HTMLSelectElement>('Camera:');
     const names = (await client.listCameras()).map((camera) => camera.name);
     expect([...select.options].slice(1).map((option) => option.textContent)).toEqual(
-      (await client.listCameras()).map((camera) => (camera.location ? `${camera.name} · ${camera.location}` : camera.name)),
+      (await client.listCameras()).map((camera) => `${camera.id} - ${camera.name}`),
     );
     expect(select.options[0].textContent).toBe('All cameras');
 
@@ -127,7 +127,7 @@ describe('the review workspace uses only what the server sent', () => {
     fireEvent.change(await screen.findByLabelText('Ask about the footage'), { target: { value: 'someone carrying a box' } });
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
     const cards = await screen.findAllByRole('article');
-    fireEvent.click(within(cards[0]).getByRole('link', { name: 'Open' }));
+    fireEvent.click(within(cards[0]).getByRole('link', { name: /^Open( clip)?$/ }));
     const rail = await screen.findByRole('complementary', { name: 'Evidence' });
     const measurements = rail.querySelector<HTMLElement>('[aria-label="Measurements"]')!;
     expect(within(measurements).getByText('Frames together')).toBeTruthy();

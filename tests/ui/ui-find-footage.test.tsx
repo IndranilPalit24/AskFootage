@@ -41,17 +41,17 @@ describe('Find Footage', () => {
     const day = screen.getByLabelText<HTMLSelectElement>('Day:');
     expect(day.value).toBe('2026-10-30');
     expect([...day.options].map((option) => option.textContent)).toEqual([
-      'Sat 24 Oct',
-      'Sun 25 Oct',
-      'Mon 26 Oct',
-      'Tue 27 Oct',
-      'Wed 28 Oct',
-      'Thu 29 Oct',
-      'Fri 30 Oct',
+      '24 Oct 2026',
+      '25 Oct 2026',
+      '26 Oct 2026',
+      '27 Oct 2026',
+      '28 Oct 2026',
+      '29 Oct 2026',
+      '30 Oct 2026',
     ]);
     // Search covers every camera, so there is no single-camera scope line.
     expect(screen.getByText('Ask a question about your footage. Each result shows the proof.')).toBeTruthy();
-    expect(screen.queryByText(/^Camera:/)).toBeNull();
+    expect(screen.queryByText(/^Cameras:/)).toBeNull();
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Search' }).disabled).toBe(true);
   });
 
@@ -83,7 +83,7 @@ describe('Find Footage', () => {
     expect(search).toHaveBeenCalledWith({ question: 'someone carrying a box', day: '2026-10-29' });
 
     held.resolve();
-    expect(await screen.findByText('6 clips')).toBeTruthy();
+    expect(await screen.findByText('6 results')).toBeTruthy();
     // The indexing recording is reported, not silently skipped.
     expect(screen.getByText('1 recording on this day is still being indexed, so it was not searched.')).toBeTruthy();
     expect(resultCards()).toHaveLength(6);
@@ -94,7 +94,7 @@ describe('Find Footage', () => {
     expect(gate.querySelector('.clip-card__time')?.textContent).toMatch(/ · Front gate$/);
     const chips = within(within(card).getByRole('list', { name: 'Evidence' })).getAllByRole('listitem');
     expect(chips.map((chip) => chip.textContent)).toEqual(['Carrying · 16 s', 'In Loading door · 11 s']);
-    expect(within(card).getByRole('link', { name: 'Open' }).getAttribute('href')).toBe('/clip/clip-1029-104215');
+    expect(within(card).getByRole('link', { name: /^Open( clip)?$/ }).getAttribute('href')).toBe('/clip/clip-1029-104215');
     expect(within(card).getByRole('button', { name: 'Save clip' }).getAttribute('aria-pressed')).toBe('false');
   });
 
@@ -113,7 +113,7 @@ describe('Find Footage', () => {
 
     fireEvent.keyDown(box, { key: 'Enter' });
     expect(search).toHaveBeenCalledWith({ question: 'someone waiting', day: '2026-10-30' });
-    expect(await screen.findByText('1 clip')).toBeTruthy();
+    expect(await screen.findByText('1 result')).toBeTruthy();
   });
 
   it('says so when nothing matched, with the server note', async () => {
@@ -138,7 +138,7 @@ describe('Find Footage', () => {
     expect(await screen.findByText('The search could not run. Try again.')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(await screen.findByText('6 clips')).toBeTruthy();
+    expect(await screen.findByText('6 results')).toBeTruthy();
     expect(search).toHaveBeenCalledTimes(2);
     expect(search.mock.calls[1][0]).toEqual(search.mock.calls[0][0]);
   });
@@ -146,25 +146,25 @@ describe('Find Footage', () => {
   it('changing the day asks the last question again for the new day', async () => {
     const { box } = await openFindFootage();
     ask(box, 'someone carrying a box');
-    expect(await screen.findByText('1 clip')).toBeTruthy();
+    expect(await screen.findByText('1 result')).toBeTruthy();
     pickDay('2026-10-29');
     expect(within(screen.getByRole('banner')).getByText('Thu 29 Oct')).toBeTruthy();
-    expect(await screen.findByText('6 clips')).toBeTruthy();
+    expect(await screen.findByText('6 results')).toBeTruthy();
   });
 
   it('"Back to results" from a clip shows the last search again', async () => {
     const { box } = await openFindFootage();
     pickDay('2026-10-29');
     ask(box, 'someone carrying a box');
-    await screen.findByText('6 clips');
-    fireEvent.click(within(resultCards()[4]).getByRole('link', { name: 'Open' }));
+    await screen.findByText('6 results');
+    fireEvent.click(within(resultCards()[4]).getByRole('link', { name: /^Open( clip)?$/ }));
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Person carrying a box through the loading dock' }),
     ).toBeTruthy();
 
     fireEvent.click(screen.getByRole('link', { name: 'Back to results' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Find Footage' })).toBeTruthy();
-    expect(screen.getByText('6 clips')).toBeTruthy();
+    expect(screen.getByText('6 results')).toBeTruthy();
     expect(resultCards()).toHaveLength(6);
     expect(screen.getByLabelText<HTMLTextAreaElement>('Ask about the footage').value).toBe('someone carrying a box');
   });

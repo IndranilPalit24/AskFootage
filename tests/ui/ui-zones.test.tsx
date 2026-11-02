@@ -7,7 +7,7 @@ import { giveSize, renderApp } from './ui-test-utils';
 
 async function openZones(client = new MockApiClient()) {
   const view = renderApp('/zones', client);
-  const list = await screen.findByRole('list', { name: 'Zones' });
+  const list = await screen.findByRole('table', { name: 'Zones on this camera' });
   return { ...view, list };
 }
 
@@ -32,7 +32,7 @@ describe('Zones screen', () => {
   it('shows the still frame with the existing zones drawn over it, in 0..1 coordinates', async () => {
     await openZones();
     const frame = screen.getByTestId('zone-frame');
-    expect(frame.getAttribute('aria-label')).toBe('Loading dock · still frame with zones: Exit lane, Loading door');
+    expect(frame.getAttribute('aria-label')).toBe('CAM-001 - Loading dock with zones: Exit lane, Loading door');
     const svg = frame.querySelector('svg')!;
     expect(svg.getAttribute('viewBox')).toBe('0 0 1 1');
     expect(svg.getAttribute('preserveAspectRatio')).toBe('none');
@@ -78,8 +78,8 @@ describe('Zones screen', () => {
     });
     expect(isValidPolygon(sent.points)).toBe(true);
 
-    const row = (await within(list).findByText('Forklift bay')).closest('li')!;
-    expect(within(row).getByText('4 points')).toBeTruthy();
+    const row = (await within(list).findByText('Forklift bay')).closest('tr')!;
+    expect(within(row).getByText('4')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Save zone' })).toBeNull();
     expect(screen.getByTestId('zone-frame').querySelectorAll('polygon.frame__zone')).toHaveLength(3);
   });

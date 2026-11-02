@@ -39,6 +39,7 @@ import type {
   SavedClipUpdate,
   SearchRequest,
   SearchResponse,
+  DemoCodeAccepted,
   Status,
   Zone,
   ZoneCreate,
@@ -90,6 +91,11 @@ export interface MockApiClientOptions {
    * counts stay as the contract examples have them; the explicit mock mode of the app turns it on.
    */
   withFootagelessRecordings?: boolean;
+  /**
+   * The demo access codes this mock accepts. Empty by default: the mock has NO valid code of its own, so no code is
+   * ever shipped in the bundle. Only tests pass one in.
+   */
+  demoCodes?: readonly string[];
 }
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -276,12 +282,14 @@ export class MockApiClient implements ApiClient {
   private readonly concepts = new Map<string, ConceptJob>();
   /** The number of the last camera id given out. It never goes down, so no id is reused after a delete. */
   private lastCameraNumber: number;
+  private readonly demoCodes: readonly string[];
 
   constructor(options: MockApiClientOptions = {}) {
     this.data = fromSeed(clone(seedJson as unknown as DemoSeed));
     this.status = clone(statusJson as Status);
     if (options.demoMode !== undefined) this.status.demoMode = options.demoMode;
     this.latencyMs = options.latencyMs ?? 0;
+    this.demoCodes = options.demoCodes ?? [];
     if (options.withFootagelessRecordings) this.addFootagelessRecordings();
     this.lastCameraNumber = this.data.cameras.reduce((max, camera) => Math.max(max, cameraIdNumber(camera.id)), 0);
   }
@@ -304,6 +312,14 @@ export class MockApiClient implements ApiClient {
           hasFootage: false,
         });
       }
+    });
+  }
+
+  checkDemoCode(code: string): Promise<DemoCodeAccepted> {
+    return this.answer(() => {
+      if (!/^[0-9]{6}$/.test(code)) throw new ApiError(422, 'validation_error', 'code: must be 6 digits.');
+      if (!this.demoCodes.includes(code)) throw new ApiError(401, 'invalid_demo_code', 'That code is not valid.');
+      return { ok: true as const };
     });
   }
 

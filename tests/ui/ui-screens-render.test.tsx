@@ -43,14 +43,14 @@ describe('every screen renders from the demo client', () => {
   it('Zones at /zones', async () => {
     renderApp('/zones');
     expect(await screen.findByRole('heading', { level: 1, name: 'Zones' })).toBeTruthy();
-    const list = await screen.findByRole('list', { name: 'Zones' });
+    const list = await screen.findByRole('table', { name: 'Zones on this camera' });
     expect(within(list).getByText('Loading door')).toBeTruthy();
     expectShell();
   });
 
   it('Saved clips at /saved', async () => {
     renderApp('/saved');
-    expect(screen.getByRole('heading', { level: 1, name: 'Saved clips' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Saved Clips' })).toBeTruthy();
     expect(await screen.findByText('No saved clips yet. Use Save clip on any result to keep it here.')).toBeTruthy();
     expectShell();
   });

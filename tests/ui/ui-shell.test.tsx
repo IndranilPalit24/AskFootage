@@ -9,7 +9,8 @@ describe('app shell: topbar and drawer', () => {
     renderApp('/');
     await waitForBoot();
     const banner = screen.getByRole('banner');
-    expect(within(banner).getByRole('link', { name: 'AskFootage' }).getAttribute('href')).toBe('/');
+    // The wordmark now sits at the top of the sidebar, not in the top bar.
+    expect(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', { name: 'AskFootage' }).getAttribute('href')).toBe('/');
     expect(within(banner).getByText('Fri 30 Oct')).toBeTruthy();
     // Contract 1.1.0: Status.demoMode is no longer shown in the UI, even in demo mode.
     expect(screen.queryByText('Demo data')).toBeNull();
@@ -24,14 +25,16 @@ describe('app shell: topbar and drawer', () => {
   it('lists the screens in the reference order, with their hints, and marks the current one', async () => {
     renderApp('/cameras/CAM-001/recordings');
     const nav = screen.getByRole('navigation', { name: 'Main' });
-    const links = within(nav).getAllByRole('link');
-    expect(links.map((link) => link.textContent)).toEqual(['Find Footage', 'Cameras', 'Zones', 'Saved clips']);
-    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/', '/cameras', '/zones', '/saved']);
+    // The first link is the wordmark at the top of the sidebar.
+    const links = within(nav).getAllByRole('link').slice(1);
+    expect(links.map((link) => link.textContent)).toEqual(['Find Footage', 'Cameras', 'Zones', 'Saved Clips', 'Activity Log']);
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/', '/cameras', '/zones', '/saved', '/activity']);
     expect(links.map((link) => link.getAttribute('title'))).toEqual([
       'Ask a question about your footage',
       'Manage cameras and recordings',
       'Mark areas of the camera view',
       'Clips you kept as evidence',
+      'Proposed page: sample data only',
     ]);
     expect(within(nav).getByRole('link', { name: 'Cameras' }).getAttribute('aria-current')).toBe('page');
     expect(within(nav).getByRole('link', { name: 'Find Footage' }).getAttribute('aria-current')).toBeNull();

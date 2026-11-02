@@ -1,6 +1,7 @@
 """One error shape for every failure: {"error": {"code": ..., "message": ...}}.
 
-Codes: validation_error 422, not_found and footage_not_included 404, method_not_allowed 405,
+Codes: invalid_demo_code 401, too_many_attempts 429, validation_error 422,
+not_found and footage_not_included 404, method_not_allowed 405,
 already_saved, zone_name_taken, camera_name_taken, camera_has_recordings, recording_not_waiting and
 budget_exceeded 409, file_too_large 413, unsupported_media_type 415, internal_error 500,
 indexing_not_configured 503.
@@ -50,6 +51,7 @@ _PATTERN_RULES = {
 """What a pattern means, in words, for the patterns clients send values against."""
 
 RESPONSE_DESCRIPTIONS: dict[int, str] = {
+    401: "The code is not valid (code invalid_demo_code, message That code is not valid.)",
     404: (
         "No such camera, recording, clip, zone, saved clip or requested object pass, or no "
         "footage file (code not_found)"
@@ -68,6 +70,10 @@ RESPONSE_DESCRIPTIONS: dict[int, str] = {
         "A parameter or body field is missing or breaks a rule (code validation_error); "
         "the message names the field. A JSON body over 64 KiB is refused with the message "
         "body: is too large"
+    ),
+    429: (
+        "Too many wrong codes from this client, or from all clients together, in the last "
+        "minute (code too_many_attempts)"
     ),
     500: "Something went wrong on the server (code internal_error); no details are exposed",
     503: (
@@ -122,11 +128,18 @@ def json_error_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:
 class ApiError(Exception):
     """An HTTP-level refusal with its status, code and safe message (e.g. a bad upload)."""
 
-    def __init__(self, status_code: int, code: str, message: str) -> None:
+    def __init__(
+        self,
+        status_code: int,
+        code: str,
+        message: str,
+        headers: Mapping[str, str] | None = None,
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.code = code
         self.message = message
+        self.headers = headers
 
 
 def error_response(
@@ -277,7 +290,7 @@ async def _on_application_error(request: Request, exc: Exception) -> JSONRespons
 
 async def _on_api_error(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ApiError)
-    return error_response(exc.status_code, exc.code, exc.message)
+    return error_response(exc.status_code, exc.code, exc.message, headers=exc.headers)
 
 
 def install_error_handlers(app: FastAPI) -> None:

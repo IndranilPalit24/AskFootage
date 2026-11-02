@@ -13,9 +13,11 @@ never load it.
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 from starlette.datastructures import Headers
@@ -23,6 +25,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.types import Receive, Scope, Send
 
 from askfootage.application.concepts import ConceptService
+from askfootage.application.demo_access import CodeVerifier, FailedAttemptLimiter, no_valid_codes
 from askfootage.application.ingest_video import IndexingPipeline
 from askfootage.application.library import IdFactory, Library, new_id
 from askfootage.application.posters import PosterStore
@@ -41,7 +44,8 @@ from askfootage.ports.language_model import QuestionParser
 from askfootage.ports.track_store import TrackStore
 from askfootage.settings import Settings, load_settings
 
-API_VERSION = "1.9.0"
+logger = logging.getLogger("askfootage.api")
+API_VERSION = "1.10.0"
 """The contract version this app serves (info.version in contract/openapi.yaml)."""
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_VIDEOS_DIR = REPO_ROOT / "videos"
@@ -77,6 +81,8 @@ def create_app(
     footage: FootageSource | None = None,
     concepts: ConceptService | None = None,
     posters: PosterStore | None = None,
+    verify_demo_code: CodeVerifier | None = None,
+    code_limiter: FailedAttemptLimiter | None = None,
 ) -> FastAPI:
     """Build the AskFootage API.
 
@@ -108,6 +114,10 @@ def create_app(
     indexing_not_configured and changes nothing. `schedule_after_reply` decides how the
     indexing work runs after the reply (FastAPI background tasks by default).
 
+    `verify_demo_code` checks a demo access code for POST /api/auth/demo-code (default in
+    demo mode: the codes in the demo database; with an injected library and none given: no
+    code is valid). `code_limiter` counts wrong codes per client (default: 5 a minute).
+
     Tests pass `library` (in-memory stores), and may pass `today`, `utc_now`,
     `videos_dir`, `interpreter`, `make_id`, a smaller `max_upload_bytes`, a fake
     `indexing` pipeline and a scheduler that runs the work when they say. `settings`
@@ -117,7 +127,10 @@ def create_app(
     if library is None:
         if settings is None:
             settings = load_settings()
-        library = open_demo_library(settings)
+        store = open_demo_store(settings)
+        library = Library.from_store(store)
+        if verify_demo_code is None:
+            verify_demo_code = code_verifier_of(store)
         if tracks is None and indexing is None:
             tracks = open_track_store(settings)
     if posters is None and settings is not None:
@@ -154,6 +167,8 @@ def create_app(
         snapshots=snapshots,
         concepts=concepts,
         posters=posters,
+        verify_demo_code=verify_demo_code if verify_demo_code is not None else no_valid_codes,
+        code_limiter=code_limiter if code_limiter is not None else FailedAttemptLimiter(),
     )
     install_error_handlers(app)
     app.include_router(router)
@@ -173,6 +188,35 @@ def create_app(
 
 
 def open_demo_library(settings: Settings) -> Library:
+    """Open (and seed, when empty) the demo database in settings.data_dir as a Library."""
+    return Library.from_store(open_demo_store(settings))
+
+
+def code_verifier_of(library: object) -> CodeVerifier:
+    """A code verifier over a SQLite library's demo access codes (see SqliteAccessCodeStore).
+
+    A database without the codes table, or any database error, means no code is valid; the
+    submitted code is never logged.
+    """
+    import sqlite3
+
+    from askfootage.adapters.sqlite.access_codes import SqliteAccessCodeStore
+    from askfootage.adapters.sqlite.store import SqliteLibraryStore
+
+    assert isinstance(library, SqliteLibraryStore)
+    codes = SqliteAccessCodeStore(library)
+
+    def verify(code: str) -> bool:
+        try:
+            return codes.verify_code(code)
+        except sqlite3.Error:
+            logger.error("The demo access codes could not be read")
+            return False
+
+    return verify
+
+
+def open_demo_store(settings: Settings) -> Any:
     """Open (and seed, when empty) the demo database in settings.data_dir.
 
     The SQLite adapter owns the database file, its schema version and any migration. With
@@ -188,7 +232,7 @@ def open_demo_library(settings: Settings) -> Library:
     seed_demo_data(store, DEMO_SEED_FILE)
     if settings.demo_volume:
         add_volume(store)
-    return Library.from_store(store)
+    return store
 
 
 def open_poster_store(directory: Path) -> PosterStore:

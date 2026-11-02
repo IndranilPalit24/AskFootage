@@ -99,7 +99,7 @@ def test_migrating_a_copy_of_the_real_library_keeps_every_row_and_adds_origin(
     store = SqliteLibraryStore(real_copy)
 
     with raw_connection(real_copy) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 5
+        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 6
         for table, columns in OLD_COLUMNS.items():
             assert db.execute(f"SELECT {columns} FROM {table}").fetchall() == before[table]  # noqa: S608
             assert {o for (o,) in db.execute(f"SELECT origin FROM {table}")} <= {"real"}  # noqa: S608
@@ -138,6 +138,7 @@ def test_a_v4_database_is_upgraded_in_place(tmp_path: Path) -> None:
     with raw_connection(path) as db:
         db.executescript(
             """
+            DROP TABLE demo_access_codes;
             DROP TABLE volume_state;
             ALTER TABLE cameras DROP COLUMN origin;
             ALTER TABLE zones DROP COLUMN origin;

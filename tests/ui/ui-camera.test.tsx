@@ -71,7 +71,7 @@ describe('Camera recordings screen', () => {
     fireEvent.click(dayButton('Thu 29'));
     await screen.findByText(THU_29_SUMMARY);
     expect(rowTexts().map((cells) => cells[3])).toEqual(['Open', 'Open', 'Open', 'Open', 'Open', 'Nearly searchable']);
-    const open = screen.getAllByRole('link', { name: 'Open' })[0];
+    const open = screen.getAllByRole('link', { name: /^Open( clip)?$/ })[0];
     expect(open.className).toBe('btn btn--sm');
     // Each Open is described by its row's start time.
     expect(document.getElementById(open.getAttribute('aria-describedby')!)?.textContent).toBe('06:00:00');
@@ -83,7 +83,7 @@ describe('Camera recordings screen', () => {
     await openCamera();
     fireEvent.click(dayButton('Thu 29'));
     await screen.findByText(THU_29_SUMMARY);
-    fireEvent.click(screen.getAllByRole('link', { name: 'Open' })[2]);
+    fireEvent.click(screen.getAllByRole('link', { name: /^Open( clip)?$/ })[2]);
     expect(await screen.findByRole('heading', { level: 1, name: 'Find Footage' })).toBeTruthy();
     expect((await screen.findByLabelText<HTMLSelectElement>('Day:')).value).toBe('2026-10-29');
   });

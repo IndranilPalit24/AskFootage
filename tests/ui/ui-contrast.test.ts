@@ -1,7 +1,7 @@
 // WCAG 2.x contrast of the main colour pairs, computed from the tokens in light and in dark.
 // Text pairs need 4.5:1 (AA); non-text pairs (focus ring, field edge, status dots, evidence box) need 3:1.
 import { describe, expect, it } from 'vitest';
-import { darkColor, tokens } from '../../web/src/styles/tokens';
+import { tokens } from '../../web/src/styles/tokens';
 
 function channel(value: number): number {
   const v = value / 255;
@@ -20,7 +20,6 @@ export function contrast(a: string, b: string): number {
 
 type Palette = Record<string, string>;
 const light: Palette = { ...tokens.color };
-const dark: Palette = { ...tokens.color, ...darkColor };
 
 /** [foreground token, background token, minimum ratio, what it is] */
 const PAIRS: ReadonlyArray<[string, string, number, string]> = [
@@ -65,14 +64,21 @@ const PAIRS: ReadonlyArray<[string, string, number, string]> = [
   ['text', 'surfaceWarm', 4.5, 'text on the sign-in brand panel'],
   ['textMuted', 'surfaceWarm', 4.5, 'muted text on the sign-in brand panel'],
   ['heading', 'surfaceWarm', 4.5, 'headline on the sign-in brand panel'],
-  ['accent', 'surfaceWarm', 3, 'bay outlines on the floor plan'],
+  ['accent', 'surfaceWarm', 3, 'the cobalt dot of the mark on the brand panel'],
+  ['planBlue', 'surfaceWarm', 3, 'floor plan and travel path lines on the brand panel'],
+  // Added with the reference pass (both palettes): the current sidebar item, and the outlines drawn on the dark frame.
+  ['accent', 'accentSubtle', 4.5, 'current page in the sidebar: cobalt text on its tint'],
+  ['text', 'accentSubtle', 4.5, 'text on the current-page tint'],
+  ['textMuted', 'accentSubtle', 4.5, 'muted text on the tint'],
+  ['statusOnline', 'playerBg', 3, 'green person outline and green zone on the frame'],
+  ['statusStandby', 'playerBg', 3, 'amber zone on the frame'],
+  ['evidenceBox', 'playerBg', 3, 'red detection box on the frame'],
+  ['onPlayer', 'playerBg', 4.5, 'caption and zone labels on the frame'],
 ];
 
 describe('WCAG AA contrast of the design tokens', () => {
-  for (const [mode, palette] of [
-    ['light', light],
-    ['dark', dark],
-  ] as const) {
+  // One theme only (CHANGED on purpose: the dark palette is gone; the app is always the light reference theme).
+  for (const [mode, palette] of [['light', light]] as const) {
     it(`every main pair passes in ${mode} mode`, () => {
       const rows = PAIRS.map(([fg, bg, min, what]) => ({
         mode,

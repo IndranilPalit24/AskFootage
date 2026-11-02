@@ -1,7 +1,7 @@
 import { memo, useState, type FormEvent } from 'react';
 import { errorMessage } from '../../api/errors';
 import type { Zone } from '../../api/generated/types';
-import { pointsLabel, ZONE_NAME_MAX } from './geometry';
+import { ZONE_NAME_MAX } from './geometry';
 
 type RowMode = 'view' | 'rename' | 'confirm-delete';
 
@@ -53,6 +53,7 @@ function ZoneRow({ zone, onRename, onDelete }: ZoneRowProps) {
   let body;
   if (mode === 'rename') {
     body = (
+      <td colSpan={3}>
       <form className="zone-row zone-row--edit" aria-label={`Rename ${zone.name}`} onSubmit={handleRename}>
         <label htmlFor={inputId} className="visually-hidden">
           New name for {zone.name}
@@ -78,9 +79,11 @@ function ZoneRow({ zone, onRename, onDelete }: ZoneRowProps) {
           </button>
         </div>
       </form>
+      </td>
     );
   } else if (mode === 'confirm-delete') {
     body = (
+      <td colSpan={3}>
       <div className="zone-row" role="group" aria-label={`Delete ${zone.name}`}>
         <span>Delete {zone.name}?</span>
         <div className="btn-row">
@@ -92,35 +95,45 @@ function ZoneRow({ zone, onRename, onDelete }: ZoneRowProps) {
           </button>
         </div>
       </div>
+      </td>
     );
   } else {
     body = (
-      <div className="zone-row">
-        <div className="zone-row__text">
-          <span className="zone-row__name">{zone.name}</span>
-          <span className="muted small">{pointsLabel(zone.points.length)}</span>
-        </div>
-        <div className="btn-row">
-          <button type="button" className="btn btn--sm" aria-label={`Rename ${zone.name}`} onClick={() => show('rename')}>
-            Rename
-          </button>
-          <button type="button" className="btn btn--sm" aria-label={`Delete ${zone.name}`} onClick={() => show('confirm-delete')}>
-            Delete
-          </button>
-        </div>
-      </div>
+      <>
+        <td className="zone-row__name">{zone.name}</td>
+        <td className="num">{zone.points.length}</td>
+        <td>
+          <div className="btn-row">
+            <button type="button" className="link-btn" aria-label={`Rename ${zone.name}`} onClick={() => show('rename')}>
+              Rename
+            </button>
+            <button
+              type="button"
+              className="link-btn link-btn--danger"
+              aria-label={`Delete ${zone.name}`}
+              onClick={() => show('confirm-delete')}
+            >
+              Delete
+            </button>
+          </div>
+        </td>
+      </>
     );
   }
 
   return (
-    <li>
-      {body}
+    <>
+      <tr>{body}</tr>
       {error ? (
-        <p className="inline-error" role="alert">
-          {error}
-        </p>
+        <tr>
+          <td colSpan={3}>
+            <p className="inline-error" role="alert">
+              {error}
+            </p>
+          </td>
+        </tr>
       ) : null}
-    </li>
+    </>
   );
 }
 
@@ -136,10 +149,22 @@ const empty = <p className="muted">No zones yet. Use New zone to draw one on the
 export const ZoneList = memo(function ZoneList({ zones, onRename, onDelete }: ZoneListProps) {
   if (zones.length === 0) return empty;
   return (
-    <ul className="zone-list" aria-label="Zones">
-      {zones.map((zone) => (
-        <ZoneRow key={zone.id} zone={zone} onRename={onRename} onDelete={onDelete} />
-      ))}
-    </ul>
+    <table className="table table--zones">
+      <caption className="visually-hidden">Zones on this camera</caption>
+      <thead>
+        <tr>
+          <th scope="col">Name</th>
+          <th scope="col">Points</th>
+          <th scope="col">
+            <span className="visually-hidden">Actions</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {zones.map((zone) => (
+          <ZoneRow key={zone.id} zone={zone} onRename={onRename} onDelete={onDelete} />
+        ))}
+      </tbody>
+    </table>
   );
 });

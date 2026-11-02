@@ -4,7 +4,7 @@ import { screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import globalCss from '../../web/src/styles/global.css?raw';
 import { costExample, formatCents } from '../../web/src/features/welcome/content';
-import { darkColor, tokensCss, tokens } from '../../web/src/styles/tokens';
+import { tokensCss, tokens } from '../../web/src/styles/tokens';
 import { renderApp } from './ui-test-utils';
 
 function section(name: string): HTMLElement {
@@ -166,17 +166,10 @@ describe('welcome page: names, headings and images', () => {
   });
 });
 
-describe('dark tokens', () => {
-  it('are published inside prefers-color-scheme: dark and only override semantic colours', () => {
-    const css = tokensCss();
-    const darkPart = css.slice(css.indexOf('@media (prefers-color-scheme: dark)'));
-    expect(darkPart).toContain('--color-page: #0B1322;');
-    expect(darkPart).toContain('--color-heading: #EEF2FA;');
-    expect(darkPart).not.toContain('--space-');
-    for (const name of Object.keys(darkColor)) expect(Object.keys(tokens.color)).toContain(name);
-    // The brief's status colours and the red evidence box do not change between modes.
-    expect(Object.keys(darkColor)).not.toContain('statusOnline');
-    expect(Object.keys(darkColor)).not.toContain('evidenceBox');
+describe('one light theme', () => {
+  it('publishes no dark palette: no prefers-color-scheme block in the tokens', () => {
+    expect(tokensCss()).not.toContain('prefers-color-scheme');
+    expect(tokensCss()).not.toContain('@media');
   });
 
   it('the stylesheet has a reduced-motion rule and a 16px gutter token', () => {

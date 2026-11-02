@@ -1,18 +1,14 @@
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
-import { CAMERA_STATUS_LABEL, CAMERA_STATUSES, isCameraStatus } from '../../api/cameraRules';
+import { CAMERA_STATUS_LABEL, CAMERA_STATUSES } from '../../api/cameraRules';
 import type { Camera, CameraStatus } from '../../api/generated/types';
+import { ActionMenu, type MenuAction } from '../../components/ActionMenu';
 import { Icon } from '../../components/Icon';
 import { Pager, usePaging } from '../../components/Pager';
 
 export const OFFLINE_NOTE = 'Offline: no recordings to open';
 
 const notSet = <span className="muted">Not set</span>;
-
-function zoneText(count: number): string {
-  if (count === 0) return 'No zones';
-  return count === 1 ? '1 zone' : `${count} zones`;
-}
 
 interface RowProps {
   camera: Camera;
@@ -24,42 +20,33 @@ const CameraRow = memo(function CameraRow({ camera, onStatus, onDelete }: RowPro
   const nameId = `camera-name-${camera.id}`;
   const noteId = `camera-note-${camera.id}`;
   const offline = camera.status === 'offline';
+  // Set the status to one of the others, or delete: all from one menu.
+  const items: MenuAction[] = [
+    ...CAMERA_STATUSES.filter((status) => status !== camera.status).map((status) => ({
+      label: `Mark ${CAMERA_STATUS_LABEL[status].toLowerCase()}`,
+      onSelect: () => onStatus(camera, status),
+    })),
+    { label: `Delete ${camera.name}`, onSelect: () => onDelete(camera), danger: true },
+  ];
 
   return (
     <tr>
       <td className="cell-id">{camera.id}</td>
       <td id={nameId}>{camera.name}</td>
       <td>{camera.location ?? notSet}</td>
-      <td className={camera.zoneCount === 0 ? 'muted' : undefined}>{zoneText(camera.zoneCount)}</td>
       <td>{camera.department ?? notSet}</td>
       <td>
-        <div className="cam-status">
-          <span className="cam-status__badge">
-            <span className={`cam-dot cam-dot--${camera.status}`} aria-hidden="true" />
-            <span className="cam-status__label">{CAMERA_STATUS_LABEL[camera.status]}</span>
-          </span>
-          <select
-            className="select"
-            aria-label={`Status of ${camera.name}`}
-            value={camera.status}
-            onChange={(event) => {
-              if (isCameraStatus(event.target.value)) onStatus(camera, event.target.value);
-            }}
-          >
-            {CAMERA_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {CAMERA_STATUS_LABEL[status]}
-              </option>
-            ))}
-          </select>
-        </div>
+        <span className="cam-status__badge">
+          <span className={`cam-dot cam-dot--${camera.status}`} aria-hidden="true" />
+          <span className="cam-status__label">{CAMERA_STATUS_LABEL[camera.status]}</span>
+        </span>
       </td>
       <td>
         <div className="cam-actions row-actions">
           {offline ? (
             <>
-              {/* aria-disabled keeps the button findable by keyboard and screen reader; it does nothing. */}
-              <button type="button" className="btn btn--sm" aria-disabled="true" aria-describedby={`${nameId} ${noteId}`}>
+              {/* aria-disabled keeps the link findable by keyboard and screen reader; it does nothing. */}
+              <button type="button" className="link-btn" aria-disabled="true" aria-describedby={`${nameId} ${noteId}`}>
                 Recordings
               </button>
               <span id={noteId} className="row-note">
@@ -67,17 +54,17 @@ const CameraRow = memo(function CameraRow({ camera, onStatus, onDelete }: RowPro
               </span>
             </>
           ) : (
-            <Link
-              to={`/cameras/${encodeURIComponent(camera.id)}/recordings`}
-              className="btn btn--sm"
-              aria-describedby={nameId}
-            >
+            <Link to={`/cameras/${encodeURIComponent(camera.id)}/recordings`} className="link-btn" aria-describedby={nameId}>
               Recordings
             </Link>
           )}
-          <button type="button" className="icon-btn" aria-label={`Delete ${camera.name}`} onClick={() => onDelete(camera)}>
-            <Icon name="trash" />
-          </button>
+          <ActionMenu
+            label={`Actions for ${camera.name}`}
+            triggerLabel={`Actions for ${camera.name}`}
+            triggerClassName="icon-btn"
+            trigger={<Icon name="kebab" />}
+            items={items}
+          />
         </div>
       </td>
     </tr>
@@ -102,7 +89,6 @@ export function CameraTable({ cameras, onStatus, onDelete }: TableProps) {
             <th scope="col">ID</th>
             <th scope="col">Name</th>
             <th scope="col">Location</th>
-            <th scope="col">Zone</th>
             <th scope="col">Department</th>
             <th scope="col">Status</th>
             <th scope="col">Actions</th>

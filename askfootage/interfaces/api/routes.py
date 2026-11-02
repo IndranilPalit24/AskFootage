@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Path, Query, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BeforeValidator
 
@@ -36,10 +37,11 @@ from askfootage.application import (
     search,
     zones,
 )
+from askfootage.application.demo_access import TooManyAttemptsError, check_demo_code
 from askfootage.application.errors import NotFoundError
 from askfootage.domain.tracks import LABEL_MAX
 from askfootage.interfaces.api.context import Context, poster_url_of, snapshot_url_of
-from askfootage.interfaces.api.errors import error_responses, footage_error_responses
+from askfootage.interfaces.api.errors import ApiError, error_responses, footage_error_responses
 from askfootage.interfaces.api.footage import VideoFileResponse
 from askfootage.interfaces.api.schemas import (
     ID_PATTERN,
@@ -51,6 +53,8 @@ from askfootage.interfaces.api.schemas import (
     ConceptRequest,
     Day,
     DaySummary,
+    DemoCodeAccepted,
+    DemoCodeRequest,
     IndexAccepted,
     Recording,
     RecordingAccepted,
@@ -158,6 +162,56 @@ _UPLOAD_BODY: dict[str, Any] = {
 async def get_status() -> Status:
     """demoMode is always true in v1: the only data source is the seeded demo data."""
     return Status.from_status(recordings.get_status())
+
+
+# --- Demo access code -------------------------------------------------------------------------
+
+INVALID_DEMO_CODE_MESSAGE = "That code is not valid."
+_RETRY_AFTER_HEADER = {
+    "description": "Seconds to wait before trying again",
+    "schema": {"type": "integer", "minimum": 1},
+}
+
+
+def _demo_code_responses() -> dict[int | str, dict[str, Any]]:
+    responses = error_responses(401, 422, 429, 500)
+    responses[429]["headers"] = {"Retry-After": _RETRY_AFTER_HEADER}
+    return responses
+
+
+@router.post(
+    "/auth/demo-code",
+    operation_id="checkDemoCode",
+    response_description="The code is valid",
+    summary="Check a demo access code",
+    description=(
+        "A demo gate for the UI only: it does not protect footage and the rest of the API is "
+        "not authenticated. No token is returned. Wrong codes all get the same 401 message. "
+        "After 5 wrong codes from one client within a minute (or 50 across all clients), further "
+        "attempts get 429 with "
+        "Retry-After until the minute has passed. The code is never logged or echoed."
+    ),
+    responses=_demo_code_responses(),
+)
+async def check_code(body: DemoCodeRequest, request: Request, context: Context) -> DemoCodeAccepted:
+    """Check the code off the event loop (hashing is slow); count wrong ones per client."""
+    client = request.client.host if request.client is not None else "unknown"
+
+    def check() -> bool:
+        return check_demo_code(context.verify_demo_code, context.code_limiter, client, body.code)
+
+    try:
+        valid = await run_in_threadpool(check)
+    except TooManyAttemptsError as refused:
+        raise ApiError(
+            429,
+            "too_many_attempts",
+            "Too many wrong codes. Try again in a minute.",
+            headers={"Retry-After": str(refused.retry_after)},
+        ) from None
+    if not valid:
+        raise ApiError(401, "invalid_demo_code", INVALID_DEMO_CODE_MESSAGE)
+    return DemoCodeAccepted(ok=True)
 
 
 # --- Cameras ----------------------------------------------------------------------------------

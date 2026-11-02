@@ -21,6 +21,8 @@ interface ZoneFrameProps {
   /** The zone being drawn, in click order. */
   draft: Point[];
   onAddPoint: (point: Point) => void;
+  /** Double click while drawing: the corners are done. */
+  onFinish?: () => void;
   /** id of the text that explains how to draw (mouse and keyboard). */
   instructionsId: string;
   /** A real still of this camera's footage to draw on (a recording's poster frame), or null when there is none. */
@@ -32,7 +34,7 @@ interface ZoneFrameProps {
  * saved zones and the zone being drawn. While drawing, a click adds a point; so does Enter, at a cursor the
  * arrow keys move, so drawing works without a mouse.
  */
-export function ZoneFrame({ zones, caption, drawing, draft, onAddPoint, instructionsId, imageUrl = null }: ZoneFrameProps) {
+export function ZoneFrame({ zones, caption, drawing, draft, onAddPoint, onFinish, instructionsId, imageUrl = null }: ZoneFrameProps) {
   const [cursor, setCursor] = useState<Point | null>(null);
   const [failedImage, setFailedImage] = useState<string | null>(null);
   const showImage = imageUrl !== null && failedImage !== imageUrl;
@@ -88,6 +90,7 @@ export function ZoneFrame({ zones, caption, drawing, draft, onAddPoint, instruct
       aria-describedby={drawing ? instructionsId : undefined}
       tabIndex={drawing ? 0 : undefined}
       onClick={drawing ? handleClick : undefined}
+      onDoubleClick={drawing ? onFinish : undefined}
       onKeyDown={drawing ? handleKeyDown : undefined}
     >
       {showImage ? (
@@ -100,21 +103,18 @@ export function ZoneFrame({ zones, caption, drawing, draft, onAddPoint, instruct
         />
       ) : (
         <span className="frame__empty" aria-hidden="true">
-          No still frame yet. Add footage for this camera and its view appears here to draw on.
+          No preview available for this camera. Zones can still be listed and renamed.
         </span>
       )}
-      <span className="frame__caption" aria-hidden="true">
-        {caption}
-      </span>
       <div
         className="frame__picture"
         style={{ left: percent(box.left), top: percent(box.top), width: percent(box.width), height: percent(box.height) }}
       >
       <svg className="frame__overlay" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-        {zones.map((zone) => (
+        {zones.map((zone, index) => (
           <polygon
             key={zone.id}
-            className="frame__zone"
+            className={`frame__zone frame__zone--${index % 3}`}
             points={svgPoints(zone.points)}
             vectorEffect="non-scaling-stroke"
           />
@@ -126,10 +126,10 @@ export function ZoneFrame({ zones, caption, drawing, draft, onAddPoint, instruct
           <polyline className="frame__draft frame__draft--open" points={svgPoints(draft)} vectorEffect="non-scaling-stroke" />
         ) : null}
       </svg>
-      {zones.map((zone) => {
+      {zones.map((zone, index) => {
         const [x, y] = labelPosition(zone.points);
         return (
-          <span key={zone.id} className="frame__label" style={{ left: percent(x), top: percent(y) }} aria-hidden="true">
+          <span key={zone.id} className={`frame__label frame__label--${index % 3}`} style={{ left: percent(x), top: percent(y) }} aria-hidden="true">
             {zone.name}
           </span>
         );

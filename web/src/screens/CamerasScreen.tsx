@@ -6,6 +6,7 @@ import { useApiClient } from '../app/ApiContext';
 import { useAppData } from '../app/AppDataContext';
 import { useToasts } from '../app/ToastContext';
 import { EmptyState } from '../components/EmptyState';
+import { Icon } from '../components/Icon';
 import { Modal } from '../components/Modal';
 import { TableSkeletonRows } from '../components/Skeletons';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -48,19 +49,22 @@ function countStatuses(cameras: readonly Camera[]): Counts {
 }
 
 function SummaryCards({ counts }: { counts: Counts }) {
-  const cards: Array<[string, number]> = [
-    ['Total cameras', counts.total],
-    ['Online', counts.online],
-    ['Standby', counts.standby],
-    ['Offline/Error', counts.offline],
+  const cards: Array<[string, number, CameraStatus | null]> = [
+    ['Total cameras', counts.total, null],
+    ['Online', counts.online, 'online'],
+    ['Standby', counts.standby, 'standby'],
+    ['Offline', counts.offline, 'offline'],
   ];
   return (
     <section aria-label="Camera summary">
       <dl className="cam-cards">
-        {cards.map(([label, value]) => (
+        {cards.map(([label, value, status]) => (
           <div key={label} className="cam-card">
             <dt className="muted small">{label}</dt>
-            <dd className="cam-card__value num">{value}</dd>
+            <dd className="cam-card__value num">
+              {status === null ? <Icon name="camera" size={20} /> : <span className={`cam-dot cam-dot--${status}`} aria-hidden="true" />}
+              {value}
+            </dd>
           </div>
         ))}
       </dl>
@@ -189,10 +193,11 @@ export function CamerasScreen() {
   return (
     <div className="screen--wide">
       <div className="page-head">
-        <div>
-          <h1>Cameras</h1>
-          <p className="page-head__subtitle">Register cameras, set their status and open their recordings.</p>
-        </div>
+        <h1>Cameras</h1>
+        <button type="button" className="btn btn--primary" onClick={() => setTab(ADD)}>
+          <Icon name="plus" size={16} />
+          Add camera
+        </button>
       </div>
       <Tabs label="Cameras" tabs={tabs} selected={tab} onSelect={setTab} />
       {prompt ? (

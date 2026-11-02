@@ -16,17 +16,19 @@ interface ClipThumbProps {
   duration?: string;
   /** What to say when there is no image (default "No preview"). An image that fails to load says "Preview unavailable". */
   emptyText?: string;
+  /** 'four-three' makes the frame 4:3 (saved clips and compact matches); the default is 16:9. */
+  shape?: 'wide' | 'four-three';
 }
 
 /**
  * A 16:9 poster frame. With no image, or an image that fails to load, it is a neutral dark tile that says
  * "No preview": never an empty box and never a made-up picture.
  */
-export function ClipThumb({ url, duration, emptyText = 'No preview' }: ClipThumbProps) {
+export function ClipThumb({ url, duration, emptyText = 'No preview', shape = 'wide' }: ClipThumbProps) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const showImage = url !== null && failedUrl !== url;
   return (
-    <div className="thumb">
+    <div className={shape === 'wide' ? 'thumb' : 'thumb thumb--four-three'}>
       {showImage ? (
         <img src={url} alt="" width={192} height={108} loading="lazy" onError={() => setFailedUrl(url)} />
       ) : (

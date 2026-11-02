@@ -23,7 +23,12 @@ from askfootage.adapters.sqlite.tracks import SqliteTrackStore
 from askfootage.adapters.sqlite.volume_seed import add_volume
 from askfootage.application.library import Library
 from askfootage.application.snapshots import SnapshotStore
-from askfootage.interfaces.api.app import POSTERS_DIR_NAME, REPO_ROOT, open_poster_store
+from askfootage.interfaces.api.app import (
+    POSTERS_DIR_NAME,
+    REPO_ROOT,
+    code_verifier_of,
+    open_poster_store,
+)
 from askfootage.interfaces.api.app import create_app as create_demo_app
 from askfootage.ports.library_store import Recording
 
@@ -95,4 +100,5 @@ def create_app(
         footage=PerRecordingFootage(videos_dir),
         posters=open_poster_store(prepared / POSTERS_DIR_NAME),
         frame_size=PreparedFrameSize(prepared),
+        verify_demo_code=code_verifier_of(library),
     )

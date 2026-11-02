@@ -4,8 +4,21 @@ import { MemoryRouter } from 'react-router-dom';
 import type { ApiClient } from '../../web/src/api/client';
 import { MockApiClient } from '../../web/src/api/mockClient';
 import { App } from '../../web/src/app/App';
+import { clearDemoSession, startDemoSession } from '../../web/src/features/signin/demoSession';
 
-export function renderApp(path = '/', client: ApiClient = new MockApiClient()) {
+/**
+ * Every test starts with a demo session (setup-ui-tests.ts calls this before each one), because app routes redirect
+ * to /sign-in without it. A test about the signed-out state passes { session: false } to renderApp or calls clearDemoSession().
+ */
+export function startTestSession(): void {
+  startDemoSession();
+}
+
+export { clearDemoSession };
+
+export function renderApp(path = '/', client: ApiClient = new MockApiClient(), options: { session?: boolean } = {}) {
+  if (options.session === false) clearDemoSession();
+  else startTestSession();
   const view = render(
     <MemoryRouter initialEntries={[path]}>
       <App client={client} />

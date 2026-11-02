@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
+import { AccountMenu } from '../components/AccountMenu';
 import { BrandMark } from '../components/BrandMark';
 import { DemoDisclosure } from '../components/DemoDisclosure';
 import { Icon, type IconName } from '../components/Icon';
@@ -45,45 +46,38 @@ const NAV: readonly NavEntry[] = [
   // No `end`: the item stays active on /cameras/:id/recordings too.
   { to: '/cameras', label: 'Cameras', hint: 'Manage cameras and recordings', icon: 'camera' },
   { to: '/zones', label: 'Zones', hint: 'Mark areas of the camera view', icon: 'zones' },
-  { to: '/saved', label: 'Saved clips', hint: 'Clips you kept as evidence', icon: 'bookmark' },
+  { to: '/saved', label: 'Saved Clips', hint: 'Clips you kept as evidence', icon: 'bookmark' },
+  { to: '/activity', label: 'Activity Log', hint: 'Proposed page: sample data only', icon: 'log' },
 ];
 
 const MAIN_ID = 'main-content';
 
-function Topbar({ collapsed, onToggle, mock }: { collapsed: boolean; onToggle: () => void; mock: boolean }) {
+function Topbar({ mock }: { mock: boolean }) {
   const { day } = useSelectedDay();
+  // A plain white strip: only the account control (and, in mock mode, the Mock data chip) at the right.
+  // The day the app is looking at stays for screen readers (and tells the tests the data has loaded).
   return (
     <header className="topbar">
-      <button
-        type="button"
-        className="icon-btn"
-        aria-label={collapsed ? 'Show menu names' : 'Hide menu names'}
-        aria-expanded={!collapsed}
-        aria-controls="app-drawer"
-        onClick={onToggle}
-      >
-        <Icon name="menu" />
-      </button>
-      <Link to="/" className="topbar__brand">
-        <BrandMark />
-        AskFootage
-      </Link>
-      <span className="topbar__tagline">Ask your footage. Get the clip and the proof.</span>
-      <div className="topbar__date">
+      {day ? <span className="visually-hidden">{formatShortDay(day)}</span> : null}
+      <div className="topbar__end">
         {mock ? (
           <span className="chip chip--mock" role="status">
             Mock data: no real footage
           </span>
         ) : null}
-        {day ? <span>{formatShortDay(day)}</span> : null}
+        <AccountMenu />
       </div>
     </header>
   );
 }
 
-function Drawer({ collapsed }: { collapsed: boolean }) {
+function Drawer({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   return (
     <nav id="app-drawer" aria-label="Main" className={collapsed ? 'drawer drawer--collapsed' : 'drawer'}>
+      <Link to="/" className="drawer__brand" aria-label="AskFootage">
+        <BrandMark plain size={28} />
+        <span className={collapsed ? 'visually-hidden' : undefined}>AskFootage</span>
+      </Link>
       <ul className="drawer__list">
         {NAV.map((entry) => (
           <li key={entry.to}>
@@ -96,6 +90,18 @@ function Drawer({ collapsed }: { collapsed: boolean }) {
           </li>
         ))}
       </ul>
+      <div className="drawer__foot">
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label={collapsed ? 'Show menu names' : 'Hide menu names'}
+          aria-expanded={!collapsed}
+          aria-controls="app-drawer"
+          onClick={onToggle}
+        >
+          <Icon name="menu" />
+        </button>
+      </div>
     </nav>
   );
 }
@@ -131,18 +137,18 @@ export function AppShell({ mock = false }: { mock?: boolean }) {
       <a className="skip-link" href={`#${MAIN_ID}`}>
         Skip to content
       </a>
-      <Topbar collapsed={collapsed} onToggle={toggle} mock={mock} />
-      <div className="app__body">
-        <Drawer collapsed={collapsed} />
+      <Drawer collapsed={collapsed} onToggle={toggle} />
+      <div className="app__col">
+        <Topbar mock={mock} />
         <main className="main" id={MAIN_ID} tabIndex={-1}>
           <div className="main__inner">
             <ShellContent />
           </div>
         </main>
+        <footer className="app-footer">
+          <DemoDisclosure />
+        </footer>
       </div>
-      <footer className="app-footer">
-        <DemoDisclosure />
-      </footer>
     </div>
   );
 }
