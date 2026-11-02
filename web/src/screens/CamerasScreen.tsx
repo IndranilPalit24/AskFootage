@@ -186,7 +186,7 @@ export function CamerasScreen() {
     {
       id: ADD,
       label: 'Add new camera',
-      panel: <AddCameraForm cameraCount={cameras?.length ?? 0} write={write} onAdded={added} />,
+      panel: <AddCameraForm write={write} onAdded={added} />,
     },
   ];
 

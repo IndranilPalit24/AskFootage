@@ -18,7 +18,6 @@ export interface CameraFormValues {
   streamSecret: string;
   location: string;
   department: string;
-  acknowledgeCost: boolean;
 }
 
 export type CameraFormField = 'name' | 'ip' | 'username' | 'streamSecret' | 'location' | 'department';
@@ -32,7 +31,6 @@ export const EMPTY_CAMERA_FORM: CameraFormValues = {
   streamSecret: '',
   location: '',
   department: '',
-  acknowledgeCost: false,
 };
 
 export const IP_HINT = 'Enter an IPv4 address such as 192.168.1.20 or a host name such as cam-1.local, with no port or path.';
@@ -68,7 +66,7 @@ function optional(text: string): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-/** The POST /api/cameras body for valid, acknowledged values. */
+/** The POST /api/cameras body for valid values (the contract still requires acknowledgeCost: true). */
 export function cameraCreateBody(values: CameraFormValues): CameraCreate {
   return {
     name: values.name.trim(),

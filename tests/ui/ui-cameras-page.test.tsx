@@ -7,7 +7,6 @@ import type { Camera } from '../../web/src/api/generated/types';
 import { MockApiClient } from '../../web/src/api/mockClient';
 import { deferred, renderApp } from './ui-test-utils';
 
-const COST_TAIL = 'Indexing footage costs about $0.20 per 1,000 frames for each object type.';
 const NOT_REFRESHED = 'Could not refresh. Retrying.';
 
 async function openCameras(client = new MockApiClient()) {
@@ -63,10 +62,6 @@ function fillValid(): void {
   type(/^Camera IP address or host/, '192.168.1.50');
   type(/^Stream username/, 'cam-user');
   type(/^Stream password/, 'hunter2-secret');
-}
-
-function acknowledge(): void {
-  fireEvent.click(screen.getByRole('checkbox', { name: 'I understand that indexing footage for a new object type has a cost, shown above' }));
 }
 
 function submitButton(): HTMLButtonElement {
@@ -480,43 +475,36 @@ describe('Cameras page: Add new camera form', () => {
     expect(screen.getByText('Use at most 80 characters.')).toBeTruthy();
   });
 
-  it('previews the stream address with the password masked and never renders the password', async () => {
+  it('never renders the password, the stream address or the cost note anywhere on the Cameras page', async () => {
     await openCameras();
     openAddTab();
-    expect(screen.getByText('rtsp://<username>:****@<ip>:554/cam/realmonitor?channel=1&subtype=1')).toBeTruthy();
+    const check = () => {
+      const text = document.body.textContent ?? '';
+      expect(text).not.toContain('Stream address');
+      expect(text).not.toContain('password stays hidden');
+      expect(text).not.toContain('rtsp://');
+      expect(text).not.toMatch(/cameras? registered\./);
+      expect(text).not.toContain('per 1,000 frames');
+      expect(screen.queryByRole('checkbox')).toBeNull();
+      expect(document.body.innerHTML).not.toContain('rtsp://');
+      expect(document.body.innerHTML).not.toContain('hunter2-secret');
+    };
+    check();
     fillValid();
-    expect(screen.getByText('rtsp://cam-user:****@192.168.1.50:554/cam/realmonitor?channel=1&subtype=1')).toBeTruthy();
-    expect(document.body.textContent).not.toContain('hunter2-secret');
-    expect(document.body.innerHTML).not.toContain('hunter2-secret');
+    check();
   });
 
-  it('shows the cost note with the number of cameras registered', async () => {
+  it('keeps Add camera disabled until every required field is valid', async () => {
     await openCameras();
     openAddTab();
-    expect(screen.getByText(`3 cameras registered. ${COST_TAIL}`)).toBeTruthy();
-  });
-
-  it('uses the singular for one camera', async () => {
-    const client = new MockApiClient();
-    const real = client.listCameras.bind(client);
-    client.listCameras = async () => (await real()).slice(0, 1);
-    await openCameras(client);
-    openAddTab();
-    expect(screen.getByText(`1 camera registered. ${COST_TAIL}`)).toBeTruthy();
-  });
-
-  it('keeps Add camera disabled until every required field is valid and the cost box is ticked', async () => {
-    await openCameras();
-    openAddTab();
+    expect(submitButton().disabled).toBe(true);
     fillValid();
-    expect(submitButton().disabled).toBe(true); // not acknowledged yet
-    acknowledge();
     expect(submitButton().disabled).toBe(false);
     type(/^Camera IP address or host/, 'not a host');
     expect(submitButton().disabled).toBe(true);
     type(/^Camera IP address or host/, 'cam-yard.local');
     expect(submitButton().disabled).toBe(false);
-    acknowledge(); // unticked again
+    type(/^Stream password/, '');
     expect(submitButton().disabled).toBe(true);
   });
 
@@ -526,7 +514,6 @@ describe('Cameras page: Add new camera form', () => {
     openAddTab();
     fillValid();
     type(/^Location\/Zone/, ' Yard east ');
-    acknowledge();
     fireEvent.click(submitButton());
     expect(add).toHaveBeenCalledTimes(1);
     expect(add).toHaveBeenCalledWith({
@@ -547,9 +534,7 @@ describe('Cameras page: Add new camera form', () => {
     for (const label of [/^Camera name/, /^Camera IP address or host/, /^Stream username/, /^Stream password/, /^Location\/Zone/]) {
       expect(field(label).value).toBe('');
     }
-    expect(screen.getByRole<HTMLInputElement>('checkbox').checked).toBe(false);
     expect(submitButton().disabled).toBe(true);
-    expect(screen.getByText(`4 cameras registered. ${COST_TAIL}`)).toBeTruthy();
     expect(document.body.innerHTML).not.toContain('hunter2-secret');
   });
 
@@ -558,7 +543,6 @@ describe('Cameras page: Add new camera form', () => {
     openAddTab();
     fillValid();
     type(/^Camera name/, 'loading DOCK');
-    acknowledge();
     fireEvent.click(submitButton());
     const message = await screen.findByText('A camera called loading DOCK already exists.');
     const name = field(/^Camera name/);
@@ -577,7 +561,6 @@ describe('Cameras page: Add new camera form', () => {
     client.addCamera = () => Promise.reject(new ApiError(500, 'internal_error', 'The server could not answer. Try again.'));
     openAddTab();
     fillValid();
-    acknowledge();
     fireEvent.click(submitButton());
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('Could not add the camera.');

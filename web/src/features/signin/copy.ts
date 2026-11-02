@@ -31,6 +31,7 @@ export const CODE_MESSAGES = {
   invalid: 'That code is not valid.',
   tooMany: 'Too many attempts. Wait a minute, then try again.',
   failed: 'Could not check the code. Try again.',
+  outdatedApi: 'This API does not support access codes yet. Restart the API (python -m scripts.run_demo), then try again.',
 } as const;
 
 /**

@@ -9,6 +9,8 @@ function messageFor(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) return CODE_MESSAGES.invalid;
     if (error.status === 429) return CODE_MESSAGES.tooMany;
+    // A server started before the endpoint existed answers 404: say what to do instead of a vague failure.
+    if (error.status === 404) return CODE_MESSAGES.outdatedApi;
   }
   return CODE_MESSAGES.failed;
 }

@@ -65,11 +65,6 @@ export function maskedRtspUrl(username: string, host: string): string {
   return rtspUrl(encodeStreamUsername(username), host);
 }
 
-/** The same URL while a form is being filled in: a blank username or host shows as <username> or <ip>. */
-export function maskedRtspUrlPreview(username: string, host: string): string {
-  return rtspUrl(username ? encodeStreamUsername(username) : '<username>', host || '<ip>');
-}
-
 /** CameraCreate.ip's pattern: labels of letters, digits and inner hyphens, separated by dots. */
 const HOST_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$/;
 const DIGITS_AND_DOTS = /^[0-9.]+$/;

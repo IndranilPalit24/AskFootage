@@ -1,5 +1,4 @@
 import { useId, useRef, useState, type FormEvent, type Ref } from 'react';
-import { maskedRtspUrlPreview } from '../../api/cameraRules';
 import { ApiError, errorMessage } from '../../api/errors';
 import type { Camera } from '../../api/generated/types';
 import { useApiClient } from '../../app/ApiContext';
@@ -82,19 +81,13 @@ function TextField({
   );
 }
 
-export function costNote(count: number): string {
-  const registered = count === 1 ? '1 camera registered.' : `${count} cameras registered.`;
-  return `${registered} Indexing footage costs about $0.20 per 1,000 frames for each object type.`;
-}
-
 interface AddCameraFormProps {
-  cameraCount: number;
   /** Runs the request as a write, so a list refresh cannot undo it. */
   write: <T>(action: () => Promise<T>) => Promise<T>;
   onAdded: (camera: Camera) => void;
 }
 
-export function AddCameraForm({ cameraCount, write, onAdded }: AddCameraFormProps) {
+export function AddCameraForm({ write, onAdded }: AddCameraFormProps) {
   const client = useApiClient();
   const toasts = useToasts();
   const [values, setValues] = useState<CameraFormValues>(EMPTY_CAMERA_FORM);
@@ -102,11 +95,10 @@ export function AddCameraForm({ cameraCount, write, onAdded }: AddCameraFormProp
   const [nameTaken, setNameTaken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const passwordInput = useRef<HTMLInputElement>(null);
-  const costId = useId();
 
   const errors = cameraFormErrors(values);
   const valid = Object.keys(errors).length === 0;
-  const canSubmit = valid && values.acknowledgeCost && !submitting;
+  const canSubmit = valid && !submitting;
   const shown = (field: CameraFormField) => (touched.has(field) ? errors[field] : undefined);
 
   function change(field: CameraFormField, value: string) {
@@ -200,24 +192,6 @@ export function AddCameraForm({ cameraCount, write, onAdded }: AddCameraFormProp
         onChange={change}
         onBlur={leave}
       />
-
-      <div className="field">
-        <span className="field__label">Stream address (the password stays hidden)</span>
-        <code className="cam-form__rtsp">{maskedRtspUrlPreview(values.username, values.ip.trim())}</code>
-      </div>
-
-      <p id={costId} className="muted">
-        {costNote(cameraCount)}
-      </p>
-      <label className="cam-form__check">
-        <input
-          type="checkbox"
-          checked={values.acknowledgeCost}
-          aria-describedby={costId}
-          onChange={(event) => setValues((current) => ({ ...current, acknowledgeCost: event.target.checked }))}
-        />
-        I understand that indexing footage for a new object type has a cost, shown above
-      </label>
 
       <div className="btn-row">
         <button type="submit" className="btn btn--primary" disabled={!canSubmit}>
