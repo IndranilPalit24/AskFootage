@@ -171,7 +171,7 @@ def serve_api(root: Path, port: int) -> None:
 
     from askfootage.interfaces.real_clips import create_app
 
-    app = create_app(root / ingest_real_clips.DEFAULT_DATA_DIR, root / "videos")
+    app = create_app(root / ingest_real_clips.DEFAULT_DATA_DIR, root / "videos", demo_volume=True)
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
 
 
