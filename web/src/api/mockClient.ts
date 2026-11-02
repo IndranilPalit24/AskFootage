@@ -2,6 +2,7 @@
 // dataset, so tests (and the app) can write to it freely. It mirrors the API's rules and errors.
 
 import seedJson from '../../../contract/examples/demo-seed.json';
+import boxesJson from '../../../contract/examples/recording-boxes.json';
 import statusJson from '../../../contract/examples/status.json';
 import { addDays, isIsoDay } from '../lib/dates';
 import {
@@ -29,6 +30,7 @@ import type {
   Point,
   Recording,
   RecordingAccepted,
+  RecordingBoxes,
   SavedClip,
   SavedClipCreate,
   SavedClipUpdate,
@@ -122,6 +124,9 @@ function words(text: string): string[] {
 function validation(message: string): ApiError {
   return new ApiError(422, 'validation_error', message);
 }
+
+/** The demo clip's recording: it is the one the demo boxes belong to. */
+const DEMO_BOXES_RECORDING = 'rec-1029-1030';
 
 function notFound(message: string): ApiError {
   return new ApiError(404, 'not_found', message);
@@ -408,6 +413,20 @@ export class MockApiClient implements ApiClient {
       const id = this.nextId(`rec-${day.slice(5, 7)}${day.slice(8, 10)}`);
       this.data.recordings.push({ id, camera, day, startTime: '00:00:00', lengthSeconds: 0, status: 'waiting' });
       return { id, status: 'waiting' as const };
+    });
+  }
+
+  /**
+   * The demo boxes: the example's tracks for the demo clip's recording (and for clip2, the example's own id);
+   * any other known recording has none; an unknown id is 404.
+   */
+  getRecordingBoxes(id: string): Promise<RecordingBoxes> {
+    return this.answer(() => {
+      checkId(id, 'id');
+      const example = boxesJson as unknown as RecordingBoxes;
+      if (id === example.recordingId || id === DEMO_BOXES_RECORDING) return { ...example, recordingId: id };
+      if (!this.data.recordings.some((item) => item.id === id)) throw notFound('Recording not found.');
+      return { ...example, recordingId: id, tracks: [] };
     });
   }
 

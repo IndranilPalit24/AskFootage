@@ -1,4 +1,4 @@
-// Hand-written TypeScript types for every schema in contract/openapi.yaml (v1.3.0).
+// Hand-written TypeScript types for every schema in contract/openapi.yaml (v1.6.0).
 // The contract is the source of truth: keep these in step with it, field for field.
 
 /** A calendar date, YYYY-MM-DD. */
@@ -208,4 +208,34 @@ export interface SavedClipCreate {
 
 export interface SavedClipUpdate {
   note: string;
+}
+
+/** One detection of a tracked object, in pixels of the RecordingBoxes frame. */
+export interface BoxPoint {
+  frame: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+export interface BoxTrack {
+  trackId: number;
+  /** A neutral object noun, such as person or cardboard box. */
+  label: string;
+  /** person for a person; object for anything else (drawn highlighted). */
+  role: 'person' | 'object';
+  /** Ordered by frame; frames without a point had no detection. */
+  points: BoxPoint[];
+}
+
+/** GET /api/recordings/{id}/boxes: the stored object tracks, for the player to draw boxes live. */
+export interface RecordingBoxes {
+  recordingId: string;
+  /** Width in pixels of the frame the boxes are in. */
+  frameWidth: number;
+  frameHeight: number;
+  /** Frame n is at n / fps seconds. */
+  fps: number;
+  tracks: BoxTrack[];
 }

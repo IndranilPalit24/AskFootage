@@ -8,6 +8,7 @@ import { EvidenceSnapshot } from '../features/evidence/EvidenceSnapshot';
 import { KeyFrameStrip } from '../features/evidence/KeyFrameStrip';
 import { WhyMatchedPanel } from '../features/evidence/WhyMatchedPanel';
 import { VideoPlayer } from '../features/player/VideoPlayer';
+import { useRecordingBoxes } from '../features/player/useRecordingBoxes';
 import { DayTimeline } from '../features/timeline/DayTimeline';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { formatShortDay } from '../lib/dates';
@@ -29,6 +30,7 @@ function ClipDetail({ clip, cameraName }: { clip: Clip; cameraName: string }) {
     () => client.listRecordings(clip.day, clip.camera),
     ['recordings', clip.day, clip.camera],
   );
+  const boxes = useRecordingBoxes(clip.recordingId);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [selectedFrame, setSelectedFrame] = useState<number | null>(null);
 
@@ -66,6 +68,7 @@ function ClipDetail({ clip, cameraName }: { clip: Clip; cameraName: string }) {
             label={`${clip.label}, ${range}`}
             hint="The evidence below is still available."
             videoRef={videoRef}
+            boxes={boxes}
           />
           <EvidenceSnapshot src={clip.snapshotUrl === null ? null : client.assetUrl(clip.snapshotUrl)} />
           <KeyFrameStrip clip={clip} selected={selectedFrame} onSelect={selectFrame} />

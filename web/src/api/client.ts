@@ -8,6 +8,7 @@ import type {
   IsoDay,
   Recording,
   RecordingAccepted,
+  RecordingBoxes,
   SavedClip,
   SavedClipCreate,
   SavedClipUpdate,
@@ -44,6 +45,8 @@ export interface ApiClient {
   /** Without camera: every camera's recordings. */
   listRecordings(day: IsoDay, camera?: string): Promise<Recording[]>;
   addRecording(file: File, day: IsoDay, camera: string): Promise<RecordingAccepted>;
+  /** The stored object tracks of a recording, to draw boxes over the playing video. 404 when the recording is unknown. */
+  getRecordingBoxes(id: string): Promise<RecordingBoxes>;
   /** getRecordingVideo: the URL a <video> element can stream from, or null when no footage can be served. */
   recordingVideoUrl(recordingId: string): string | null;
   /** The URL an <img> can load for a server path such as a clip's snapshotUrl. */
@@ -164,6 +167,10 @@ export class FetchApiClient implements ApiClient {
     form.append('day', day);
     form.append('camera', camera);
     return this.request('POST', '/api/recordings', { form });
+  }
+
+  getRecordingBoxes(id: string): Promise<RecordingBoxes> {
+    return this.request('GET', `/api/recordings/${encodeURIComponent(id)}/boxes`);
   }
 
   recordingVideoUrl(recordingId: string): string {
