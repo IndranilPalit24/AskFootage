@@ -162,6 +162,7 @@ def test_a_day_without_footage_says_so(client: TestClient) -> None:
         "clips": [],
         "note": "There is no footage from this camera on this day.",
         "proofs": [],
+        "needsIndexing": [],
     }
 
 
@@ -251,6 +252,7 @@ def test_a_day_without_footage_on_any_camera_says_so(client: TestClient) -> None
         "clips": [],
         "note": "There is no footage from any camera on this day.",
         "proofs": [],
+        "needsIndexing": [],
     }
 
 
