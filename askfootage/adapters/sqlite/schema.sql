@@ -19,6 +19,13 @@
 -- - 4: concepts_searched, a marker that a concept was searched for a recording, even when
 --   nothing was found. Additive: a v3 database is upgraded in place and keeps its data
 --   (store.py runs _MIGRATIONS[3], which creates the table and sets the version).
+-- - 5: where a row came from. cameras.origin, zones.origin and recordings.origin are 'real'
+--   (the default: everything a person or the ingest scripts add) or 'demo_volume' (rows the
+--   volume generator invents so the demo shows believable scale; askfootage/adapters/sqlite/
+--   volume_seed.py). recordings.has_footage is 0 for a recording that has no video file or
+--   tracks behind it. volume_state remembers the camera counter from before the volume was
+--   added, so removing the volume can put it back. Additive: a v4 database is upgraded in
+--   place and keeps its data (store.py runs _MIGRATIONS[4]).
 --
 -- Conventions
 -- - Recording, clip, zone and saved-clip ids are chosen by the caller: 1 to 64 letters,
@@ -37,6 +44,7 @@
 -- - No identity of any kind (ADR 0008): labels are neutral object words such as 'person'.
 -- - No password of any kind: a camera's stream password is checked by the API and dropped.
 --   cameras.username is the camera's stream login (such as 'viewer'), not a person.
+-- - origin only says whether a row is real or invented; it never names a person or device.
 -- - Every table is STRICT: a value that does not fit the column's type is refused.
 -- - A CHECK passes when its expression is NULL, so checks use IS where NULL could appear.
 
@@ -83,6 +91,7 @@ CREATE TABLE cameras (
     created_at TEXT    NOT NULL
                CHECK (created_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9][0-9][0-9][0-9]Z'
                       AND date(created_at) IS substr(created_at, 1, 10)),
+    origin     TEXT    NOT NULL DEFAULT 'real' CHECK (origin IN ('real', 'demo_volume')),
     -- One spelling per number: CAM-001, never CAM-1 or CAM-0001.
     CHECK (id = 'CAM-' || printf('%03d', number))
 ) STRICT;
@@ -132,6 +141,9 @@ CREATE TABLE recordings (
                    CHECK (status_note IS NULL
                           OR (trim(status_note, char(32, 9, 10, 11, 12, 13)) <> ''
                               AND length(status_note) <= 300)),
+    -- 0 when no video file or tracks sit behind the row (generated demo volume).
+    has_footage    INTEGER NOT NULL DEFAULT 1 CHECK (has_footage IN (0, 1)),
+    origin         TEXT    NOT NULL DEFAULT 'real' CHECK (origin IN ('real', 'demo_volume')),
     -- The key clips point at, so a clip's copied camera and day always match its recording.
     UNIQUE (id, camera_id, day)
 ) STRICT;
@@ -189,7 +201,8 @@ CREATE TABLE zones (
               CHECK (length(id) BETWEEN 1 AND 64 AND id NOT GLOB '*[^A-Za-z0-9_-]*'),
     camera_id TEXT NOT NULL REFERENCES cameras (id) ON DELETE CASCADE,
     name      TEXT NOT NULL
-              CHECK (trim(name, char(32, 9, 10, 11, 12, 13)) <> '' AND length(name) <= 60)
+              CHECK (trim(name, char(32, 9, 10, 11, 12, 13)) <> '' AND length(name) <= 60),
+    origin    TEXT NOT NULL DEFAULT 'real' CHECK (origin IN ('real', 'demo_volume'))
 ) STRICT;
 
 -- A zone name is unique per camera ignoring case (str.casefold). NOCASE folds ASCII only,
@@ -270,4 +283,12 @@ CREATE TABLE concepts_searched (
     PRIMARY KEY (recording_id, label)
 ) STRICT, WITHOUT ROWID;
 
-PRAGMA user_version = 4;
+-- The camera counter before the demo volume was added: one row while the volume is in,
+-- none otherwise. Removing the volume sets camera_sequence back to it, so the next camera
+-- number is the same as if the volume had never been added.
+CREATE TABLE volume_state (
+    only_row                 INTEGER NOT NULL PRIMARY KEY CHECK (only_row = 1),
+    prior_last_camera_number INTEGER NOT NULL CHECK (prior_last_camera_number >= 0)
+) STRICT;
+
+PRAGMA user_version = 5;

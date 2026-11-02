@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from db_library_helpers import (
+    ALL_TABLES,
     CAM_1,
     CAM_2,
     TABLES,
@@ -217,7 +218,7 @@ def test_an_injection_string_is_stored_as_plain_text(full: Path) -> None:
         tables = {
             row[0] for row in db.execute("SELECT name FROM sqlite_schema WHERE type = 'table'")
         }
-    assert tables == set(TABLES)
+    assert tables == set(ALL_TABLES)
     assert _counts(full)["saved_clips"] == 3
     assert _counts(full)["cameras"] == 3
     assert len(store.list_zones()) == 3

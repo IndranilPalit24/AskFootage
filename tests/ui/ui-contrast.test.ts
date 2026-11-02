@@ -50,6 +50,22 @@ const PAIRS: ReadonlyArray<[string, string, number, string]> = [
   ['statusOffline', 'page', 3, 'status dot: offline'],
   ['evidenceBox', 'surface', 3, 'red box on the frame'],
   ['accent', 'activeFill', 3, 'timeline interval on its track'],
+  // Added with the review-tool redesign: the canvas behind cards, and the dark player stage.
+  ['text', 'canvas', 4.5, 'text on the app canvas'],
+  ['textMuted', 'canvas', 4.5, 'muted text on the app canvas'],
+  ['accent', 'canvas', 4.5, 'links on the app canvas'],
+  ['onPlayer', 'playerBg', 4.5, 'time readout and labels on the player stage'],
+  ['onPlayerMuted', 'playerBg', 4.5, 'quiet text on the player stage'],
+  ['onPlayer', 'playerTrack', 4.5, 'player button hover'],
+  ['playerAccent', 'playerBg', 3, 'matched interval and zone outline on the stage'],
+  ['playerAccent', 'playerTrack', 3, 'matched interval against the scrubber track'],
+  ['onPlayer', 'playerBg', 3, 'focus ring on the player stage'],
+  ['onNavy', 'navy', 4.5, 'brand mark'],
+  // The sign-in page's warm brand panel and its muted disabled buttons.
+  ['text', 'surfaceWarm', 4.5, 'text on the sign-in brand panel'],
+  ['textMuted', 'surfaceWarm', 4.5, 'muted text on the sign-in brand panel'],
+  ['heading', 'surfaceWarm', 4.5, 'headline on the sign-in brand panel'],
+  ['accent', 'surfaceWarm', 3, 'bay outlines on the floor plan'],
 ];
 
 describe('WCAG AA contrast of the design tokens', () => {

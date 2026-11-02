@@ -7,7 +7,10 @@ import { MAX_ZONE_POINTS, sortZones } from '../features/zones/geometry';
 import { NewZoneForm } from '../features/zones/NewZoneForm';
 import { ZoneFrame } from '../features/zones/ZoneFrame';
 import { ZoneList } from '../features/zones/ZoneList';
+import { EmptyState } from '../components/EmptyState';
+import { useSelectedDay } from '../app/SelectedDayContext';
 import { useAsyncData } from '../hooks/useAsyncData';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 const INSTRUCTIONS_ID = 'zone-draw-instructions';
 
@@ -18,19 +21,31 @@ const loading = (
 );
 
 const loadingZones = (
-  <p className="muted" role="status">
-    Loading zones…
-  </p>
+  <div>
+    <p className="visually-hidden" role="status">
+      Loading zones…
+    </p>
+    <div className="stack stack--tight" aria-hidden="true">
+      <span className="skeleton skeleton--line" />
+      <span className="skeleton skeleton--line skeleton--short" />
+    </div>
+  </div>
 );
 
 export function ZonesScreen() {
+  usePageTitle('Zones');
   const client = useApiClient();
   const { cameras } = useAppData();
+  const { day } = useSelectedDay();
   const [chosenCamera, setChosenCamera] = useState<string | null>(null);
   // Derived, not synced: the picked camera while it exists, otherwise the first one.
   const camera = cameras?.find((item) => item.id === chosenCamera) ?? cameras?.[0] ?? null;
   const cameraId = camera?.id ?? null;
   const zones = useAsyncData(cameraId ? () => client.listZones(cameraId) : null, ['zones', cameraId]);
+  // The still frame to draw on: a poster of this camera's footage on the selected day, when there is any.
+  const stills = useAsyncData(cameraId && day ? () => client.listRecordings(day, cameraId) : null, ['zone-still', cameraId, day]);
+  const stillPath = stills.data?.find((recording) => recording.posterUrl !== null)?.posterUrl ?? null;
+  const stillUrl = stillPath === null ? null : client.assetUrl(stillPath);
   // null: not drawing. An array: the points of the zone being drawn, in click order.
   const [draft, setDraft] = useState<Point[] | null>(null);
 
@@ -110,15 +125,22 @@ export function ZonesScreen() {
     return (
       <>
         {pageHead}
-        <p className="muted">
-          No cameras yet. <Link to="/cameras">Add a camera</Link> to draw zones on its view.
-        </p>
+        <EmptyState
+          title="No cameras to draw on yet"
+          action={
+            <Link to="/cameras" className="btn btn--primary">
+              Add a camera
+            </Link>
+          }
+        >
+          Zones are drawn on a camera&apos;s view. Add a camera first, then come back to mark an area.
+        </EmptyState>
       </>
     );
   }
 
   return (
-    <>
+    <div className="screen--wide">
       {pageHead}
 
       <div className="field field--inline zones-camera">
@@ -151,6 +173,7 @@ export function ZonesScreen() {
             draft={draft ?? []}
             onAddPoint={addPoint}
             instructionsId={INSTRUCTIONS_ID}
+            imageUrl={stillUrl}
           />
           {drawing ? (
             <>
@@ -175,6 +198,6 @@ export function ZonesScreen() {
           {listBody}
         </section>
       </div>
-    </>
+    </div>
   );
 }

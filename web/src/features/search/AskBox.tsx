@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import type { DaySummary } from '../../api/generated/types';
+import type { Camera, DaySummary } from '../../api/generated/types';
 import { Icon } from '../../components/Icon';
 import { formatShortDay } from '../../lib/dates';
 
@@ -21,6 +21,12 @@ interface AskBoxProps {
   days: DaySummary[];
   day: string;
   onDayChange: (day: string) => void;
+  /** The cameras that can be searched, and the one picked ('' is every camera). */
+  cameras: readonly Camera[];
+  camera: string;
+  onCameraChange: (camera: string) => void;
+  /** A search is running: the box shows it (a bar on its edge, "Searching…") and does not send a second one. */
+  busy?: boolean;
 }
 
 /**
@@ -28,21 +34,21 @@ interface AskBoxProps {
  * and the Day selector. Searches cover every camera. The draft question lives here, so typing re-renders
  * only the box, never the result cards.
  */
-export function AskBox({ initialQuestion, onSubmit, days, day, onDayChange }: AskBoxProps) {
+export function AskBox({ initialQuestion, onSubmit, days, day, onDayChange, cameras, camera, onCameraChange, busy = false }: AskBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [question, setQuestion] = useState(initialQuestion);
   const blank = question.trim().length === 0;
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!blank) onSubmit(question.trim());
+    if (!blank && !busy) onSubmit(question.trim());
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     // Enter sends; Shift+Enter keeps the newline. Ignore Enter while an IME is composing text.
     if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
-    if (!blank) onSubmit(question.trim());
+    if (!blank && !busy) onSubmit(question.trim());
   }
 
   function fill(example: string) {
@@ -53,7 +59,8 @@ export function AskBox({ initialQuestion, onSubmit, days, day, onDayChange }: As
   return (
     <div className="ask">
       <form role="search" aria-label="Find Footage" onSubmit={handleSubmit}>
-        <div className="ask__box" data-testid="ask-box">
+        <div className="ask__box" data-testid="ask-box" aria-busy={busy || undefined}>
+          {busy ? <span className="ask__progress" aria-hidden="true" /> : null}
           <label htmlFor="ask-question" className="visually-hidden">
             Ask about the footage
           </label>
@@ -70,7 +77,17 @@ export function AskBox({ initialQuestion, onSubmit, days, day, onDayChange }: As
             onKeyDown={handleKeyDown}
           />
           <div className="ask__actions">
-            <button type="submit" className="btn btn--primary ask__submit" aria-label="Search" disabled={blank}>
+            <span className="ask__state" aria-hidden="true">
+              {busy ? 'Searching…' : 'Enter to search · Shift+Enter for a new line'}
+            </span>
+            <button
+              type="submit"
+              className="btn btn--primary ask__submit"
+              aria-label="Search"
+              aria-busy={busy || undefined}
+              aria-disabled={busy || undefined}
+              disabled={blank}
+            >
               <Icon name="search" />
             </button>
           </div>
@@ -89,6 +106,16 @@ export function AskBox({ initialQuestion, onSubmit, days, day, onDayChange }: As
         ))}
       </ul>
       <div className="scope">
+        <label htmlFor="ask-camera">Cameras:</label>
+        <select id="ask-camera" className="select" value={camera} onChange={(event) => onCameraChange(event.target.value)}>
+          <option value="">All cameras</option>
+          {cameras.map((entry) => (
+            <option key={entry.id} value={entry.id}>
+              {entry.name}
+              {entry.location ? ` · ${entry.location}` : ''}
+            </option>
+          ))}
+        </select>
         <label htmlFor="ask-day">Day:</label>
         <select id="ask-day" className="select" value={day} onChange={(event) => onDayChange(event.target.value)}>
           {days.map((entry) => (

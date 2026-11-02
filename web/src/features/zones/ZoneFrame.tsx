@@ -1,6 +1,6 @@
-import { useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import type { Point, Zone } from '../../api/generated/types';
-import { labelPosition, normalisedPoint, nudge, percent, svgPoints } from './geometry';
+import { labelPosition, normalisedPoint, nudge, percent, pictureBox, svgPoints } from './geometry';
 
 const STEP = 0.01;
 const BIG_STEP = 0.05;
@@ -23,6 +23,8 @@ interface ZoneFrameProps {
   onAddPoint: (point: Point) => void;
   /** id of the text that explains how to draw (mouse and keyboard). */
   instructionsId: string;
+  /** A real still of this camera's footage to draw on (a recording's poster frame), or null when there is none. */
+  imageUrl?: string | null;
 }
 
 /**
@@ -30,13 +32,29 @@ interface ZoneFrameProps {
  * saved zones and the zone being drawn. While drawing, a click adds a point; so does Enter, at a cursor the
  * arrow keys move, so drawing works without a mouse.
  */
-export function ZoneFrame({ zones, caption, drawing, draft, onAddPoint, instructionsId }: ZoneFrameProps) {
+export function ZoneFrame({ zones, caption, drawing, draft, onAddPoint, instructionsId, imageUrl = null }: ZoneFrameProps) {
   const [cursor, setCursor] = useState<Point | null>(null);
+  const [failedImage, setFailedImage] = useState<string | null>(null);
+  const showImage = imageUrl !== null && failedImage !== imageUrl;
+  // The still's shape (width / height) once it has loaded: zones are drawn on the picture, not the letterbox.
+  const [aspect, setAspect] = useState<number | null>(null);
+  // A new picture gets a fresh chance to load.
+  useEffect(() => {
+    setFailedImage(null);
+    setAspect(null);
+  }, [imageUrl]);
+  const box = pictureBox(showImage ? aspect : null);
 
   function handleClick(event: MouseEvent<HTMLDivElement>) {
-    // Measured against the frame itself (not whichever child was hit), so this equals offsetX / width.
+    // Measured against the frame itself (not whichever child was hit) and mapped onto the picture inside it, so
+    // 0..1 are the picture's own edges; a click in the letterbox lands on the nearest edge.
     const rect = event.currentTarget.getBoundingClientRect();
-    const point = normalisedPoint(event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height);
+    const point = normalisedPoint(
+      event.clientX - rect.left - box.left * rect.width,
+      event.clientY - rect.top - box.top * rect.height,
+      box.width * rect.width,
+      box.height * rect.height,
+    );
     if (point) onAddPoint(point);
   }
 
@@ -72,9 +90,26 @@ export function ZoneFrame({ zones, caption, drawing, draft, onAddPoint, instruct
       onClick={drawing ? handleClick : undefined}
       onKeyDown={drawing ? handleKeyDown : undefined}
     >
+      {showImage ? (
+        <img
+          className="frame__image"
+          src={imageUrl}
+          alt=""
+          onLoad={(event) => setAspect(event.currentTarget.naturalWidth / event.currentTarget.naturalHeight)}
+          onError={() => setFailedImage(imageUrl)}
+        />
+      ) : (
+        <span className="frame__empty" aria-hidden="true">
+          No still frame yet. Add footage for this camera and its view appears here to draw on.
+        </span>
+      )}
       <span className="frame__caption" aria-hidden="true">
         {caption}
       </span>
+      <div
+        className="frame__picture"
+        style={{ left: percent(box.left), top: percent(box.top), width: percent(box.width), height: percent(box.height) }}
+      >
       <svg className="frame__overlay" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true" focusable="false">
         {zones.map((zone) => (
           <polygon
@@ -111,6 +146,7 @@ export function ZoneFrame({ zones, caption, drawing, draft, onAddPoint, instruct
       {drawing && cursor ? (
         <span className="frame__cursor" style={{ left: percent(cursor[0]), top: percent(cursor[1]) }} aria-hidden="true" />
       ) : null}
+      </div>
     </div>
   );
 }

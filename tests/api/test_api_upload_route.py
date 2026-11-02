@@ -116,6 +116,8 @@ def test_the_new_recording_is_listed_and_counted(upload_client: TestClient) -> N
         "startTime": "00:00:00",
         "lengthSeconds": 0,
         "status": "waiting",
+        "posterUrl": "/api/recordings/rec-new1/poster",
+        "hasFootage": True,
     }
     days = upload_client.get("/api/days", params={"camera": "CAM-001"}).json()
     assert days[-1] == {"day": FRIDAY, "recordings": 5, "ready": 2}

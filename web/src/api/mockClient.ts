@@ -64,8 +64,8 @@ interface CameraRecord {
 export interface DemoSeed {
   today: IsoDay;
   cameras: CameraRecord[];
-  recordings: Recording[];
-  clips: Array<Omit<Clip, 'camera' | 'snapshotUrl'> & { camera?: string; snapshotUrl?: string | null }>;
+  recordings: Array<Omit<Recording, 'posterUrl' | 'hasFootage'> & { posterUrl?: string | null; hasFootage?: boolean }>;
+  clips: Array<Omit<Clip, 'camera' | 'snapshotUrl' | 'posterUrl'> & { camera?: string; snapshotUrl?: string | null; posterUrl?: string | null }>;
   zones: Zone[];
   savedClips: SavedClip[];
 }
@@ -84,6 +84,12 @@ export interface MockApiClientOptions {
   latencyMs?: number;
   /** Overrides status.json's demoMode. */
   demoMode?: boolean;
+  /**
+   * Adds recordings that are listed but have no video (hasFootage false) on the latest day: a few per camera and
+   * a long list for the first camera, so the quiet note and paging can be seen. Off by default, so the seed's
+   * counts stay as the contract examples have them; the explicit mock mode of the app turns it on.
+   */
+  withFootagelessRecordings?: boolean;
 }
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -241,9 +247,12 @@ function fromSeed(seed: DemoSeed): DemoData {
     ...clip,
     camera: clip.camera ?? cameraOfRecording.get(clip.recordingId) ?? '',
     snapshotUrl: clip.snapshotUrl ?? DEMO_SNAPSHOTS[clip.id] ?? null,
+    // The demo has no footage to take a still from, so a seed clip without a poster has none.
+    posterUrl: clip.posterUrl ?? null,
   });
   return {
     ...seed,
+    recordings: seed.recordings.map((recording) => ({ ...recording, posterUrl: recording.posterUrl ?? null, hasFootage: recording.hasFootage ?? true })),
     clips: seed.clips.map(withCamera),
     savedClips: seed.savedClips.map((saved) => ({ ...saved, clip: withCamera(saved.clip) })),
   };
@@ -273,7 +282,29 @@ export class MockApiClient implements ApiClient {
     this.status = clone(statusJson as Status);
     if (options.demoMode !== undefined) this.status.demoMode = options.demoMode;
     this.latencyMs = options.latencyMs ?? 0;
+    if (options.withFootagelessRecordings) this.addFootagelessRecordings();
     this.lastCameraNumber = this.data.cameras.reduce((max, camera) => Math.max(max, cameraIdNumber(camera.id)), 0);
+  }
+
+  private addFootagelessRecordings(): void {
+    const day = this.data.today;
+    this.data.cameras.forEach((camera, index) => {
+      const count = index === 0 ? 60 : 3;
+      for (let n = 0; n < count; n += 1) {
+        const minutes = 5 + n * 7;
+        const startTime = `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}:30`;
+        this.data.recordings.push({
+          id: `rec-nf-${camera.id}-${n}`,
+          camera: camera.id,
+          day,
+          startTime,
+          lengthSeconds: 600,
+          status: n % 9 === 8 ? 'waiting' : 'ready',
+          posterUrl: null,
+          hasFootage: false,
+        });
+      }
+    });
   }
 
   /** Runs fn after the configured latency and hands back a copy, so callers never share internal state. */
@@ -423,7 +454,7 @@ export class MockApiClient implements ApiClient {
         throw new ApiError(415, 'unsupported_media_type', 'Only MP4 video files can be added.');
       }
       const id = this.nextId(`rec-${day.slice(5, 7)}${day.slice(8, 10)}`);
-      this.data.recordings.push({ id, camera, day, startTime: '00:00:00', lengthSeconds: 0, status: 'waiting' });
+      this.data.recordings.push({ id, camera, day, startTime: '00:00:00', lengthSeconds: 0, status: 'waiting', posterUrl: null, hasFootage: false });
       return { id, status: 'waiting' as const };
     });
   }

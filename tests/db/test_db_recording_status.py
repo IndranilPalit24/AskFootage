@@ -26,7 +26,11 @@ def waiting(store: SqliteLibraryStore) -> SqliteLibraryStore:
 
 def _row(path: Path, recording_id: str) -> tuple[object, ...]:
     with raw_connection(path) as db:
-        return db.execute("SELECT * FROM recordings WHERE id = ?", (recording_id,)).fetchone()
+        return db.execute(
+            "SELECT id, camera_id, day, start_time, length_seconds, status, status_note "
+            "FROM recordings WHERE id = ?",
+            (recording_id,),
+        ).fetchone()
 
 
 def test_a_status_note_round_trips_through_add_and_every_read(store: SqliteLibraryStore) -> None:

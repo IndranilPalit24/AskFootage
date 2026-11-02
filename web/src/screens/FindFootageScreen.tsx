@@ -1,14 +1,19 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useAppData } from '../app/AppDataContext';
 import { useSearchActions, useSearchState } from '../app/SearchContext';
 import { useSelectedDay } from '../app/SelectedDayContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { AskBox } from '../features/search/AskBox';
 import { SearchResults } from '../features/search/SearchResults';
 
+// The ask box's shape while the days load; the word is announced, the shape is not.
 const loading = (
-  <p className="muted" role="status">
-    Loading…
-  </p>
+  <div>
+    <p className="visually-hidden" role="status">
+      Loading…
+    </p>
+    <span className="skeleton skeleton--ask" aria-hidden="true" />
+  </div>
 );
 
 /**
@@ -17,6 +22,7 @@ const loading = (
  * results follow.
  */
 export function FindFootageScreen() {
+  usePageTitle('Find Footage');
   const { days, cameras } = useAppData();
   const { day, setDay } = useSelectedDay();
   const search = useSearchState();
@@ -24,19 +30,27 @@ export function FindFootageScreen() {
   // One lookup table per camera list, not a scan per card.
   const cameraNames = useMemo(() => new Map((cameras ?? []).map((camera) => [camera.id, camera.name])), [cameras]);
   const started = search.phase !== 'idle';
+  // The camera filter lives here, starting from the last search (so "Back to results" shows it again).
+  const [camera, setCamera] = useState(() => (search.phase === 'idle' ? '' : search.camera));
 
   function submit(question: string) {
-    if (day) run(question, day);
+    if (day) run(question, day, camera);
   }
 
   function changeDay(next: string) {
     setDay(next);
     // Results always answer the day in the Day selector: ask the last question again for the new day.
-    if (search.phase !== 'idle') run(search.question, next);
+    if (search.phase !== 'idle') run(search.question, next, camera);
+  }
+
+  function changeCamera(next: string) {
+    setCamera(next);
+    // The question stays in the box; an answered question is asked again for the new camera.
+    if (search.phase !== 'idle') run(search.question, search.day, next);
   }
 
   function retry() {
-    if (search.phase !== 'idle') run(search.question, search.day);
+    if (search.phase !== 'idle') run(search.question, search.day, search.camera);
   }
 
   return (
@@ -56,6 +70,10 @@ export function FindFootageScreen() {
             days={days}
             day={day}
             onDayChange={changeDay}
+            cameras={cameras ?? []}
+            camera={camera}
+            onCameraChange={changeCamera}
+            busy={search.phase === 'loading'}
           />
         ) : (
           loading

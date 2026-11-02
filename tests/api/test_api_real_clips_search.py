@@ -85,6 +85,10 @@ def client(
     )
     library.add_recording(Recording("clip1", "CAM-001", DAY, time(9, 0), 10, "ready"))
     library.add_recording(Recording("clip2", "CAM-001", DAY, time(9, 30), 10, "ready"))
+    # A generated row: listed and counted, but no footage and never a match.
+    library.add_recording(
+        Recording("gen-0001", "CAM-001", DAY, time(10, 0), 600, "ready", has_footage=False)
+    )
     tracks = SqliteTrackStore(library)
     _store_real_tracks(tracks)
     app = build_app(
@@ -156,3 +160,17 @@ def test_the_snapshot_is_served_and_linked_from_the_clip(client: TestClient) -> 
     image = client.get(clip["snapshotUrl"])
     assert image.headers["content-type"] == "image/jpeg" and image.content == JPEG
     assert client.get(f"/api/clips/{clip['id']}").json()["snapshotUrl"] == clip["snapshotUrl"]
+
+
+def test_a_generated_recording_is_listed_and_counted_but_never_a_match(client: TestClient) -> None:
+    listed = client.get("/api/recordings", params={"day": DAY.isoformat()}).json()
+    flags = {item["id"]: item["hasFootage"] for item in listed}
+    assert flags == {"clip1": True, "clip2": True, "gen-0001": False}
+    days = client.get("/api/days").json()
+    assert {"day": DAY.isoformat(), "recordings": 3, "ready": 3} in days
+    for question in ("person carrying a box", "someone waiting", "any person"):
+        found = ask(client, question)["clips"]
+        assert "gen-0001" not in {c["recordingId"] for c in found}  # type: ignore[union-attr]
+    assert client.get("/api/recordings/gen-0001/video").json()["error"]["code"] == (
+        "footage_not_included"
+    )

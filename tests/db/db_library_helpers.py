@@ -173,6 +173,9 @@ TABLES = (
     "track_points",
     "concepts_searched",
 )
+"""Every table in schema.sql that holds library data (volume_state is bookkeeping)."""
+
+ALL_TABLES = (*TABLES, "volume_state")
 """Every table in schema.sql."""
 
 
@@ -219,7 +222,9 @@ def clip_json(value: Clip) -> dict[str, object]:
 def api_clip_json(value: Clip, camera_id: str) -> dict[str, object]:
     """A clip in the API's shape (contract/openapi.yaml, Clip): its recording's camera too."""
     # snapshotUrl is made by the API from its snapshot store; it is never stored.
-    return {**clip_json(value), "camera": camera_id, "snapshotUrl": None}
+    # posterUrl is made by the API too: the recording's poster at the clip's first second.
+    poster = f"/api/recordings/{value.recording_id}/poster?t={value.start_seconds}"
+    return {**clip_json(value), "camera": camera_id, "snapshotUrl": None, "posterUrl": poster}
 
 
 def recording_json(value: Recording) -> dict[str, object]:
@@ -231,6 +236,15 @@ def recording_json(value: Recording) -> dict[str, object]:
         "startTime": value.start_time.isoformat(),
         "lengthSeconds": value.length_seconds,
         "status": value.status,
+    }
+
+
+def api_recording_json(value: Recording) -> dict[str, object]:
+    """A recording as the API returns it: the stored fields plus the posterUrl it makes."""
+    return {
+        **recording_json(value),
+        "posterUrl": f"/api/recordings/{value.id}/poster",
+        "hasFootage": value.has_footage,
     }
 
 
@@ -268,3 +282,24 @@ def camera_json(value: Camera) -> dict[str, object]:
         "status": value.status,
         "createdAt": value.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+
+
+def dump(path: Path) -> dict[str, object]:
+    """Everything in the database file: schema text, version and every row of every table."""
+    with raw_connection(path) as db:
+        tables = [
+            name
+            for (name,) in db.execute(
+                "SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name"
+            )
+        ]
+        result: dict[str, object] = {
+            "user_version": db.execute("PRAGMA user_version").fetchone()[0],
+            "schema": db.execute(
+                "SELECT type, name, sql FROM sqlite_schema ORDER BY name"
+            ).fetchall(),
+        }
+        for table in tables:
+            rows = db.execute(f"SELECT * FROM {table}").fetchall()  # noqa: S608 - own table names
+            result[table] = sorted(rows, key=repr)
+        return result

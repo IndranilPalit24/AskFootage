@@ -59,3 +59,12 @@ export function formatClipRange(clip: Pick<Clip, 'startTime' | 'startSeconds' | 
 export function clipMomentTime(clip: Pick<Clip, 'startTime' | 'startSeconds'>, atSeconds: number): string {
   return formatTimeOfDay(clipStartOfDay(clip) + (atSeconds - clip.startSeconds));
 }
+
+/** 4 -> "0:04", 75 -> "1:15", 3725 -> "1:02:05": a length or position in the player (tabular, mono). */
+export function formatDuration(totalSeconds: number): string {
+  const value = Math.max(0, Math.floor(Number.isFinite(totalSeconds) ? totalSeconds : 0));
+  const hours = Math.floor(value / 3600);
+  const minutes = Math.floor((value % 3600) / 60);
+  const seconds = pad2(value % 60);
+  return hours > 0 ? `${hours}:${pad2(minutes)}:${seconds}` : `${minutes}:${seconds}`;
+}

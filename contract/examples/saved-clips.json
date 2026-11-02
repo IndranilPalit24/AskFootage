@@ -37,7 +37,8 @@
         }
       ],
       "thumbnailUrl": null,
-      "snapshotUrl": null
+      "snapshotUrl": null,
+      "posterUrl": "/api/recordings/rec-1029-1030/poster?t=735"
     },
     "note": "Check this delivery against the paperwork",
     "savedAt": "2026-10-30T09:12:44Z"

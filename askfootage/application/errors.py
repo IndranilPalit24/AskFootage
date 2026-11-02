@@ -21,6 +21,19 @@ class NotFoundError(ApplicationError):
     """The camera, recording, clip, zone, saved clip or footage file does not exist."""
 
 
+FOOTAGE_NOT_INCLUDED_MESSAGE = "Footage is not included for this recording."
+
+
+class FootageNotIncludedError(NotFoundError):
+    """The recording is listed (it has a row) but has no video behind it.
+
+    The message is fixed: it never names a file, a folder or a reason.
+    """
+
+    def __init__(self, message: str = FOOTAGE_NOT_INCLUDED_MESSAGE) -> None:
+        super().__init__(message)
+
+
 class ConflictError(ApplicationError):
     """The change clashes with data that already exists."""
 

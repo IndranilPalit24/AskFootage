@@ -78,13 +78,14 @@ describe('Swiss style rules in the stylesheet', () => {
     expect(globalCss).not.toMatch(/text-align:\s*center/);
   });
 
-  it('only the five type sizes and two weights are used', () => {
+  it('only the six type sizes and three weights are used', () => {
     const sizes = new Set([...globalCss.matchAll(/font-size:\s*var\(--font-size-(\w+)\)/g)].map((match) => match[1]));
-    // base is the 14px body size; 32 is the welcome page's headline, used once.
-    expect([...sizes].sort()).toEqual(['12', '14', '16', '24', '32', 'base']);
-    expect(globalCss.match(/font-size:\s*var\(--font-size-32\)/g)).toHaveLength(1);
+    // CHANGED on purpose (was 12/14/16/24/32): the scale is 12/13/14/16/20/28; base is the 14px body size.
+    expect([...sizes].sort()).toEqual(['12', '13', '14', '16', '20', '28', 'base']);
+    // 28 is the focal headline: the Find Footage start title, the welcome headline and the sign-in pitch, nothing else.
+    expect(globalCss.match(/font-size:\s*var\(--font-size-28\)/g)).toHaveLength(3);
     const weights = new Set([...globalCss.matchAll(/font-weight:\s*var\(--font-weight-(\w+)\)/g)].map((match) => match[1]));
-    expect([...weights].sort()).toEqual(['regular', 'semibold']);
+    expect([...weights].sort()).toEqual(['medium', 'regular', 'semibold']);
   });
 
   it('the content column is 840px wide at most and small screens get the 16px gutter', () => {
@@ -127,8 +128,12 @@ describe('Swiss style rules in the stylesheet', () => {
     expect(globalCss).toMatch(/prefers-reduced-motion: reduce\) \{\s*\*,\s*\*::before,\s*\*::after \{\s*transition: none !important;/);
   });
 
-  it('no shadows, gradients or pill shapes', () => {
+  it('no gradients, glow or pill shapes; the only shadows are the three elevation tokens', () => {
     const rules = globalCss.replace(/\/\*[\s\S]*?\*\//g, '');
-    expect(rules).not.toMatch(/box-shadow|text-shadow|gradient|radius-pill|999px/);
+    expect(rules).not.toMatch(/text-shadow|gradient|radius-pill|999px|backdrop-filter|blur\(/);
+    // CHANGED on purpose (was: no box-shadow at all): a card may lift by one of the elevation tokens, never a raw shadow.
+    const shadows = [...rules.matchAll(/box-shadow:\s*([^;]+);/g)].map((match) => match[1].trim());
+    expect(shadows.length).toBeGreaterThan(0);
+    for (const value of shadows) expect(value).toMatch(/^var\(--elevation-[012]\)$/);
   });
 });

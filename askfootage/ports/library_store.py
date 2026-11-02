@@ -202,6 +202,8 @@ class Recording:
 
     camera is the camera's id, for example "CAM-001". status_note says why the last
     indexing attempt failed, or is None; it is kept by the store but not sent by the v1 API.
+    has_footage is False for a recording that has no video file or tracks behind it (the
+    generated demo volume) and True for everything else.
     """
 
     id: str
@@ -211,6 +213,7 @@ class Recording:
     length_seconds: int
     status: RecordingStatus
     status_note: str | None = None
+    has_footage: bool = True
 
     def __post_init__(self) -> None:
         _check_id("recording id", self.id)

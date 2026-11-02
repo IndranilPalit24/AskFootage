@@ -38,7 +38,8 @@
         }
       ],
       "thumbnailUrl": null,
-      "snapshotUrl": null
+      "snapshotUrl": null,
+      "posterUrl": "/api/recordings/rec-1029-0600/poster?t=845"
     },
     {
       "id": "clip-1029-070903",
@@ -76,7 +77,8 @@
         }
       ],
       "thumbnailUrl": null,
-      "snapshotUrl": null
+      "snapshotUrl": null,
+      "posterUrl": "/api/recordings/rec-1029-0705/poster?t=243"
     },
     {
       "id": "clip-1029-091522",
@@ -110,7 +112,8 @@
         }
       ],
       "thumbnailUrl": null,
-      "snapshotUrl": null
+      "snapshotUrl": null,
+      "posterUrl": "/api/recordings/rec-1029-0912/poster?t=202"
     },
     {
       "id": "clip-1029-104215",
@@ -148,7 +151,8 @@
         }
       ],
       "thumbnailUrl": null,
-      "snapshotUrl": null
+      "snapshotUrl": null,
+      "posterUrl": "/api/recordings/rec-1029-1030/poster?t=735"
     },
     {
       "id": "clip-1029-130610",
@@ -186,7 +190,8 @@
         }
       ],
       "thumbnailUrl": null,
-      "snapshotUrl": null
+      "snapshotUrl": null,
+      "posterUrl": "/api/recordings/rec-1029-1300/poster?t=370"
     }
   ],
   "note": "1 recording on this day is still being indexed, so it was not searched.",

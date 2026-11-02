@@ -1,6 +1,9 @@
 import type { ErrorBody } from './generated/types';
 
 /** An error from the API (or from reaching it), carrying the contract's stable code. */
+/** The 404 code of the video, poster and snapshot routes for a recording that has no video behind it. */
+export const FOOTAGE_NOT_INCLUDED = 'footage_not_included';
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;

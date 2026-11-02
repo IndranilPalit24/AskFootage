@@ -20,9 +20,10 @@ from askfootage.adapters.media.ffmpeg import PreparedCopyPreparer
 from askfootage.adapters.media.snapshots import FfmpegSnapshotRenderer
 from askfootage.adapters.sqlite.store import SqliteLibraryStore
 from askfootage.adapters.sqlite.tracks import SqliteTrackStore
+from askfootage.adapters.sqlite.volume_seed import add_volume
 from askfootage.application.library import Library
 from askfootage.application.snapshots import SnapshotStore
-from askfootage.interfaces.api.app import REPO_ROOT
+from askfootage.interfaces.api.app import POSTERS_DIR_NAME, REPO_ROOT, open_poster_store
 from askfootage.interfaces.api.app import create_app as create_demo_app
 from askfootage.ports.library_store import Recording
 
@@ -38,7 +39,9 @@ class PerRecordingFootage:
         self._dir = Path(videos_dir)
 
     def footage_for(self, recording: Recording) -> Path | None:
-        """The recording's own video, or None when it is not there."""
+        """The recording's own video, or None when it is not there or it has no footage."""
+        if not recording.has_footage:
+            return None
         path = self._dir / f"{recording.id}.mp4"
         return path if path.is_file() else None
 
@@ -66,9 +69,22 @@ class PreparedFrameSize:
         return size
 
 
-def create_app(data_dir: Path = DEFAULT_DATA_DIR, videos_dir: Path = DEFAULT_VIDEOS_DIR) -> FastAPI:
-    """The API over the ingested real clips (an empty library if nothing was ingested)."""
+def create_app(
+    data_dir: Path = DEFAULT_DATA_DIR,
+    videos_dir: Path = DEFAULT_VIDEOS_DIR,
+    *,
+    demo_volume: bool = False,
+) -> FastAPI:
+    """The API over the ingested real clips (an empty library if nothing was ingested).
+
+    With demo_volume the generated demo volume (invented cameras, zones and recordings
+    without footage; askfootage/adapters/sqlite/volume_seed.py) is added next to the real
+    rows first. It is off by default, so a plain real-mode start serves only real rows;
+    scripts.run_demo turns it on. Adding it twice changes nothing.
+    """
     library = SqliteLibraryStore(Path(data_dir) / "library.sqlite")
+    if demo_volume:
+        add_volume(library)
     tracks = SqliteTrackStore(library)
     prepared = Path(data_dir)
     renderer = FfmpegSnapshotRenderer(lambda recording_id: prepared / recording_id / "prepared.mp4")
@@ -77,5 +93,6 @@ def create_app(data_dir: Path = DEFAULT_DATA_DIR, videos_dir: Path = DEFAULT_VID
         tracks=tracks,
         snapshots=SnapshotStore(prepared / SNAPSHOTS_DIR_NAME, renderer),
         footage=PerRecordingFootage(videos_dir),
+        posters=open_poster_store(prepared / POSTERS_DIR_NAME),
         frame_size=PreparedFrameSize(prepared),
     )

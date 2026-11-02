@@ -354,6 +354,24 @@ The scoring code exists (`askfootage/application/evaluate.py`); accuracy will be
 
 **Results: not yet available.** They will be published here after evaluation, with the failure cases.
 
+## Demo data
+
+This build includes a generated demo dataset. It exists so the library looks the size of a real site; it is not a real facility and not real activity.
+
+- **Generated:** 18 cameras with factory-style names and invented department names, 61 zones, and 1,421 recordings over seven days (24 to 30 October 2026) with mixed statuses (ready, processing, and a few waiting with a plain note). The generator is `askfootage/adapters/sqlite/volume_seed.py`; it is deterministic, so every run gives the same data. Every generated row carries `origin = 'demo_volume'`.
+- **Real:** the two clips, `clip1` and `clip2`, are the only recordings with video, stored object tracks, proofs and evidence snapshots. Search only ever returns them. Generated recordings have no video: opening one answers `footage_not_included`, and the app says "Footage not included in this demo build".
+- **Not generated:** saved clips, search matches, proofs, tracks and activity history. Nothing about the generated cameras is evidence.
+- **Where it applies:** the documented demo start (`python -m scripts.run_demo`) adds it. A plain real-mode start does not, unless `ASKFOOTAGE_DEMO_VOLUME=1`.
+- **Commands** (PowerShell, from the project root; `--demo` picks the demo database, `--database PATH` a file):
+
+```powershell
+.venv\Scripts\python.exe -m askfootage.interfaces.cli.volume --status
+.venv\Scripts\python.exe -m askfootage.interfaces.cli.volume --add
+.venv\Scripts\python.exe -m askfootage.interfaces.cli.volume --remove
+```
+
+`--add` twice changes nothing. `--remove` deletes every generated row and leaves the real rows and the two clips as they were.
+
 ## Known limitations
 
 - **Fixed camera only.** Zones are drawn in image coordinates, so a moving camera breaks them.

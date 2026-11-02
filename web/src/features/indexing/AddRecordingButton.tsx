@@ -45,7 +45,7 @@ export function AddRecordingButton({ day, camera, onAdded }: AddRecordingButtonP
     <div className="page-head__actions">
       <button
         type="button"
-        className="btn"
+        className="btn btn--primary"
         aria-disabled={state.kind === 'uploading' || undefined}
         onClick={() => {
           if (state.kind !== 'uploading') inputRef.current?.click();

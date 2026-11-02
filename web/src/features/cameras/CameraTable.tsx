@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { CAMERA_STATUS_LABEL, CAMERA_STATUSES, isCameraStatus } from '../../api/cameraRules';
 import type { Camera, CameraStatus } from '../../api/generated/types';
 import { Icon } from '../../components/Icon';
+import { Pager, usePaging } from '../../components/Pager';
 
 export const OFFLINE_NOTE = 'Offline: no recordings to open';
 
@@ -26,10 +27,10 @@ const CameraRow = memo(function CameraRow({ camera, onStatus, onDelete }: RowPro
 
   return (
     <tr>
-      <td className="num">{camera.id}</td>
+      <td className="cell-id">{camera.id}</td>
       <td id={nameId}>{camera.name}</td>
       <td>{camera.location ?? notSet}</td>
-      <td>{zoneText(camera.zoneCount)}</td>
+      <td className={camera.zoneCount === 0 ? 'muted' : undefined}>{zoneText(camera.zoneCount)}</td>
       <td>{camera.department ?? notSet}</td>
       <td>
         <div className="cam-status">
@@ -54,7 +55,7 @@ const CameraRow = memo(function CameraRow({ camera, onStatus, onDelete }: RowPro
         </div>
       </td>
       <td>
-        <div className="cam-actions">
+        <div className="cam-actions row-actions">
           {offline ? (
             <>
               {/* aria-disabled keeps the button findable by keyboard and screen reader; it does nothing. */}
@@ -90,7 +91,9 @@ interface TableProps {
 }
 
 export function CameraTable({ cameras, onStatus, onDelete }: TableProps) {
+  const paging = usePaging(cameras);
   return (
+    <>
     <div className="table-wrap">
       <table className="table table--cameras">
         <caption className="visually-hidden">Registered cameras</caption>
@@ -106,11 +109,13 @@ export function CameraTable({ cameras, onStatus, onDelete }: TableProps) {
           </tr>
         </thead>
         <tbody>
-          {cameras.map((camera) => (
+          {paging.rows.map((camera) => (
             <CameraRow key={camera.id} camera={camera} onStatus={onStatus} onDelete={onDelete} />
           ))}
         </tbody>
       </table>
     </div>
+    <Pager paging={paging} noun="cameras" />
+    </>
   );
 }

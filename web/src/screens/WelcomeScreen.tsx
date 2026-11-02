@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Closing } from '../features/welcome/Closing';
 import { Cost } from '../features/welcome/Cost';
 import { Features } from '../features/welcome/Features';
@@ -17,6 +19,12 @@ const MAIN_ID = 'welcome-main';
  * It sits outside the app shell (no drawer, no day chip): it is a page about the app, not a screen of it.
  */
 export function WelcomeScreen() {
+  // Arriving by an in-app link with a #section (the sign-in page's Privacy link): the browser does not scroll
+  // after a client-side navigation, so scroll to the section once the page is there.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash.length > 1) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView?.();
+  }, [hash]);
   return (
     <div className="welcome" id="top">
       <a className="skip-link" href={`#${MAIN_ID}`}>

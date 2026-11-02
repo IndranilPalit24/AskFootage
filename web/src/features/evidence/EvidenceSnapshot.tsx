@@ -8,16 +8,33 @@ interface EvidenceSnapshotProps {
 /** The frame where the match began, with the boxes drawn on it. Renders nothing without a snapshot. */
 export function EvidenceSnapshot({ src }: EvidenceSnapshotProps) {
   const [failed, setFailed] = useState(false);
+  // Bumping the attempt loads the same address again.
+  const [attempt, setAttempt] = useState(0);
   if (src === null) return null;
   return (
-    <section aria-labelledby="snapshot-heading" className="stack stack--tight">
-      <h2 id="snapshot-heading">Evidence snapshot</h2>
+    <section aria-labelledby="snapshot-heading" className="card card--padded stack stack--tight">
+      <h2 id="snapshot-heading" className="label">
+        Evidence snapshot
+      </h2>
       {failed ? (
-        <p className="muted">The snapshot could not be loaded.</p>
+        <>
+          <p className="muted">The snapshot could not be loaded.</p>
+          <button
+            type="button"
+            className="btn btn--sm"
+            onClick={() => {
+              setFailed(false);
+              setAttempt((count) => count + 1);
+            }}
+          >
+            Try again
+          </button>
+        </>
       ) : (
         <figure className="snapshot">
           <img
             className="snapshot__image"
+            key={attempt}
             src={src}
             alt="Frame where the match began, with the box in red and the person in grey"
             loading="lazy"

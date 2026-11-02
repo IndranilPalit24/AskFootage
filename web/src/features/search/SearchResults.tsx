@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import type { SearchState } from '../../app/SearchContext';
 import { formatShortDay } from '../../lib/dates';
+import { EmptyState } from '../../components/EmptyState';
+import { ClipListSkeleton } from '../../components/Skeletons';
 import { ClipCard } from './ClipCard';
 import { NeedsIndexingPanel } from './NeedsIndexingPanel';
 
@@ -16,6 +18,14 @@ interface SearchResultsProps {
 function countLine(count: number, day: string, selectedDay: string | null): string {
   const clips = count === 1 ? '1 clip' : `${count} clips`;
   return day === selectedDay ? clips : `${clips} on ${formatShortDay(day)}`;
+}
+
+/** What was searched, from what the person picked and what the server knows: "Searched all 2 cameras on Fri 30 Oct". */
+function scopeLine(camera: string, day: string, cameraNames: ReadonlyMap<string, string>): string {
+  const when = formatShortDay(day);
+  if (camera !== '') return `Searched ${cameraNames.get(camera) ?? camera} on ${when}`;
+  const count = cameraNames.size;
+  return count === 0 ? `Searched every camera on ${when}` : `Searched all ${count} camera${count === 1 ? '' : 's'} on ${when}`;
 }
 
 /**
@@ -47,10 +57,13 @@ export function SearchResults({ state, selectedDay, onRetry, cameraNames }: Sear
       status = (
         <>
           {clips.length === 0 ? (
-            <p>No clips matched on {formatShortDay(state.day)}. Try other words or another day.</p>
+            <EmptyState title="No matching clips">
+              No clips matched on {formatShortDay(state.day)}. Try other words or another day.
+            </EmptyState>
           ) : (
-            <p className="muted">{countLine(clips.length, state.day, selectedDay)}</p>
+            <p className="muted results-status__count">{countLine(clips.length, state.day, selectedDay)}</p>
           )}
+          <p className="muted results-status__scope">{scopeLine(state.camera, state.day, cameraNames)}</p>
           {note ? <p className="muted">{note}</p> : null}
         </>
       );
@@ -66,6 +79,7 @@ export function SearchResults({ state, selectedDay, onRetry, cameraNames }: Sear
       <div className="results-status" aria-live="polite">
         {status}
       </div>
+      {state.phase === 'loading' ? <ClipListSkeleton /> : null}
       {state.phase === 'done'
         ? needsIndexing.map((item) => (
             <NeedsIndexingPanel key={`${state.question}|${state.day}|${item.noun}`} item={item} day={state.day} onDone={onRetry} />

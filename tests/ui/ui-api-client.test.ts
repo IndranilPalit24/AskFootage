@@ -1,5 +1,6 @@
 // The real client against a fake fetch: every request must match contract/openapi.yaml exactly.
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { resolveApiChoice } from '../../web/src/api/mode';
 import { ApiError, createApiClient, FetchApiClient, NETWORK_ERROR_MESSAGE } from '../../web/src/api/client';
 import { MockApiClient } from '../../web/src/api/mockClient';
 
@@ -142,11 +143,26 @@ describe('FetchApiClient follows the contract', () => {
     expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual(['GET http://localhost:8000/api/recordings/clip2/boxes']);
   });
 
-  it('uses the real client only when VITE_API_URL is set, and the demo client otherwise', () => {
+  // CHANGED on purpose (was: no VITE_API_URL silently gave the demo client, which looked like real footage
+  // with no video). The choice is now explicit: the API for VITE_API_URL, the demo client only for
+  // VITE_API_MODE=mock, and anything else is an error the app shows.
+  it('uses the real client for VITE_API_URL, the demo client only on request, and refuses to guess', () => {
     vi.stubEnv('VITE_API_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_API_MODE', '');
     expect(createApiClient()).toBeInstanceOf(FetchApiClient);
     vi.stubEnv('VITE_API_URL', '');
+    expect(() => createApiClient()).toThrow('VITE_API_URL is not set.');
+    vi.stubEnv('VITE_API_MODE', 'mock');
     expect(createApiClient()).toBeInstanceOf(MockApiClient);
+  });
+
+  it('resolves the API choice deterministically', () => {
+    expect(resolveApiChoice({ VITE_API_URL: 'http://localhost:8000' })).toEqual({ kind: 'api', baseUrl: 'http://localhost:8000' });
+    expect(resolveApiChoice({ VITE_API_URL: 'http://localhost:8000', VITE_API_MODE: 'api' }).kind).toBe('api');
+    expect(resolveApiChoice({ VITE_API_MODE: 'mock' })).toEqual({ kind: 'mock' });
+    expect(resolveApiChoice({ VITE_API_MODE: 'MOCK' })).toEqual({ kind: 'mock' });
+    const bad = [{}, { VITE_API_URL: '  ' }, { VITE_API_URL: 'localhost:8000' }, { VITE_API_URL: 'ftp://x' }, { VITE_API_MODE: 'demo' }, { VITE_API_MODE: 'api' }, { VITE_API_MODE: 'mock', VITE_API_URL: 'http://x' }];
+    for (const env of bad) expect(resolveApiChoice(env).kind).toBe('unconfigured');
   });
 });
 
@@ -189,9 +205,11 @@ describe('front-end code holds no secrets', () => {
     }
   });
 
-  it('reads no environment variable other than VITE_API_URL', () => {
+  it('reads no environment variable other than VITE_API_URL and VITE_API_MODE, and only through mode.ts', () => {
     const names = Object.values(sources).flatMap((text) => [...text.matchAll(/import\.meta\.env\.([A-Z_]+)/g)].map((match) => match[1]));
-    expect(new Set(names)).toEqual(new Set(['VITE_API_URL']));
+    expect(names).toEqual([]); // the app hands import.meta.env whole to resolveApiChoice, which names the two below
+    const modeSource = Object.entries(sources).find(([path]) => path.endsWith('/api/mode.ts'))![1];
+    expect(new Set([...modeSource.matchAll(/VITE_[A-Z_]+/g)].map((match) => match[0]))).toEqual(new Set(['VITE_API_URL', 'VITE_API_MODE']));
   });
 });
 

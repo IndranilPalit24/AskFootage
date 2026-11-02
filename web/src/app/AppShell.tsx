@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
+import { BrandMark } from '../components/BrandMark';
+import { DemoDisclosure } from '../components/DemoDisclosure';
 import { Icon, type IconName } from '../components/Icon';
 import { formatShortDay } from '../lib/dates';
 import { useAppData } from './AppDataContext';
@@ -48,7 +50,7 @@ const NAV: readonly NavEntry[] = [
 
 const MAIN_ID = 'main-content';
 
-function Topbar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+function Topbar({ collapsed, onToggle, mock }: { collapsed: boolean; onToggle: () => void; mock: boolean }) {
   const { day } = useSelectedDay();
   return (
     <header className="topbar">
@@ -63,9 +65,16 @@ function Topbar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => v
         <Icon name="menu" />
       </button>
       <Link to="/" className="topbar__brand">
+        <BrandMark />
         AskFootage
       </Link>
+      <span className="topbar__tagline">Ask your footage. Get the clip and the proof.</span>
       <div className="topbar__date">
+        {mock ? (
+          <span className="chip chip--mock" role="status">
+            Mock data: no real footage
+          </span>
+        ) : null}
         {day ? <span>{formatShortDay(day)}</span> : null}
       </div>
     </header>
@@ -108,7 +117,7 @@ function ShellContent() {
   return <Outlet />;
 }
 
-export function AppShell() {
+export function AppShell({ mock = false }: { mock?: boolean }) {
   const [collapsed, setCollapsed] = useState(readCollapsed);
 
   function toggle() {
@@ -122,7 +131,7 @@ export function AppShell() {
       <a className="skip-link" href={`#${MAIN_ID}`}>
         Skip to content
       </a>
-      <Topbar collapsed={collapsed} onToggle={toggle} />
+      <Topbar collapsed={collapsed} onToggle={toggle} mock={mock} />
       <div className="app__body">
         <Drawer collapsed={collapsed} />
         <main className="main" id={MAIN_ID} tabIndex={-1}>
@@ -131,6 +140,9 @@ export function AppShell() {
           </div>
         </main>
       </div>
+      <footer className="app-footer">
+        <DemoDisclosure />
+      </footer>
     </div>
   );
 }

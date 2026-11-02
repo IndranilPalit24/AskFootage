@@ -34,5 +34,6 @@
     }
   ],
   "thumbnailUrl": null,
-  "snapshotUrl": null
+  "snapshotUrl": null,
+  "posterUrl": "/api/recordings/rec-1029-1030/poster?t=735"
 }

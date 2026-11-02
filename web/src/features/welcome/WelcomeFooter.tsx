@@ -1,3 +1,4 @@
+import { DemoDisclosure } from '../../components/DemoDisclosure';
 import { SECTION_LINKS } from './content';
 
 export function WelcomeFooter() {
@@ -16,6 +17,9 @@ export function WelcomeFooter() {
             ))}
           </ul>
         </nav>
+      </div>
+      <div className="welcome-wrap">
+        <DemoDisclosure />
       </div>
     </footer>
   );

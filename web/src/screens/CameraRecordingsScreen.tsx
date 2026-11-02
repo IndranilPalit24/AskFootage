@@ -8,7 +8,10 @@ import { AddRecordingButton } from '../features/indexing/AddRecordingButton';
 import { DayStrip } from '../features/indexing/DayStrip';
 import { RecordingsTable } from '../features/indexing/RecordingsTable';
 import { recordingsSummary } from '../features/indexing/summary';
+import { EmptyState } from '../components/EmptyState';
+import { Icon } from '../components/Icon';
 import { useAsyncData } from '../hooks/useAsyncData';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { formatDayNoYear } from '../lib/dates';
 
 // Find Footage reads the shared selected day, so this link is already scoped to the day shown here.
@@ -22,13 +25,14 @@ const loading = (
 
 const backLink = (
   <Link to="/cameras" className="back-link">
-    <span aria-hidden="true">← </span>
+    <Icon name="arrowLeft" size={16} />
     All cameras
   </Link>
 );
 
 /** One camera's recordings, day by day: the day strip, the summary line and the table, plus Add footage. */
 function CameraRecordings({ camera }: { camera: Camera }) {
+  usePageTitle(`Recordings · ${camera.name}`);
   const client = useApiClient();
   const { day, setDay } = useSelectedDay();
   // Both start at once: the recordings need the selected day, not this camera's day list.
@@ -52,7 +56,7 @@ function CameraRecordings({ camera }: { camera: Camera }) {
   else if (recordings.error) summary = '';
 
   return (
-    <>
+    <div className="screen--wide">
       {backLink}
       <div className="page-head">
         <div>
@@ -79,7 +83,11 @@ function CameraRecordings({ camera }: { camera: Camera }) {
       <p className="footnote">
         Ready recordings can be searched from Find Footage. <Link to={FIND_FOOTAGE}>Ask a question about this day</Link>
       </p>
-    </>
+      <p className="footnote" id="upload-limit">
+        Add footage only registers a recording. In the demo version the file is checked but not stored or processed, so a new
+        recording stays Waiting and cannot be searched. A recording is searchable only when its status says Ready.
+      </p>
+    </div>
   );
 }
 
@@ -91,6 +99,7 @@ export function CameraRecordingsScreen() {
   // Not in the list this page has (it may be a few seconds old): ask the server about this one camera.
   const fetched = useAsyncData(cameras && !listed ? () => client.getCamera(id) : null, ['camera', id]);
   const camera = listed ?? fetched.data ?? null;
+  usePageTitle(camera ? undefined : 'Camera');
 
   if (camera) return <CameraRecordings key={camera.id} camera={camera} />;
   if (!cameras || !fetched.error) return loading;
@@ -101,19 +110,29 @@ export function CameraRecordingsScreen() {
     <div className="stack">
       {backLink}
       {missing ? (
-        <>
-          <h1>Camera not found.</h1>
-          <p className="muted">It may have been deleted. Pick a camera from the list.</p>
-        </>
+        <EmptyState
+          headingLevel={1}
+          title="Camera not found."
+          action={
+            <Link to="/cameras" className="btn btn--primary">
+              Go to cameras
+            </Link>
+          }
+        >
+          It may have been deleted. Pick a camera from the list.
+        </EmptyState>
       ) : (
-        <div role="alert">
-          <p className="error-text">{fetched.error.message}</p>
-          <p className="results-status__action">
+        <EmptyState
+          tone="error"
+          title="The camera could not be loaded"
+          action={
             <button type="button" className="btn" onClick={fetched.reload}>
               Try again
             </button>
-          </p>
-        </div>
+          }
+        >
+          <span className="error-text">{fetched.error.message}</span>
+        </EmptyState>
       )}
     </div>
   );

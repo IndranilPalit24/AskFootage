@@ -2,8 +2,10 @@ import { memo, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { errorMessage } from '../../api/errors';
 import type { SavedClip } from '../../api/generated/types';
-import { ClipThumb } from '../../components/ClipThumb';
+import { useApiClient } from '../../app/ApiContext';
+import { ClipThumb, clipPosterPath } from '../../components/ClipThumb';
 import { formatShortDay } from '../../lib/dates';
+import { clipDuration, formatDuration } from '../../lib/time';
 
 export const NOTE_MAX = 500;
 const NOTE_SAVED_FLASH_MS = 2000;
@@ -17,6 +19,8 @@ interface SavedClipRowProps {
 /** One saved clip: still, label, day and time, an editable note (Save note), Open and Remove. */
 export const SavedClipRow = memo(function SavedClipRow({ saved, onSaveNote, onRemove }: SavedClipRowProps) {
   const { clip } = saved;
+  const client = useApiClient();
+  const posterPath = clipPosterPath(clip);
   const [note, setNote] = useState(saved.note);
   const [busy, setBusy] = useState<'note' | 'remove' | null>(null);
   const [flash, setFlash] = useState(false);
@@ -48,7 +52,7 @@ export const SavedClipRow = memo(function SavedClipRow({ saved, onSaveNote, onRe
   return (
     <li>
       <article className="card saved-row" aria-labelledby={labelId}>
-        <ClipThumb url={clip.thumbnailUrl} />
+        <ClipThumb url={posterPath === null ? null : client.assetUrl(posterPath)} duration={formatDuration(clipDuration(clip))} />
         <div className="saved-row__body">
           <h2 id={labelId} className="clip-card__label" title={clip.label}>
             {clip.label}
@@ -56,6 +60,7 @@ export const SavedClipRow = memo(function SavedClipRow({ saved, onSaveNote, onRe
           <p className="clip-card__time">
             {formatShortDay(clip.day)} · {clip.startTime}
           </p>
+          <p className="clip-card__reason">{clip.whyMatched}</p>
           <div className="field">
             <label htmlFor={noteId} className="field__label">
               Note
@@ -84,7 +89,7 @@ export const SavedClipRow = memo(function SavedClipRow({ saved, onSaveNote, onRe
             </Link>
             <button
               type="button"
-              className="btn btn--sm"
+              className="btn btn--sm btn--ghost btn--danger"
               aria-describedby={labelId}
               aria-disabled={busy !== null || undefined}
               onClick={() => void act('remove', () => onRemove(saved))}

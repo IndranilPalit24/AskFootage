@@ -5,7 +5,10 @@ import type { Camera, CameraStatus } from '../api/generated/types';
 import { useApiClient } from '../app/ApiContext';
 import { useAppData } from '../app/AppDataContext';
 import { useToasts } from '../app/ToastContext';
+import { EmptyState } from '../components/EmptyState';
 import { Modal } from '../components/Modal';
+import { TableSkeletonRows } from '../components/Skeletons';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { Tabs, type TabDef } from '../components/Tabs';
 import { AddCameraForm } from '../features/cameras/AddCameraForm';
 import { CameraTable } from '../features/cameras/CameraTable';
@@ -14,13 +17,21 @@ import { useCameraSync } from '../features/cameras/useCameraSync';
 const REGISTRY = 'registry';
 const ADD = 'add';
 
+// Skeleton rows keep the table's shape while the list loads; the text is announced, the shapes are not.
 const loading = (
-  <p className="muted" role="status">
-    Loading cameras…
-  </p>
+  <div>
+    <p className="visually-hidden" role="status">
+      Loading cameras…
+    </p>
+    <div className="table-wrap" aria-hidden="true">
+      <table className="table table--cameras">
+        <tbody>
+          <TableSkeletonRows columns={7} rows={3} />
+        </tbody>
+      </table>
+    </div>
+  </div>
 );
-
-const empty = <p className="muted">No cameras yet. Add one in the Add new camera tab.</p>;
 
 interface Counts {
   total: number;
@@ -47,7 +58,7 @@ function SummaryCards({ counts }: { counts: Counts }) {
     <section aria-label="Camera summary">
       <dl className="cam-cards">
         {cards.map(([label, value]) => (
-          <div key={label} className="card card--padded cam-card">
+          <div key={label} className="cam-card">
             <dt className="muted small">{label}</dt>
             <dd className="cam-card__value num">{value}</dd>
           </div>
@@ -135,6 +146,20 @@ export function CamerasScreen() {
     [setCameras],
   );
 
+  usePageTitle('Cameras');
+  const empty = (
+    <EmptyState
+      title="No cameras registered"
+      action={
+        <button type="button" className="btn btn--primary" onClick={() => setTab(ADD)}>
+          Add a camera
+        </button>
+      }
+    >
+      No cameras yet. Add one in the Add new camera tab.
+    </EmptyState>
+  );
+
   let registry;
   if (!cameras) {
     registry = loading;
@@ -162,7 +187,7 @@ export function CamerasScreen() {
   ];
 
   return (
-    <>
+    <div className="screen--wide">
       <div className="page-head">
         <div>
           <h1>Cameras</h1>
@@ -195,6 +220,6 @@ export function CamerasScreen() {
           <p>{prompt.message}</p>
         </Modal>
       ) : null}
-    </>
+    </div>
   );
 }

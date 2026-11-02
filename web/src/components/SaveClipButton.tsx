@@ -8,10 +8,12 @@ interface SaveClipButtonProps {
   describedBy?: string;
   /** The small (36px) button, as inside clip cards. */
   small?: boolean;
+  /** The screen's one primary action (clip detail): an accent fill while the clip is not saved. */
+  primary?: boolean;
 }
 
 /** Save clip / Saved toggle. Every instance reads the shared saved store, so all of them agree. */
-export function SaveClipButton({ clipId, describedBy, small = false }: SaveClipButtonProps) {
+export function SaveClipButton({ clipId, describedBy, small = false, primary = false }: SaveClipButtonProps) {
   const savedId = useSavedClipId(clipId);
   const { save, unsave } = useSavedClipActions();
   const [busy, setBusy] = useState(false);
@@ -35,7 +37,7 @@ export function SaveClipButton({ clipId, describedBy, small = false }: SaveClipB
     <>
       <button
         type="button"
-        className={small ? 'btn btn--sm' : 'btn'}
+        className={['btn', small ? 'btn--sm' : '', primary ? 'btn--primary' : ''].filter(Boolean).join(' ')}
         aria-pressed={savedId !== undefined}
         aria-describedby={describedBy}
         aria-disabled={busy || undefined}
