@@ -96,7 +96,7 @@ def check_noun(text: str) -> str:
     problem = noun_problem(noun)
     if problem is None and _SHAPE.fullmatch(noun) is None:
         problem = SHAPE_RULE
-    if problem is None and _IDENTITY_WORDS & set(noun.split()):
+    if problem is None and _IDENTITY_WORDS & set(re.split(r"[ '-]", noun)):
         problem = IDENTITY_RULE
     if problem is not None:
         raise InvalidInputError("noun", problem)
