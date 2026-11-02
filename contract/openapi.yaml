@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AskFootage API",
-    "version": "1.5.0",
-    "description": "Ask a plain-English question about fixed-camera footage and get the matching clips with the evidence for each match. Every path is under /api. Every error has the body {\"error\": {\"code\": \"...\", \"message\": \"...\"}} with a matching HTTP status, and never contains a stack trace, a key, a password or a server path. JSON field names are camelCase. Days are calendar dates (YYYY-MM-DD) and times of day are HH:MM:SS in the camera's local time. Cameras are identified by ids the server gives out in order (CAM-001, CAM-002, ...); a camera's stream password is checked when the camera is added and then dropped: it is never stored, returned or logged. Wherever a camera query parameter is optional, leaving it out means all cameras. Lists are not paginated in v1: days, recordings and search results are bounded by the 7-day window and one day; cameras, zones and saved clips are bounded only by what the single user of the v1 demo creates. Versioning: /api is unversioned because the UI and the API ship together; once released, changes are additive only, and a breaking change (such as paging cameras, zones or saved clips) moves to /api/v2. Still pre-release: 1.1.0 added cameras, made camera ids CAM-NNN and dropped the camera from Status; 1.2.0 adds POST /api/recordings/{id}/index; 1.3.0 adds proofs to SearchResponse (measured proof for clips found from stored object tracks); 1.4.0 adds snapshotUrl to Clip and GET /api/clips/{id}/snapshot (the evidence frame, with the matched objects' boxes drawn on it); 1.5.0 makes DELETE /api/cameras/{id} refuse with 409 camera_has_recordings when the camera still has recordings, unless the new query parameter deleteRecordings is true. This file is written in JSON syntax, which is valid YAML 1.2, so it can be read without a YAML library."
+    "version": "1.6.0",
+    "description": "Ask a plain-English question about fixed-camera footage and get the matching clips with the evidence for each match. Every path is under /api. Every error has the body {\"error\": {\"code\": \"...\", \"message\": \"...\"}} with a matching HTTP status, and never contains a stack trace, a key, a password or a server path. JSON field names are camelCase. Days are calendar dates (YYYY-MM-DD) and times of day are HH:MM:SS in the camera's local time. Cameras are identified by ids the server gives out in order (CAM-001, CAM-002, ...); a camera's stream password is checked when the camera is added and then dropped: it is never stored, returned or logged. Wherever a camera query parameter is optional, leaving it out means all cameras. Lists are not paginated in v1: days, recordings and search results are bounded by the 7-day window and one day; cameras, zones and saved clips are bounded only by what the single user of the v1 demo creates. Versioning: /api is unversioned because the UI and the API ship together; once released, changes are additive only, and a breaking change (such as paging cameras, zones or saved clips) moves to /api/v2. Still pre-release: 1.1.0 added cameras, made camera ids CAM-NNN and dropped the camera from Status; 1.2.0 adds POST /api/recordings/{id}/index; 1.3.0 adds proofs to SearchResponse (measured proof for clips found from stored object tracks); 1.4.0 adds snapshotUrl to Clip and GET /api/clips/{id}/snapshot (the evidence frame, with the matched objects' boxes drawn on it); 1.5.0 makes DELETE /api/cameras/{id} refuse with 409 camera_has_recordings when the camera still has recordings, unless the new query parameter deleteRecordings is true; 1.6.0 adds GET /api/recordings/{id}/boxes (the stored object tracks, so the player can draw the boxes live). This file is written in JSON syntax, which is valid YAML 1.2, so it can be read without a YAML library."
   },
   "paths": {
     "/api/status": {
@@ -202,6 +202,23 @@
           "206": {
             "description": "Part of the video, for a Range request",
             "content": { "video/mp4": { "schema": { "type": "string", "contentMediaType": "video/mp4" } } }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/recordings/{id}/boxes": {
+      "get": {
+        "operationId": "getRecordingBoxes",
+        "summary": "The boxes of the objects found in a recording, frame by frame",
+        "description": "The stored object tracks of the recording, for the player to draw boxes over the playing video. Boxes are in pixels of the frameWidth x frameHeight frame; a frame number n is at second n / fps from the start of the recording. A track has a point only on frames where the object was detected. Hands are left out. Short isolated runs of a non-person object (under one second) are treated as detector noise and left out. A recording that is known but has no stored tracks returns an empty tracks list; 404 when the recording is unknown.",
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": {
+            "description": "The boxes",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RecordingBoxes" } } }
           },
           "404": { "$ref": "#/components/responses/NotFound" },
           "422": { "$ref": "#/components/responses/ValidationFailed" },
@@ -651,6 +668,38 @@
             "items": { "$ref": "#/components/schemas/ClipProof" },
             "description": "Measured proof for clips found from stored object tracks, one per such clip; empty when every clip came from the demo keyword search"
           }
+        }
+      },
+      "BoxPoint": {
+        "type": "object",
+        "required": ["frame", "x1", "y1", "x2", "y2"],
+        "properties": {
+          "frame": { "type": "integer", "minimum": 0 },
+          "x1": { "type": "number" },
+          "y1": { "type": "number" },
+          "x2": { "type": "number" },
+          "y2": { "type": "number" }
+        }
+      },
+      "BoxTrack": {
+        "type": "object",
+        "required": ["trackId", "label", "role", "points"],
+        "properties": {
+          "trackId": { "type": "integer", "minimum": 0 },
+          "label": { "type": "string", "description": "A neutral object noun, such as person or cardboard box" },
+          "role": { "type": "string", "enum": ["person", "object"], "description": "person for a person; object for anything else (drawn highlighted)" },
+          "points": { "type": "array", "items": { "$ref": "#/components/schemas/BoxPoint" }, "description": "Ordered by frame; frames without a point had no detection" }
+        }
+      },
+      "RecordingBoxes": {
+        "type": "object",
+        "required": ["recordingId", "frameWidth", "frameHeight", "fps", "tracks"],
+        "properties": {
+          "recordingId": { "type": "string" },
+          "frameWidth": { "type": "number", "exclusiveMinimum": 0, "description": "Width in pixels of the frame the boxes are in" },
+          "frameHeight": { "type": "number", "exclusiveMinimum": 0 },
+          "fps": { "type": "number", "exclusiveMinimum": 0, "description": "Frames per second of the analysed video: frame n is at n / fps seconds" },
+          "tracks": { "type": "array", "items": { "$ref": "#/components/schemas/BoxTrack" } }
         }
       },
       "ProofMeasure": {
