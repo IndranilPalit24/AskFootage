@@ -2,11 +2,13 @@
 
 **Ask your footage. Get the clip and the proof.**
 
+[![tests](https://github.com/IndranilPalit24/AskFootage/actions/workflows/tests.yml/badge.svg)](https://github.com/IndranilPalit24/AskFootage/actions/workflows/tests.yml)
+
 AskFootage lets you ask a plain-English question about recorded camera footage, such as *"was a pallet left blocking the exit?"* or *"show me anyone carrying a box through the loading door"*. It returns the matching clips, marks each occurrence on a timeline, outlines the objects involved, and shows the measurements that justify every match.
 
 Built by Team **EdgeCase** (solo, Indie track) for the **Meta Global AI Developer Hackathon**, Oct 27 to Nov 4, 2026, using **SAM 3.1** and **Muse Spark** through the Meta Model API.
 
-> **Status: work in progress (open pull request).** SAM 3.1 perception works end to end on two real clips, and anyone can run it with **no key**: the model's recorded replies are in `demo/sam`, and one command replays them (see [Quick start](#quick-start-no-key-demo)). Live indexing of whole new recordings from the API, question reading by Muse Spark in the API, and held-out accuracy results are not built. Rows marked *Not done* below are not built.
+> **Status: hackathon build.** SAM 3.1 perception works end to end on two real clips, and anyone can run it with **no key**: the model's recorded replies are in `demo/sam`, and one command replays them (see [Quick start](#quick-start-no-key-demo)). Live indexing of whole new recordings from the API, question reading by Muse Spark in the API, and held-out accuracy results are not built. Rows marked *Not done* below are not built.
 
 | Component | Status |
 |---|---|
@@ -22,28 +24,78 @@ Built by Team **EdgeCase** (solo, Indie track) for the **Meta Global AI Develope
 | Any-object search (`POST /api/concepts`, "Not searched yet" panel) | Done: shows an estimated cost, runs one pass per object after you confirm, behind the spend cap; replays saved results with no key |
 | Searchable index (SQLite: library, zones, clips, tracks) | Done |
 | HTTP API, contract 1.7.0 (proofs, recording boxes, evidence snapshots, any-object search) | Done |
-| Web UI: player, timeline, overlay, zone editor | Built on demo data |
+| Web UI: sign-in, Find Footage, Cameras, Zones, Saved Clips, Activity Log preview, player with timeline and red box overlay | Built; the real-clips demo plays both clips with the overlay |
 | SAM 3.1 adapter (`adapters/meta/sam.py`) | Done. Parses real replies; masks are dropped from saved replies; replays offline from `demo/sam` |
 | Real indexing from the API (`POST /api/recordings/{id}/index`) | **Not done.** Answers 503 `indexing_not_configured` |
 | No-key demo mode from recordings in `demo/sam` | Done: `python -m scripts.run_demo`. Needs your own `videos/clip1.mp4` and `clip2.mp4` (not in the repository) |
 | Held-out accuracy results and Muse Spark baseline | **Not done** |
 
+## Highlights
+
+- **Ask in plain English.** Type what you are looking for, such as *"person carrying a box"*, and get the matching clips.
+- **Every match comes with its proof:** the relation, the time range, the measurements behind it, and a red box that follows the object on the playing video.
+- **Index once, search for free.** The vision model runs once per object type; questions are then answered from a local SQLite index with no new paid call.
+- **Try it with no API key.** The model's recorded replies ship in `demo/sam`, and one command replays them ([Quick start](#quick-start-no-key-demo)).
+- **Cost is capped in code.** Every paid call goes through a budget guard with a hard cap, default $25 per run ([Cost and API limits](#cost-and-api-limits)).
+- **No face recognition, no identity features** ([ADR 0008](docs/adr/0008-no-identity-or-face-recognition.md)).
+- **Contract-first and tested:** one OpenAPI contract for the UI and the API, with Python and web test suites.
+
+## Screenshots
+
+Three screens show the flow from sign-in to a match with its proof.
+
+### 1. Sign-in page
+
+<!-- ADD IMAGE HERE: save the file as docs/images/sign-in.png, then replace this comment and the tag below with:
+<img src="docs/images/sign-in.png" alt="AskFootage demo sign-in page" width="900">
+-->
+**[ ADD IMAGE HERE: docs/images/sign-in.png ]**
+
+*The demo sign-in page. It is a demo gate, not security (see [Getting started](#getting-started)).*
+
+### 2. Find Footage page
+
+<!-- ADD IMAGE HERE: save the file as docs/images/find-footage.png, then replace this comment and the tag below with:
+<img src="docs/images/find-footage.png" alt="Find Footage page with the question box, example chips, day and camera filters" width="900">
+-->
+**[ ADD IMAGE HERE: docs/images/find-footage.png ]**
+
+*Ask a question in plain English, then pick the day and the camera.*
+
+### 3. A match with its proof: "someone carrying a box"
+
+<!-- ADD IMAGE HERE: save the file as docs/images/carrying-a-box.png, then replace this comment and the tag below with:
+<img src="docs/images/carrying-a-box.png" alt="Search result for someone carrying a box, with the clip, time range and the Why this matched panel" width="900">
+-->
+**[ ADD IMAGE HERE: docs/images/carrying-a-box.png ]**
+
+*The result shows the clip, the time range, and a "Why this matched" panel with the relation and measures. The clip is a short test clip filmed indoors by the author.*
+
+## Author
+
+Built by **Indranil Palit** as Team **EdgeCase** (solo), for the Meta Global AI Developer Hackathon. Source: [github.com/IndranilPalit24/AskFootage](https://github.com/IndranilPalit24/AskFootage).
+
 ## Contents
 
-0. [Quick start (no-key demo)](#quick-start-no-key-demo)
-1. [What it does](#what-it-does)
-2. [The problem](#the-problem)
-3. [How it works](#how-it-works)
-4. [Tech stack](#tech-stack)
-5. [Getting started](#getting-started)
-6. [Configuration and secrets](#configuration-and-secrets)
-7. [Cost and API limits](#cost-and-api-limits)
-8. [Evaluation](#evaluation)
-9. [Known limitations](#known-limitations)
-10. [Privacy and responsible use](#privacy-and-responsible-use)
-11. [Project layout](#project-layout)
-12. [Built during the hackathon](#built-during-the-hackathon)
-13. [License](#license)
+1. [Highlights](#highlights)
+2. [Screenshots](#screenshots)
+3. [Author](#author)
+4. [Quick start (no-key demo)](#quick-start-no-key-demo)
+5. [What it does](#what-it-does)
+6. [The problem](#the-problem)
+7. [How it works](#how-it-works)
+8. [Tech stack](#tech-stack)
+9. [Getting started](#getting-started)
+10. [Configuration and secrets](#configuration-and-secrets)
+11. [Cost and API limits](#cost-and-api-limits)
+12. [Evaluation](#evaluation)
+13. [Demo data](#demo-data)
+14. [Known limitations](#known-limitations)
+15. [Privacy and responsible use](#privacy-and-responsible-use)
+16. [Project layout](#project-layout)
+17. [Built during the hackathon](#built-during-the-hackathon)
+18. [Feedback](#feedback)
+19. [References](#references)
 
 ## Quick start (no-key demo)
 
@@ -354,7 +406,7 @@ The scoring code exists (`askfootage/application/evaluate.py`); accuracy will be
 - Scripted footage and any uncontrolled footage are reported separately.
 - A baseline will compare AskFootage with asking Muse Spark the same questions directly on the raw video.
 
-**Results: not yet available.** They will be published here after evaluation, with the failure cases.
+**Results so far:** on the two labelled clips the carried box is found at 1.2 to 4.8 s against 1 to 5 s labelled (`labels/`). That is a smoke test on two short clips, not an accuracy claim. Held-out results and the failure cases are not available yet.
 
 ## Demo data
 
@@ -421,6 +473,7 @@ AskFootage/
   demo/sam/             saved SAM 3.1 replies and a manifest, for the no-key demo
   docs/                 architecture notes and decision records
     adr/
+    images/             README screenshots
     wireframes/
   labels/               ground-truth labels for evaluation
   scripts/              one-off scripts, such as the API spike and the synthetic video
@@ -436,9 +489,11 @@ AskFootage/
         generated/
       components/
       features/
+        cameras/
         evidence/
         indexing/
         player/
+        saved/
         search/
         timeline/
         zones/
@@ -457,6 +512,10 @@ AskFootage/
 Everything in this repository was created between **Oct 27 and Nov 4, 2026** for the Meta Global AI Developer Hackathon, starting from an empty repository. The commit history shows what was written and when. No code from earlier projects is included.
 
 The only external components are the models and API of Meta Model API and standard open-source libraries listed in `requirements.txt` and `web/package.json`.
+
+## Feedback
+
+Questions, bug reports and ideas are welcome: open an [issue](https://github.com/IndranilPalit24/AskFootage/issues) on GitHub.
 
 ## References
 
