@@ -20,12 +20,14 @@ How the file is kept safe:
   camera id is never handed out twice, even after its camera is deleted.
 - No password is stored anywhere: the API checks a camera's stream password and drops it.
 
-Schema versions: SCHEMA_VERSION is 4 (v3 added object tracks and recordings.status_note; v4
-added concepts_searched, the "searched, found nothing" marker). A v3 database is upgraded in
-place and keeps its data. Demo data only: opening a v1 or v2 database drops every table and
-recreates the schema; the seed then refills it, and uploaded recordings must be added and
-indexed again (their files under data/ are not touched). The drop and the new schema run in
-the one transaction that opens the file, so a failure leaves the old database exactly as it was.
+Schema versions: SCHEMA_VERSION is 5 (v3 added object tracks and recordings.status_note; v4
+added concepts_searched, the "searched, found nothing" marker; v5 added origin columns,
+recordings.has_footage and volume_state for the generated demo volume). A v3 or v4
+database is upgraded in place and keeps its data. Demo data only: opening a v1 or v2
+database drops every table and recreates the schema; the seed then refills it, and
+uploaded recordings must be added and indexed again (their files under data/ are not
+touched). The drop and the new schema run in the one transaction that opens the file, so a
+failure leaves the old database exactly as it was.
 
 Errors the contract does not cover: a wrong Python type (a datetime where a date is
 expected) raises TypeError; a value of the right type that the library cannot hold exactly
@@ -69,7 +71,7 @@ from askfootage.ports.library_store import (
     camera_number,
 )
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 """The schema version this code writes and reads; schema.sql records it in user_version."""
 
 MAX_NOTE_LENGTH = 500
@@ -99,6 +101,23 @@ _MIGRATIONS: dict[int, str] = {
             PRIMARY KEY (recording_id, label)
         ) STRICT, WITHOUT ROWID;
         PRAGMA user_version = 4;
+    """,
+    # v4 -> v5: origin columns, has_footage and volume_state. Additive: every existing row
+    # becomes origin 'real' with footage, and nothing is changed or moved.
+    4: """
+        ALTER TABLE cameras ADD COLUMN origin TEXT NOT NULL DEFAULT 'real'
+            CHECK (origin IN ('real', 'demo_volume'));
+        ALTER TABLE zones ADD COLUMN origin TEXT NOT NULL DEFAULT 'real'
+            CHECK (origin IN ('real', 'demo_volume'));
+        ALTER TABLE recordings ADD COLUMN has_footage INTEGER NOT NULL DEFAULT 1
+            CHECK (has_footage IN (0, 1));
+        ALTER TABLE recordings ADD COLUMN origin TEXT NOT NULL DEFAULT 'real'
+            CHECK (origin IN ('real', 'demo_volume'));
+        CREATE TABLE volume_state (
+            only_row                 INTEGER NOT NULL PRIMARY KEY CHECK (only_row = 1),
+            prior_last_camera_number INTEGER NOT NULL CHECK (prior_last_camera_number >= 0)
+        ) STRICT;
+        PRAGMA user_version = 5;
     """,
 }
 
@@ -141,8 +160,8 @@ _CAMERA_NAMES = "SELECT name FROM cameras"
 _LAST_CAMERA_NUMBER = "SELECT last_number FROM camera_sequence WHERE only_row = 1"
 _INSERT_CAMERA = """
     INSERT INTO cameras (id, number, name, ip, username, status, location, department,
-                         created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         created_at, origin)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 _SET_CAMERA_STATUS = "UPDATE cameras SET status = ? WHERE id = ?"
 # The schema cascades this to the camera's recordings (and on to their clips, evidence,
@@ -183,7 +202,7 @@ _DAY_SUMMARIES_ALL_CAMERAS = """
 """
 # One camera: its id is fixed, so start_time, id is the Protocol's start, camera, id order.
 _RECORDINGS_ON_DAY = """
-    SELECT id, camera_id, day, start_time, length_seconds, status, status_note
+    SELECT id, camera_id, day, start_time, length_seconds, status, status_note, has_footage
     FROM recordings
     WHERE camera_id = ? AND day = ?
     ORDER BY start_time, id
@@ -191,20 +210,21 @@ _RECORDINGS_ON_DAY = """
 # Every camera: a camera id is written one way per number (the schema checks it), so
 # length, then text, is number order (CAM-999 before CAM-1000), as in recordings_by_day.
 _RECORDINGS_ON_DAY_ALL_CAMERAS = """
-    SELECT id, camera_id, day, start_time, length_seconds, status, status_note
+    SELECT id, camera_id, day, start_time, length_seconds, status, status_note, has_footage
     FROM recordings
     WHERE day = ?
     ORDER BY start_time, length(camera_id), camera_id, id
 """
 _RECORDING_BY_ID = """
-    SELECT id, camera_id, day, start_time, length_seconds, status, status_note
+    SELECT id, camera_id, day, start_time, length_seconds, status, status_note, has_footage
     FROM recordings
     WHERE id = ?
 """
 _RECORDING_EXISTS = "SELECT 1 FROM recordings WHERE id = ?"
 _INSERT_RECORDING = """
-    INSERT INTO recordings (id, camera_id, day, start_time, length_seconds, status, status_note)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO recordings (id, camera_id, day, start_time, length_seconds, status, status_note,
+                            has_footage, origin)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 # Set status and note whatever the current status is...
 _SET_RECORDING_STATUS = "UPDATE recordings SET status = ?, status_note = ? WHERE id = ?"
@@ -274,7 +294,7 @@ _POINTS_OF_ZONES = """
     ORDER BY zone_id, position
 """
 _COUNT_POINTS = "SELECT count(*) FROM zone_points WHERE zone_id = ?"
-_INSERT_ZONE = "INSERT INTO zones (id, camera_id, name) VALUES (?, ?, ?)"
+_INSERT_ZONE = "INSERT INTO zones (id, camera_id, name, origin) VALUES (?, ?, ?, ?)"
 _INSERT_POINT = "INSERT INTO zone_points (zone_id, position, x, y) VALUES (?, ?, ?, ?)"
 _RENAME_ZONE = "UPDATE zones SET name = ? WHERE id = ?"
 _DELETE_POINTS = "DELETE FROM zone_points WHERE zone_id = ?"
@@ -753,7 +773,7 @@ def seed_demo_data(store: SqliteLibraryStore, seed_file: Path) -> bool:
 # --- Writes shared by the public methods and the seed (one connection, caller's tx) ---
 
 
-def _insert_camera(db: sqlite3.Connection, camera: Camera) -> None:
+def _insert_camera(db: sqlite3.Connection, camera: Camera, origin: str = "real") -> None:
     """Write a camera under its own id. The schema's triggers refuse a number already
     handed out and move camera_sequence up to this one."""
     number = camera_number(camera.id)
@@ -777,6 +797,7 @@ def _insert_camera(db: sqlite3.Connection, camera: Camera) -> None:
             camera.location,
             camera.department,
             _utc_text(camera.created_at),
+            origin,
         ),
     )
 
@@ -793,7 +814,7 @@ def _camera_name_taken(db: sqlite3.Connection, name: str) -> bool:
     return any(other.casefold() == wanted for (other,) in db.execute(_CAMERA_NAMES))
 
 
-def _insert_recording(db: sqlite3.Connection, recording: Recording) -> None:
+def _insert_recording(db: sqlite3.Connection, recording: Recording, origin: str = "real") -> None:
     values = (
         recording.id,
         recording.camera,
@@ -802,6 +823,8 @@ def _insert_recording(db: sqlite3.Connection, recording: Recording) -> None:
         recording.length_seconds,
         recording.status,
         recording.status_note,
+        int(recording.has_footage),
+        origin,
     )
     if not _found(db, _CAMERA_EXISTS, (recording.camera,)):
         raise MissingReferenceError("there is no camera with this id")
@@ -850,7 +873,7 @@ def _insert_clip(db: sqlite3.Connection, clip: Clip) -> None:
     )
 
 
-def _insert_zone(db: sqlite3.Connection, zone: Zone) -> None:
+def _insert_zone(db: sqlite3.Connection, zone: Zone, origin: str = "real") -> None:
     _check_zone_name(zone.name)
     if not _found(db, _CAMERA_EXISTS, (zone.camera,)):
         raise MissingReferenceError("there is no camera with this id")
@@ -858,7 +881,7 @@ def _insert_zone(db: sqlite3.Connection, zone: Zone) -> None:
         raise DuplicateError("a zone with this id already exists")
     if _zone_name_taken(db, zone.camera, zone.name, zone.id):
         raise DuplicateError("this camera already has a zone with that name")
-    db.execute(_INSERT_ZONE, (zone.id, zone.camera, zone.name))
+    db.execute(_INSERT_ZONE, (zone.id, zone.camera, zone.name, origin))
     _insert_points(db, zone.id, zone.points)
 
 
@@ -993,6 +1016,7 @@ def _recording_from_row(row: Sequence[object]) -> Recording:
         length_seconds=row[4],
         status=row[5],
         status_note=row[6],
+        has_footage=bool(row[7]),
     )
 
 
