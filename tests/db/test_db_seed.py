@@ -14,6 +14,7 @@ from db_library_helpers import (
     NO_SUCH_CAMERA,
     TABLES,
     api_clip_json,
+    api_recording_json,
     camera_json,
     clip_json,
     count_rows,
@@ -261,7 +262,7 @@ def test_summarise_days_matches_the_days_example(seeded_store: SqliteLibraryStor
 
 
 def test_list_recordings_matches_the_recordings_example(seeded_store: SqliteLibraryStore) -> None:
-    got = [recording_json(r) for r in seeded_store.list_recordings(CAMERA, THURSDAY)]
+    got = [api_recording_json(r) for r in seeded_store.list_recordings(CAMERA, THURSDAY)]
     assert got == _example("recordings.json")
 
 

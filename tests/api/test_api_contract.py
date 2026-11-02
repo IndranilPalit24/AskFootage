@@ -261,8 +261,8 @@ ALL_CHECKS = (
 # --- The tests --------------------------------------------------------------------------------
 
 
-def test_the_contract_has_the_twenty_five_operations_the_api_serves() -> None:
-    assert len(_operations(CONTRACT)) == 25
+def test_the_contract_has_the_twenty_six_operations_the_api_serves() -> None:
+    assert len(_operations(CONTRACT)) == 26
     assert _operations(CONTRACT)[("GET", "/api/clips/{id}/snapshot")]["operationId"] == (
         "getClipSnapshot"
     )
@@ -272,7 +272,7 @@ def test_the_contract_has_the_twenty_five_operations_the_api_serves() -> None:
 
 
 def test_the_app_serves_the_contracts_version(app_spec: Spec) -> None:
-    assert CONTRACT["info"]["version"] == "1.7.0"
+    assert CONTRACT["info"]["version"] == "1.9.0"
     assert app_spec["info"]["version"] == API_VERSION == CONTRACT["info"]["version"]
 
 
@@ -489,6 +489,7 @@ def test_each_check_reports_drift(check: Any, change: Any, app_spec: Spec) -> No
         ("error.json", schemas.Error),
         ("recording-boxes.json", schemas.RecordingBoxes),
         ("camera-has-recordings.json", schemas.Error),
+        ("footage-not-included.json", schemas.Error),
     ],
 )
 def test_each_example_round_trips_through_its_model(example: str, model: Any) -> None:
@@ -498,3 +499,46 @@ def test_each_example_round_trips_through_its_model(example: str, model: Any) ->
     assert adapter.dump_python(parsed, mode="json", by_alias=True) == data
     if isinstance(parsed, BaseModel):
         assert parsed.model_dump(mode="json") == data
+
+
+# --- 1.9.0: recordings without footage ---------------------------------------------------------
+
+
+def test_recording_has_a_required_boolean_has_footage(app_spec: Spec) -> None:
+    for spec in (app_spec, CONTRACT):
+        recording = spec["components"]["schemas"]["Recording"]
+        assert recording["properties"]["hasFootage"]["type"] == "boolean"
+        assert "hasFootage" in recording["required"]
+
+
+@pytest.mark.parametrize(
+    ("path", "method"),
+    [
+        ("/api/recordings/{id}/video", "get"),
+        ("/api/recordings/{id}/poster", "get"),
+        ("/api/clips/{id}/snapshot", "get"),
+    ],
+)
+def test_the_footage_routes_document_footage_not_included_on_their_404(
+    path: str, method: str, app_spec: Spec
+) -> None:
+    for spec in (app_spec, CONTRACT):
+        not_found = spec["paths"][path][method]["responses"]["404"]
+        not_found = _resolve(spec, not_found)
+        assert "footage_not_included" in not_found["description"]
+        assert not_found["content"]["application/json"]["schema"] == {
+            "$ref": "#/components/schemas/Error"
+        }
+
+
+def test_the_error_code_list_names_footage_not_included() -> None:
+    from askfootage.interfaces.api import errors
+
+    assert "footage_not_included" in (errors.__doc__ or "")
+    description = CONTRACT["components"]["schemas"]["ErrorDetail"]["properties"]["code"]
+    assert "footage_not_included" in description["description"]
+
+
+def test_the_contract_never_names_the_origin_of_a_recording() -> None:
+    recording = json.dumps(CONTRACT["components"]["schemas"]["Recording"]).lower()
+    assert "demo" not in recording and "origin" not in recording

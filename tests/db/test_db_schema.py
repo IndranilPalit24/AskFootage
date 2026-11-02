@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from db_library_helpers import (
+    ALL_TABLES,
     CAM_1,
     DEMO_SEED,
     TABLES,
@@ -48,7 +49,7 @@ def _table_names(path: Path) -> set[str]:
 def test_a_new_library_gets_every_table_and_the_schema_version(library_path: Path) -> None:
     SqliteLibraryStore(library_path)
 
-    assert _table_names(library_path) == set(TABLES)
+    assert _table_names(library_path) == set(ALL_TABLES)
     with raw_connection(library_path) as db:
         assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
@@ -64,7 +65,7 @@ def test_every_table_is_strict(library_path: Path) -> None:
     with raw_connection(library_path) as db:
         rows = db.execute("SELECT name, strict FROM pragma_table_list WHERE schema = 'main'")
         strict = {name: flag for name, flag in rows if not name.startswith("sqlite_")}
-    assert strict == dict.fromkeys(TABLES, 1)
+    assert strict == dict.fromkeys(ALL_TABLES, 1)
 
 
 def test_the_parent_folder_is_created(tmp_path: Path) -> None:
@@ -131,7 +132,7 @@ def test_an_empty_existing_file_becomes_a_library(library_path: Path) -> None:
     library_path.parent.mkdir(parents=True)
     library_path.touch()
     SqliteLibraryStore(library_path)
-    assert _table_names(library_path) == set(TABLES)
+    assert _table_names(library_path) == set(ALL_TABLES)
 
 
 def test_an_in_memory_database_is_refused() -> None:
@@ -170,7 +171,7 @@ def _every_column(path: Path) -> dict[str, list[str]]:
 def test_no_column_could_hold_a_password(seeded_store: SqliteLibraryStore) -> None:
     """A camera's stream password is checked by the API and dropped, never stored."""
     columns = _every_column(seeded_store.path)
-    assert set(columns) == set(TABLES)
+    assert set(columns) == set(ALL_TABLES)
     secretive = ("pass", "pwd", "secret", "credential", "token", "auth", "key")
     found = [
         f"{table}.{column}"
@@ -189,6 +190,7 @@ def test_no_column_could_hold_a_password(seeded_store: SqliteLibraryStore) -> No
         "location",
         "department",
         "created_at",
+        "origin",
     ]
 
 
@@ -316,7 +318,7 @@ def test_a_schema_that_fails_halfway_leaves_the_file_empty_and_reusable(
 
     monkeypatch.undo()
     SqliteLibraryStore(library_path)
-    assert _table_names(library_path) == set(TABLES)
+    assert _table_names(library_path) == set(ALL_TABLES)
 
 
 # --- Upgrading from schema version 1: demo data only, so drop and recreate -------------
@@ -385,11 +387,11 @@ def test_opening_a_v1_library_drops_it_and_creates_the_current_schema(
     store = SqliteLibraryStore(library_path)
 
     with raw_connection(library_path) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 4
+        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 5
         assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert db.execute("SELECT last_number FROM camera_sequence").fetchone()[0] == 0
-    assert _table_names(library_path) == set(TABLES)
+    assert _table_names(library_path) == set(ALL_TABLES)
     rows = {table: count_rows(library_path, table) for table in TABLES}
     assert rows == {**dict.fromkeys(TABLES, 0), "camera_sequence": 1}
     # The very same schema a brand-new library gets: tables, indexes and triggers.
@@ -431,7 +433,7 @@ def test_a_failed_v1_upgrade_leaves_the_v1_library_exactly_as_it_was(
         assert db.execute("PRAGMA user_version").fetchone()[0] == 1
     monkeypatch.undo()
     SqliteLibraryStore(library_path)
-    assert _table_names(library_path) == set(TABLES)
+    assert _table_names(library_path) == set(ALL_TABLES)
 
 
 def test_the_upgrade_keeps_created_at_style_timestamps_well_formed(library_path: Path) -> None:
@@ -513,13 +515,13 @@ def test_opening_a_v2_library_drops_it_and_creates_v3_cleanly(
     store = SqliteLibraryStore(library_path)
 
     with raw_connection(library_path) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 4
+        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 5
         assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
         assert db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         # The sequence starts again: the old cameras are gone, so no id can clash.
         assert db.execute("SELECT last_number FROM camera_sequence").fetchone()[0] == 0
-    assert _table_names(library_path) == set(TABLES)
+    assert _table_names(library_path) == set(ALL_TABLES)
     rows = {table: count_rows(library_path, table) for table in TABLES}
     assert rows == {**dict.fromkeys(TABLES, 0), "camera_sequence": 1}
     fresh = tmp_path / "fresh" / "index.sqlite"
@@ -546,7 +548,7 @@ def test_a_failed_v2_upgrade_leaves_the_v2_library_exactly_as_it_was(
         assert db.execute("PRAGMA user_version").fetchone()[0] == 2
     monkeypatch.undo()
     SqliteLibraryStore(library_path)
-    assert _table_names(library_path) == set(TABLES)
+    assert _table_names(library_path) == set(ALL_TABLES)
 
 
 def test_every_older_version_has_a_way_to_the_current_one() -> None:

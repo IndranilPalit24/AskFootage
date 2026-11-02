@@ -264,7 +264,17 @@ def test_a_failure_after_the_reply_goes_back_to_waiting_and_can_be_retried(
         listed = client.get("/api/recordings", params={"day": "2026-10-30"})
         _assert_no_leaks(listed)
         assert all(
-            set(found) == {"id", "camera", "day", "startTime", "lengthSeconds", "status"}
+            set(found)
+            == {
+                "id",
+                "camera",
+                "day",
+                "startTime",
+                "lengthSeconds",
+                "status",
+                "posterUrl",
+                "hasFootage",
+            }
             for found in listed.json()
         )
         note = store.recordings[WAITING].status_note

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import indexHtml from '../../web/index.html?raw';
+import mainSource from '../../web/src/main.tsx?raw';
 import globalCss from '../../web/src/styles/global.css?raw';
 import { applyTokens, cssVariables, tokens, TOKENS_STYLE_ID } from '../../web/src/styles/tokens';
 
-describe('design tokens (Minimalism & Swiss Style)', () => {
+describe('design tokens (calm, precise review tool)', () => {
   it('holds the target values', () => {
     // Colour: one accent, neutral greys, one hairline.
     expect(tokens.color.accent).toBe('#1D4ED8');
@@ -38,12 +39,23 @@ describe('design tokens (Minimalism & Swiss Style)', () => {
     expect(tokens.layout.mainPadding).toBe('40px 40px 72px');
     // Radii: two only.
     expect(tokens.radius).toEqual({ control: '6px', card: '8px' });
-    // Type: Inter, at most five sizes, two weights.
+    // Type: Inter at six sizes and three weights. CHANGED on purpose (was 12/14/16/24/32 and 400/600): the
+    // review-tool redesign needs a 13px dense size for tables and cards, 20px page titles, one 28px focal
+    // headline and a 500 weight for labels and buttons.
     expect(tokens.font.family.startsWith('Inter,')).toBe(true);
-    expect(Object.keys(tokens.font.size).length).toBeLessThanOrEqual(5);
-    // 32 is the welcome page's one headline size.
-    expect(tokens.font.size).toEqual({ 12: '12px', 14: '14px', 16: '16px', 24: '24px', 32: '32px' });
-    expect(tokens.font.weight).toEqual({ regular: '400', semibold: '600' });
+    expect(Object.keys(tokens.font.size).length).toBeLessThanOrEqual(6);
+    expect(tokens.font.size).toEqual({ 12: '12px', 13: '13px', 14: '14px', 16: '16px', 20: '20px', 28: '28px' });
+    expect(tokens.font.weight).toEqual({ regular: '400', medium: '500', semibold: '600' });
+    // Ids and timestamps use a monospace stack (always with tabular numerals).
+    expect(tokens.font.mono).toContain('monospace');
+    // New in the redesign: the player letterbox, the canvas behind cards, and the three-step elevation scale.
+    expect(tokens.color.playerBg).toBe('#0B0F17');
+    expect(tokens.color.canvas).toBe(tokens.color.surface);
+    expect(Object.keys(tokens.elevation)).toEqual(['0', '1', '2']);
+    expect(tokens.elevation[0]).toBe('none');
+    for (const shadow of [tokens.elevation[1], tokens.elevation[2]]) expect(shadow).not.toMatch(/gradient|inset/);
+    expect(tokens.size.railWidth).toBe('360px');
+    expect(tokens.size.workspaceMaxWidth).toBe('1280px');
   });
 
   it('spacing is a strict 4px scale', () => {
@@ -68,8 +80,15 @@ describe('design tokens (Minimalism & Swiss Style)', () => {
     expect(css).toContain('--radius-card: 8px;');
     expect(css).toContain('--gutter: 16px;');
     expect(css).toContain('--status-dot: 8px;');
+    expect(css).toContain('--font-weight-medium: 500;');
     expect(css).toContain('--font-weight-semibold: 600;');
-    expect(css).not.toContain('--font-weight-medium');
+    expect(css).toContain('--elevation-0: none;');
+    expect(css).toContain('--elevation-1:');
+    expect(css).toContain('--elevation-2:');
+    expect(css).toContain('--color-player-bg: #0B0F17;');
+    expect(css).toContain('--font-mono:');
+    // No bold: only 400, 500 and 600 exist.
+    expect(css).not.toContain('--font-weight-bold');
   });
 
   it('the stylesheet only uses defined tokens and hard-codes no colour', () => {
@@ -81,18 +100,22 @@ describe('design tokens (Minimalism & Swiss Style)', () => {
     // No colour literal at all: every colour is a token.
     expect(hexes).toEqual([]);
     expect(globalCss).not.toMatch(/rgba?\(|hsla?\(/);
-    // Only the two weights and the four sizes: no literal font weights or sizes.
+    // Only the token weights and sizes: no literal font weights or sizes, and nothing off the scale.
     expect(globalCss).not.toMatch(/font-weight:\s*\d/);
     expect(globalCss).not.toMatch(/font-size:\s*[\d.]/);
-    expect(globalCss).not.toMatch(/var\(--font-(weight-medium|size-(13|15))\)/);
+    expect(globalCss).not.toMatch(/var\(--font-(weight-bold|size-(15|24|32))\)/);
     // Only the two radius tokens (50% for dots is the one other shape).
     expect(globalCss).not.toMatch(/border-radius:\s*\d+px/);
   });
 
-  it('loads Inter in exactly the two token weights and follows the system light or dark setting', () => {
-    expect(indexHtml).toContain('family=Inter:wght@400;600&display=swap');
-    expect(indexHtml).not.toMatch(/wght@[^"&]*500/);
+  it('bundles Inter in exactly the three token weights (no font request leaves the app) and follows the system light or dark setting', () => {
+    // CHANGED on purpose (was a Google Fonts link for 400 and 600): the font now ships with the app.
+    expect(indexHtml).not.toMatch(/fonts\.googleapis|fonts\.gstatic/);
+    for (const weight of ['400', '500', '600']) expect(mainSource).toContain('@fontsource/inter/latin-' + weight + '.css');
+    expect(mainSource).not.toMatch(/@fontsource\/inter\/latin-(100|200|300|700|800|900)/);
     expect(indexHtml).toContain('<meta name="color-scheme" content="light dark" />');
+    // A real favicon instead of an empty data: URL.
+    expect(indexHtml).toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml" />');
   });
 
   it('holds the trust colours and the welcome page layout tokens', () => {
@@ -106,7 +129,9 @@ describe('design tokens (Minimalism & Swiss Style)', () => {
     const css = document.getElementById(TOKENS_STYLE_ID)!.textContent!;
     expect(css).toContain('--color-navy: #0F1F3D;');
     expect(css).toContain('--landing-max-width: 1120px;');
-    expect(css).toContain('--font-size-32: 32px;');
+    // CHANGED on purpose: the welcome headline moves from 32px to the 28px focal size of the new scale.
+    expect(css).toContain('--font-size-28: 28px;');
+    expect(css).not.toContain('--font-size-32');
     expect(css).toContain('--space-9: 64px;');
   });
 });
