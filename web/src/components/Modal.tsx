@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
 
@@ -19,12 +19,22 @@ export function Modal({ title, onClose, children, actions }: ModalProps) {
   const bodyId = useId();
   const dialog = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const opener = useRef<HTMLElement | null>(null);
+
+  // Focus moves in during the same commit that puts the dialog on screen. A passive effect would run a moment
+  // later (after paint, or on a later task when the dialog opens from an async answer), leaving a window in which
+  // the dialog is visible but focus is still behind it.
+  useLayoutEffect(() => {
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const first = dialog.current?.querySelector<HTMLElement>('[data-autofocus]') ?? dialog.current?.querySelector<HTMLElement>(FOCUSABLE);
     first?.focus();
+  }, []);
+
+  // Giving focus back stays passive: it must run after the commit has removed the opener, if it is going away.
+  useEffect(() => {
     return () => {
-      if (opener && opener !== document.body && opener.isConnected) opener.focus();
+      const back = opener.current;
+      if (back && back !== document.body && back.isConnected) back.focus();
       else document.querySelector<HTMLElement>('main')?.focus();
     };
   }, []);

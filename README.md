@@ -6,7 +6,7 @@ AskFootage lets you ask a plain-English question about recorded camera footage, 
 
 Built by Team **EdgeCase** (solo, Indie track) for the **Meta Global AI Developer Hackathon**, Oct 27 to Nov 4, 2026, using **SAM 3.1** and **Muse Spark** through the Meta Model API.
 
-> **Status: work in progress (branch `feature/app-v1`).** SAM 3.1 perception works end to end on two real clips, and anyone can run it with **no key**: the model's recorded replies are in `demo/sam`, and one command replays them (see [Quick start](#quick-start-no-key-demo)). Live indexing of new footage from the API, question reading by Muse Spark in the API, and held-out accuracy results are not built. Rows marked *Not done* below are not built.
+> **Status: work in progress (open pull request).** SAM 3.1 perception works end to end on two real clips, and anyone can run it with **no key**: the model's recorded replies are in `demo/sam`, and one command replays them (see [Quick start](#quick-start-no-key-demo)). Live indexing of whole new recordings from the API, question reading by Muse Spark in the API, and held-out accuracy results are not built. Rows marked *Not done* below are not built.
 
 | Component | Status |
 |---|---|
@@ -18,9 +18,10 @@ Built by Team **EdgeCase** (solo, Indie track) for the **Meta Global AI Develope
 | Ingest and add-concept use cases, `ingest` CLI | Done; the CLI uses `--fake` perception only. The real clips are ingested by `scripts.ingest_real_clips` (replayed SAM) |
 | Search over stored tracks, with demo keyword fallback | Done; wired for the two real clips in `askfootage.interfaces.real_clips`. The default `create_app()` still serves the seeded demo matcher |
 | Muse Spark question parser, keyword fallback, replay transport | Parser built (`adapters/meta/muse.py`); **not wired into the API**, which reads questions with the keyword reader. Not checked against a real reply |
-| Evaluation scoring and `evaluate` CLI | Done; no labelled footage yet, so no results |
+| Evaluation scoring and `evaluate` CLI | Done; on the two labelled clips the carried box is found at 1.2 to 4.8 s against 1 to 5 s labelled (`labels/`); no held-out set yet |
+| Any-object search (`POST /api/concepts`, "Not searched yet" panel) | Done: shows an estimated cost, runs one pass per object after you confirm, behind the spend cap; replays saved results with no key |
 | Searchable index (SQLite: library, zones, clips, tracks) | Done |
-| HTTP API, contract 1.3.0 (includes `proofs`) | Done |
+| HTTP API, contract 1.7.0 (proofs, recording boxes, evidence snapshots, any-object search) | Done |
 | Web UI: player, timeline, overlay, zone editor | Built on demo data |
 | SAM 3.1 adapter (`adapters/meta/sam.py`) | Done. Parses real replies; masks are dropped from saved replies; replays offline from `demo/sam` |
 | Real indexing from the API (`POST /api/recordings/{id}/index`) | **Not done.** Answers 503 `indexing_not_configured` |
