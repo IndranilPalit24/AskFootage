@@ -28,6 +28,8 @@ from datetime import time
 from math import ceil, floor
 from typing import Protocol
 
+from askfootage.application.errors import InvalidInputError
+from askfootage.application.nouns import check_noun, open_phrases
 from askfootage.domain import relations
 from askfootage.domain.intervals import Interval, RelationKind
 from askfootage.domain.models import Point
@@ -176,16 +178,57 @@ class NotJudged:
     note: str | None = None
 
 
+class _Named(Protocol):
+    @property
+    def value(self) -> str: ...
+
+
+class AskedQuestion(Protocol):
+    """What the rules need of a question: Question (the fixed vocabulary) or OpenQuestion."""
+
+    @property
+    def relation(self) -> RelationKind: ...
+
+    @property
+    def subject(self) -> _Named: ...
+
+    @property
+    def zone(self) -> str | None: ...
+
+    @property
+    def min_seconds(self) -> float | None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class OpenSubject:
+    """An object noun outside the fixed vocabulary, such as "forklift"; value is the noun."""
+
+    value: str
+
+
+@dataclass(frozen=True, slots=True)
+class OpenQuestion:
+    """A question about any object noun: same relations and rules as Question."""
+
+    relation: RelationKind
+    subject: OpenSubject
+    zone: str | None = None
+    min_seconds: float | None = None
+
+
 # --- Reading the question ------------------------------------------------------------------------
 
 
 def read_question(
     text: str, zone_names: Sequence[str], parser: QuestionParser | None = None
-) -> Question | None:
+) -> AskedQuestion | None:
     """The question in the closed schema, or None when it names no relation we can run.
 
     The parser comes first when given; if it does not understand, or fails for any reason,
-    the keyword reader is used. Zone questions need a zone name found in the text.
+    the keyword reader is used. Zone questions need a zone name found in the text. When the
+    keyword reader finds a relation but no object of the fixed vocabulary (or only a person),
+    an object noun in plain English elsewhere in the question ("a ladder") becomes the
+    subject: an OpenQuestion, run by the same rules.
     """
     if parser is not None:
         try:
@@ -198,14 +241,36 @@ def read_question(
             )
     reading = interpret_text(text)
     subject = reading.subject
-    if reading.relation is None or subject is None:
+    if reading.relation is None:
+        return None
+    open_noun = _open_noun(text, zone_names) if subject in (None, ObjectNoun.PERSON) else None
+    if subject is None and open_noun is None:
         return None
     zone = _zone_in_text(text, zone_names)
     min_seconds = _minimum_seconds(text) if reading.relation == "dwell" else None
     try:
-        return Question(reading.relation, subject, zone=zone, min_seconds=min_seconds)
+        # An open noun is checked by the same rules, using a vocabulary noun as its stand-in.
+        checked = Question(
+            reading.relation,
+            subject if open_noun is None and subject is not None else ObjectNoun.CARDBOARD_BOX,
+            zone=zone,
+            min_seconds=min_seconds,
+        )
     except InvalidQuestionError:
         return None
+    if open_noun is None:
+        return checked
+    return OpenQuestion(checked.relation, OpenSubject(open_noun), checked.zone, checked.min_seconds)
+
+
+def _open_noun(text: str, zone_names: Sequence[str]) -> str | None:
+    """The first valid noun phrase of the question outside the fixed vocabulary, or None."""
+    for phrase in open_phrases(text, zone_names):
+        try:
+            return check_noun(phrase)
+        except InvalidInputError:
+            continue
+    return None
 
 
 def _zone_in_text(text: str, zone_names: Sequence[str]) -> str | None:
@@ -230,7 +295,7 @@ def _minimum_seconds(text: str) -> float | None:
 # --- Running the rules -----------------------------------------------------------------------
 
 
-def labels_needed(question: Question) -> tuple[str, ...]:
+def labels_needed(question: AskedQuestion) -> tuple[str, ...]:
     """The track labels a question reads: the person and the object, or just the subject."""
     if question.relation == "carrying":
         return (ObjectNoun.PERSON.value, question.subject.value)
@@ -239,7 +304,7 @@ def labels_needed(question: Question) -> tuple[str, ...]:
 
 def answer_recording(
     recording: Recording,
-    question: Question,
+    question: AskedQuestion,
     zones: Sequence[Zone],
     tracks: TrackStore,
     frame_size: FrameSizeSource | None,
@@ -364,7 +429,7 @@ def _inside_zone(
     return kept
 
 
-def _track_labels(question: Question, interval: Interval) -> tuple[str, ...]:
+def _track_labels(question: AskedQuestion, interval: Interval) -> tuple[str, ...]:
     if interval.evidence.kind == "carrying":
         return (ObjectNoun.PERSON.value, question.subject.value)
     return (question.subject.value,)
@@ -372,7 +437,7 @@ def _track_labels(question: Question, interval: Interval) -> tuple[str, ...]:
 
 def _clip_and_proof(
     recording: Recording,
-    question: Question,
+    question: AskedQuestion,
     interval: Interval,
     zone_name: str | None,
     lookup: dict[tuple[str, int], Track],
@@ -454,7 +519,7 @@ def _boxes(track: Track, interval: Interval) -> list[ProofBox]:
     ]
 
 
-def _label(question: Question, zone_name: str | None) -> str:
+def _label(question: AskedQuestion, zone_name: str | None) -> str:
     subject = question.subject.value
     if question.relation == "carrying":
         tail = f" through the {zone_name}" if zone_name else ""
@@ -472,7 +537,7 @@ def _evidence_text(kind: RelationKind, seconds: int, zone_name: str | None) -> s
     return f"In {zone_name} · {seconds} s"
 
 
-def _why(question: Question, interval: Interval, seconds: int, zone_name: str | None) -> str:
+def _why(question: AskedQuestion, interval: Interval, seconds: int, zone_name: str | None) -> str:
     measures = dict(interval.evidence.measures)
     subject = question.subject.value
     if interval.evidence.kind == "carrying":

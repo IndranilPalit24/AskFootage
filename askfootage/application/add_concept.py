@@ -1,8 +1,8 @@
 """Adding a concept: find one more object noun in a recording that is already indexed.
 
 It runs perception for the new noun on the prepared working copy and saves the tracks,
-replacing any saved for that noun before. The recording's status does not change. No
-endpoint calls this yet.
+replacing any saved for that noun before. The recording's status does not change.
+POST /api/concepts reaches it through application/concepts.py.
 """
 
 from __future__ import annotations
@@ -13,14 +13,17 @@ from askfootage.application.errors import (
     IndexingFailedError,
     IndexingNotConfiguredError,
     InvalidInputError,
+    NoRecordedResultError,
     NotFoundError,
     RecordingNotReadyError,
 )
 from askfootage.application.ingest_video import (
+    BUDGET_REFUSED_PREFIX,
     FIND_FAILED_NOTE,
     RECORDING_NOT_FOUND,
     SAVE_FAILED_NOTE,
     IndexingPipeline,
+    IngestBudgetError,
     IngestResult,
     IngestServices,
     clean_concepts,
@@ -32,8 +35,11 @@ from askfootage.application.ingest_video import (
     video_folder,
 )
 from askfootage.application.library import Library
+from askfootage.ports.budget import BudgetError
 from askfootage.ports.library_store import MissingReferenceError
-from askfootage.ports.perception import PerceptionNotConfiguredError
+from askfootage.ports.perception import Perception, PerceptionNotConfiguredError
+from askfootage.ports.track_store import TrackStore
+from askfootage.ports.video_store import VideoFileLayout
 
 logger = logging.getLogger("askfootage.indexing")
 
@@ -51,6 +57,25 @@ def add_concept(
     """
     if pipeline is None:
         raise IndexingNotConfiguredError()
+    return find_concept(
+        library, pipeline.perception, pipeline.layout, pipeline.tracks, recording_id, noun
+    )
+
+
+def find_concept(
+    library: Library,
+    perception: Perception,
+    layout: VideoFileLayout,
+    tracks: TrackStore,
+    recording_id: str,
+    noun: str,
+) -> int:
+    """The work of add_concept() with its parts given one by one; same rules and errors.
+
+    The caller may pass a budgeted perception: a refusal by its budget is raised as
+    IngestBudgetError (nothing was sent, nothing saved), and a NoRecordedResultError from a
+    replaying perception passes through unchanged. Both carry fixed messages.
+    """
     concept = noun.strip()
     problem = noun_problem(concept)
     if problem is not None:
@@ -60,22 +85,26 @@ def add_concept(
         raise NotFoundError(RECORDING_NOT_FOUND)
     if recording.status != "ready":
         raise RecordingNotReadyError()
-    video = pipeline.layout.prepared_path(recording_id)
+    video = layout.prepared_path(recording_id)
     try:
-        tracks = list(pipeline.perception.detect_and_track(video, concept))
+        found = list(perception.detect_and_track(video, concept))
     except PerceptionNotConfiguredError:
         raise IndexingNotConfiguredError() from None
+    except NoRecordedResultError:
+        raise
+    except BudgetError as error:
+        raise IngestBudgetError(f"{BUDGET_REFUSED_PREFIX}{error}") from None
     except Exception as error:  # perception is outside code; any failure is one
         logger.error("Adding a concept to %s failed (%s)", recording_id, type(error).__name__)
         raise IndexingFailedError(FIND_FAILED_NOTE) from None
     try:
-        pipeline.tracks.save_tracks(recording_id, concept, tracks)
+        tracks.save_tracks(recording_id, concept, found)
     except MissingReferenceError:
         raise NotFoundError(RECORDING_NOT_FOUND) from None
     except ValueError as error:
         logger.error("Saving a concept for %s failed (%s)", recording_id, type(error).__name__)
         raise IndexingFailedError(SAVE_FAILED_NOTE) from None
-    return len(tracks)
+    return len(found)
 
 
 def add_video_concept(

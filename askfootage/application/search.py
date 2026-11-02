@@ -31,6 +31,7 @@ from datetime import date
 from typing import Protocol
 
 from askfootage.application.clips import ClipWithCamera
+from askfootage.application.concepts import ConceptService, IndexingNeed
 from askfootage.application.errors import InvalidInputError
 from askfootage.application.library import Library, require_camera_filter
 from askfootage.application.search_relations import (
@@ -188,6 +189,8 @@ class SearchResult:
     note: str | None
     proofs: tuple[ClipProof, ...] = ()
     """Proof for the clips found from stored tracks; demo-matched clips have none."""
+    needs_indexing: tuple[IndexingNeed, ...] = ()
+    """Objects the question names that some ready recordings have no tracks for yet."""
 
 
 def check_question(question: str) -> str:
@@ -211,6 +214,7 @@ def search_day(
     parser: QuestionParser | None = None,
     frame_size: FrameSizeSource | None = None,
     snapshots: SnapshotStore | None = None,
+    concepts: ConceptService | None = None,
 ) -> SearchResult:
     """Answer a question about one day of footage, from one camera or (None) every camera.
 
@@ -223,6 +227,10 @@ def search_day(
     understood. Each clip comes with its recording's camera, taken from the day's
     recordings. Raises InvalidInputError for a bad question and NotFoundError for an
     unknown camera.
+
+    With `concepts` (and `tracks`), the result also lists the objects the question names that
+    some searched ready recordings have no stored tracks for, each with its estimated cost.
+    Looking is all this does: it never starts a pass or spends anything.
     """
     question = check_question(question)
     require_camera_filter(library, camera_id)
@@ -283,6 +291,11 @@ def search_day(
         clips=clips,
         note=" ".join(notes) or None,
         proofs=tuple(proofs[item.clip.id] for item in clips if item.clip.id in proofs),
+        needs_indexing=(
+            concepts.needs_indexing(question, zone_names, ready)
+            if concepts is not None and tracks is not None
+            else ()
+        ),
     )
 
 
