@@ -245,3 +245,12 @@ def test_an_injection_string_label_is_stored_as_plain_text(
     assert labels == sorted([INJECTION, "person"])
     assert {"tracks", "track_points"} <= names
     assert tracks.tracks_for("rec-1", "person") == [track(2)]
+
+
+def test_labels_for_lists_distinct_labels_sorted(tracks: SqliteTrackStore) -> None:
+    assert tracks.labels_for("rec-1") == []
+    tracks.save_tracks("rec-1", "person", [track(0, "person"), track(1, "person")])
+    tracks.save_tracks("rec-1", "hand", [track(0, "hand")])
+    assert tracks.labels_for("rec-1") == ["hand", "person"]
+    assert tracks.labels_for("rec-2") == []
+    assert tracks.labels_for("nope") == []

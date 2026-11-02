@@ -61,7 +61,13 @@ export function RecordingsTable({ caption, recordings, error, onRetry, openTo }:
       return (
         <tr key={recording.id}>
           <td id={startId} className="num">
-            {recording.startTime}
+            {recording.status === 'ready' ? (
+              <Link to={`/recordings/${encodeURIComponent(recording.id)}`} aria-label={`Watch the recording from ${recording.startTime}`}>
+                {recording.startTime}
+              </Link>
+            ) : (
+              recording.startTime
+            )}
           </td>
           <td className="num">{formatLength(recording.lengthSeconds)}</td>
           <td>

@@ -135,6 +135,13 @@ describe('FetchApiClient follows the contract', () => {
     expect(new FetchApiClient(BASE).recordingVideoUrl('rec-1029-1030')).toBe('http://localhost:8000/api/recordings/rec-1029-1030/video');
   });
 
+  it('reads the boxes of a recording with GET /api/recordings/{id}/boxes', async () => {
+    const body = { recordingId: 'clip2', frameWidth: 1920, frameHeight: 1080, fps: 5, tracks: [] };
+    const { calls, fetchImpl } = fakeFetch(200, body);
+    expect(await new FetchApiClient(BASE, fetchImpl).getRecordingBoxes('clip2')).toEqual(body);
+    expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual(['GET http://localhost:8000/api/recordings/clip2/boxes']);
+  });
+
   it('uses the real client only when VITE_API_URL is set, and the demo client otherwise', () => {
     vi.stubEnv('VITE_API_URL', 'http://localhost:8000');
     expect(createApiClient()).toBeInstanceOf(FetchApiClient);

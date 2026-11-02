@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 from askfootage.adapters.meta.transport import (
@@ -76,14 +77,25 @@ class RecordingTransport:
     A request that already has a recording is answered from it without calling `inner`, so
     re-running costs nothing; pass refresh=True to call `inner` again and overwrite it.
     Only 2xx replies are saved: anything else is returned (or raised) as usual but never
-    recorded, so a replay cannot repeat a failure. A damaged recording raises
+    recorded, so a replay cannot repeat a failure. `redact(request, body)`, when given, turns
+    a reply's body into what is saved while the caller still gets the full reply; the
+    fingerprint is of the request, so a redacted recording replays like any other. If
+    `redact` raises, nothing is saved and the error propagates. A damaged recording raises
     RecordingCorruptError rather than being silently paid for again: delete it, or refresh.
     """
 
-    def __init__(self, inner: Transport, directory: Path, *, refresh: bool = False) -> None:
+    def __init__(
+        self,
+        inner: Transport,
+        directory: Path,
+        *,
+        refresh: bool = False,
+        redact: Callable[[MetaRequest, str], str] | None = None,
+    ) -> None:
         self._inner = inner
         self._directory = directory
         self._refresh = refresh
+        self._redact = redact
 
     def send(self, request: MetaRequest) -> RawResponse:
         """Return the saved reply for `request`, or get it from `inner` and save it if 2xx."""
@@ -93,11 +105,12 @@ class RecordingTransport:
             return _load(recording, request_fingerprint)
         reply = self._inner.send(request)
         if 200 <= reply.status < 300:
+            body = reply.body if self._redact is None else self._redact(request, reply.body)
             record = {
                 "fingerprint": request_fingerprint,
                 "path": request.path,
                 "status": reply.status,
-                "body": reply.body,
+                "body": body,
             }
             _save_atomically(recording, record)
         return reply

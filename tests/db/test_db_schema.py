@@ -385,7 +385,7 @@ def test_opening_a_v1_library_drops_it_and_creates_the_current_schema(
     store = SqliteLibraryStore(library_path)
 
     with raw_connection(library_path) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 3
+        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 4
         assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert db.execute("SELECT last_number FROM camera_sequence").fetchone()[0] == 0
@@ -513,7 +513,7 @@ def test_opening_a_v2_library_drops_it_and_creates_v3_cleanly(
     store = SqliteLibraryStore(library_path)
 
     with raw_connection(library_path) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 3
+        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 4
         assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
         assert db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"

@@ -1,0 +1,10 @@
+{
+  "recordingId": "clip2",
+  "frameWidth": 1920,
+  "frameHeight": 1080,
+  "fps": 5,
+  "tracks": [
+    { "trackId": 0, "label": "person", "role": "person", "points": [{ "frame": 5, "x1": 700, "y1": 200, "x2": 1100, "y2": 1000 }] },
+    { "trackId": 0, "label": "cardboard box", "role": "object", "points": [{ "frame": 5, "x1": 800, "y1": 500, "x2": 1000, "y2": 700 }] }
+  ]
+}

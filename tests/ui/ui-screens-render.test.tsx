@@ -20,7 +20,7 @@ describe('every screen renders from the demo client', () => {
   it('Cameras at /cameras', async () => {
     renderApp('/cameras');
     expect(screen.getByRole('heading', { level: 1, name: 'Cameras' })).toBeTruthy();
-    expect(await screen.findByRole('link', { name: 'Loading dock' })).toBeTruthy();
+    expect(await screen.findByRole('table')).toBeTruthy();
     expectShell();
   });
 

@@ -87,6 +87,38 @@ describe('Clip detail', () => {
     expect(video.currentTime).toBe(751);
   });
 
+  describe('Evidence snapshot', () => {
+    const ALT = 'Frame where the match began, with the box in red and the person in grey';
+
+    it('shows the image with its address, description and caption when the clip has a snapshot', async () => {
+      const client = new MockApiClient();
+      vi.spyOn(client, 'assetUrl').mockImplementation((path) => `http://localhost:8000${path}`);
+      await openClip(client);
+      const section = screen.getByRole('region', { name: 'Evidence snapshot' });
+      const image = within(section).getByRole('img', { name: ALT });
+      expect(image.getAttribute('src')).toBe('http://localhost:8000/api/clips/clip-1029-104215/snapshot');
+      expect(within(section).getByText('Box in red, person in grey')).toBeTruthy();
+    });
+
+    it('shows nothing about it when the clip has no snapshot', async () => {
+      const client = new MockApiClient();
+      const getClip = client.getClip.bind(client);
+      vi.spyOn(client, 'getClip').mockImplementation(async (id) => ({ ...(await getClip(id)), snapshotUrl: null }));
+      await openClip(client);
+      expect(screen.queryByText('Evidence snapshot')).toBeNull();
+      expect(screen.queryByRole('img', { name: ALT })).toBeNull();
+      expect(screen.queryByText('Box in red, person in grey')).toBeNull();
+    });
+
+    it('hides the image and says so when it fails to load', async () => {
+      await openClip();
+      fireEvent.error(screen.getByRole('img', { name: ALT }));
+      expect(screen.queryByRole('img', { name: ALT })).toBeNull();
+      expect(screen.getByText('The snapshot could not be loaded.')).toBeTruthy();
+      expect(screen.queryByText('Box in red, person in grey')).toBeNull();
+    });
+  });
+
   it('says "Clip not found." with a way back for an unknown id', async () => {
     renderApp('/clip/clip-does-not-exist');
     expect(await screen.findByRole('heading', { level: 1, name: 'Clip not found.' })).toBeTruthy();

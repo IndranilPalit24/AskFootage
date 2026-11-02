@@ -70,6 +70,7 @@ ONE_CAMERA_LEFT = {
     "saved_clips": 1,
     "tracks": 2,
     "track_points": 6,
+    "concepts_searched": 1,
 }
 
 
@@ -91,6 +92,7 @@ def test_deleting_a_recording_removes_its_clips_and_everything_hanging_off_them(
         "saved_clips": 1,
         "tracks": 2,
         "track_points": 6,
+        "concepts_searched": 1,
     }
     _assert_no_orphans(full)
     store = SqliteLibraryStore(full)

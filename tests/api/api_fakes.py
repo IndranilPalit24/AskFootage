@@ -427,6 +427,10 @@ class InMemoryTrackStore:
     def tracks_for(self, video_id: str, label: str) -> list[Track]:
         return sorted(self.saved.get((video_id, label), ()), key=lambda track: track.track_id)
 
+    def concept_done(self, video_id: str, concept: str) -> bool:
+        """True once the concept was saved for the video, even with no tracks (ran, empty)."""
+        return (video_id, concept) in self.saved
+
     def delete_video(self, video_id: str) -> int:
         gone = [key for key in self.saved if key[0] == video_id]
         count = sum(len(self.saved.pop(key)) for key in gone)

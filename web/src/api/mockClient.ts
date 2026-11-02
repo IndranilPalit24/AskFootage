@@ -2,6 +2,7 @@
 // dataset, so tests (and the app) can write to it freely. It mirrors the API's rules and errors.
 
 import seedJson from '../../../contract/examples/demo-seed.json';
+import boxesJson from '../../../contract/examples/recording-boxes.json';
 import statusJson from '../../../contract/examples/status.json';
 import { addDays, isIsoDay } from '../lib/dates';
 import {
@@ -16,7 +17,7 @@ import {
   STREAM_PASSWORD_MAX,
   STREAM_USERNAME_MAX,
 } from './cameraRules';
-import type { ApiClient } from './client';
+import type { ApiClient, DeleteCameraOptions } from './client';
 import { ApiError } from './errors';
 import type {
   Camera,
@@ -29,6 +30,7 @@ import type {
   Point,
   Recording,
   RecordingAccepted,
+  RecordingBoxes,
   SavedClip,
   SavedClipCreate,
   SavedClipUpdate,
@@ -60,7 +62,7 @@ export interface DemoSeed {
   today: IsoDay;
   cameras: CameraRecord[];
   recordings: Recording[];
-  clips: Array<Omit<Clip, 'camera'> & { camera?: string }>;
+  clips: Array<Omit<Clip, 'camera' | 'snapshotUrl'> & { camera?: string; snapshotUrl?: string | null }>;
   zones: Zone[];
   savedClips: SavedClip[];
 }
@@ -122,6 +124,9 @@ function words(text: string): string[] {
 function validation(message: string): ApiError {
   return new ApiError(422, 'validation_error', message);
 }
+
+/** The demo clip's recording: it is the one the demo boxes belong to. */
+const DEMO_BOXES_RECORDING = 'rec-1029-1030';
 
 function notFound(message: string): ApiError {
   return new ApiError(404, 'not_found', message);
@@ -213,18 +218,28 @@ function countBy<T>(items: readonly T[], key: (item: T) => string): Map<string, 
   return counts;
 }
 
+/** The demo seed has no snapshots; one clip gets one so the screen can show it. */
+const DEMO_SNAPSHOTS: Record<string, string> = {
+  'clip-1029-104215': '/api/clips/clip-1029-104215/snapshot',
+};
+
 /** The seed as the demo's data: every clip gets the camera of its recording. */
 function fromSeed(seed: DemoSeed): DemoData {
   const cameraOfRecording = new Map(seed.recordings.map((recording) => [recording.id, recording.camera]));
   const withCamera = (clip: DemoSeed['clips'][number]): Clip => ({
     ...clip,
     camera: clip.camera ?? cameraOfRecording.get(clip.recordingId) ?? '',
+    snapshotUrl: clip.snapshotUrl ?? DEMO_SNAPSHOTS[clip.id] ?? null,
   });
   return {
     ...seed,
     clips: seed.clips.map(withCamera),
     savedClips: seed.savedClips.map((saved) => ({ ...saved, clip: withCamera(saved.clip) })),
   };
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
 const MILLISECONDS = /\.\d{3}Z$/;
@@ -340,10 +355,20 @@ export class MockApiClient implements ApiClient {
     });
   }
 
-  deleteCamera(id: string): Promise<void> {
+  deleteCamera(id: string, options: DeleteCameraOptions = {}): Promise<void> {
     return this.answer(() => {
       this.requireCamera(id);
       const { data } = this;
+      const recordings = data.recordings.filter((recording) => recording.camera === id).length;
+      if (recordings > 0 && options.deleteRecordings !== true) {
+        const saved = data.savedClips.filter((item) => item.clip.camera === id).length;
+        throw new ApiError(
+          409,
+          'camera_has_recordings',
+          `This camera has ${plural(recordings, 'recording')} and ${plural(saved, 'saved clip')}. ` +
+            'Deleting it would delete them too; confirm to delete the camera together with its recordings.',
+        );
+      }
       // Cascade: the camera's recordings (with their clips and saved clips) and its zones go too.
       data.cameras = data.cameras.filter((camera) => camera.id !== id);
       data.recordings = data.recordings.filter((recording) => recording.camera !== id);
@@ -389,6 +414,25 @@ export class MockApiClient implements ApiClient {
       this.data.recordings.push({ id, camera, day, startTime: '00:00:00', lengthSeconds: 0, status: 'waiting' });
       return { id, status: 'waiting' as const };
     });
+  }
+
+  /**
+   * The demo boxes: the example's tracks for the demo clip's recording (and for clip2, the example's own id);
+   * any other known recording has none; an unknown id is 404.
+   */
+  getRecordingBoxes(id: string): Promise<RecordingBoxes> {
+    return this.answer(() => {
+      checkId(id, 'id');
+      const example = boxesJson as unknown as RecordingBoxes;
+      if (id === example.recordingId || id === DEMO_BOXES_RECORDING) return { ...example, recordingId: id };
+      if (!this.data.recordings.some((item) => item.id === id)) throw notFound('Recording not found.');
+      return { ...example, recordingId: id, tracks: [] };
+    });
+  }
+
+  /** The demo has no server, so a path stays as it is. */
+  assetUrl(path: string): string {
+    return path;
   }
 
   /** The demo has no footage files, so there is never a video to stream. */

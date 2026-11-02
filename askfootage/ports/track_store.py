@@ -37,6 +37,17 @@ class TrackStore(Protocol):
         ...
 
 
+class TrackLabelIndex(Protocol):
+    """A track store that can also say which labels a video has tracks for."""
+
+    def labels_for(self, video_id: str) -> list[str]:
+        """The distinct labels this video has at least one track for, sorted.
+
+        An unknown video, or one without tracks, returns an empty list.
+        """
+        ...
+
+
 class TrackDataError(Exception):
     """A video's stored track data is unreadable or malformed.
 

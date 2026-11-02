@@ -27,6 +27,9 @@ export function deferred<T>() {
     resolve = res;
     reject = rej;
   });
+  // A test may reject before the screen has asked for the promise (effects run after the first paint), and
+  // Node would call that an unhandled rejection. This marks it handled; whoever awaits it still gets the rejection.
+  promise.catch(() => undefined);
   return { promise, resolve, reject };
 }
 

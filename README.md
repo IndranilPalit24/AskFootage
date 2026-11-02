@@ -6,7 +6,7 @@ AskFootage lets you ask a plain-English question about recorded camera footage, 
 
 Built by Team **EdgeCase** (solo, Indie track) for the **Meta Global AI Developer Hackathon**, Oct 27 to Nov 4, 2026, using **SAM 3.1** and **Muse Spark** through the Meta Model API.
 
-> **Status: work in progress (branch `feature/app-v1`).** The relation rules, the API (contract 1.3.0), the web UI on demo data, the ingest and evaluate command lines and the spend cap exist. Real perception does not: there is no working SAM 3.1 adapter yet, so nothing is indexed from a live model. Rows marked *Not done* below are not built.
+> **Status: work in progress (branch `feature/app-v1`).** SAM 3.1 perception works end to end on two real clips, and anyone can run it with **no key**: the model's recorded replies are in `demo/sam`, and one command replays them (see [Quick start](#quick-start-no-key-demo)). Live indexing of new footage from the API, question reading by Muse Spark in the API, and held-out accuracy results are not built. Rows marked *Not done* below are not built.
 
 | Component | Status |
 |---|---|
@@ -15,20 +15,21 @@ Built by Team **EdgeCase** (solo, Indie track) for the **Meta Global AI Develope
 | Question vocabulary and keyword reader (`domain/vocabulary.py`) | Done |
 | Spend cap: `Budget` port, `HardCapBudget`, `BudgetedTransport` | Done |
 | 5 fps video preparation (ffmpeg) | Done |
-| Ingest and add-concept use cases, `ingest` CLI | Done, `--fake` perception only |
-| Search over stored tracks, with demo keyword fallback | Done in code; the default `create_app()` does not wire tracks (see below) |
-| Muse Spark question parser, keyword fallback, replay transport | Done; not yet checked against a real reply |
+| Ingest and add-concept use cases, `ingest` CLI | Done; the CLI uses `--fake` perception only. The real clips are ingested by `scripts.ingest_real_clips` (replayed SAM) |
+| Search over stored tracks, with demo keyword fallback | Done; wired for the two real clips in `askfootage.interfaces.real_clips`. The default `create_app()` still serves the seeded demo matcher |
+| Muse Spark question parser, keyword fallback, replay transport | Parser built (`adapters/meta/muse.py`); **not wired into the API**, which reads questions with the keyword reader. Not checked against a real reply |
 | Evaluation scoring and `evaluate` CLI | Done; no labelled footage yet, so no results |
 | Searchable index (SQLite: library, zones, clips, tracks) | Done |
 | HTTP API, contract 1.3.0 (includes `proofs`) | Done |
 | Web UI: player, timeline, overlay, zone editor | Built on demo data |
-| SAM 3.1 adapter (`adapters/meta/sam.py`) | **Not done.** The file is empty and its reply parser waits for a real SAM reply |
+| SAM 3.1 adapter (`adapters/meta/sam.py`) | Done. Parses real replies; masks are dropped from saved replies; replays offline from `demo/sam` |
 | Real indexing from the API (`POST /api/recordings/{id}/index`) | **Not done.** Answers 503 `indexing_not_configured` |
-| No-key demo mode from recordings in `demo/` | **Not done** (Gate 4). `demo/` is empty |
+| No-key demo mode from recordings in `demo/sam` | Done: `python -m scripts.run_demo`. Needs your own `videos/clip1.mp4` and `clip2.mp4` (not in the repository) |
 | Held-out accuracy results and Muse Spark baseline | **Not done** |
 
 ## Contents
 
+0. [Quick start (no-key demo)](#quick-start-no-key-demo)
 1. [What it does](#what-it-does)
 2. [The problem](#the-problem)
 3. [How it works](#how-it-works)
@@ -42,6 +43,34 @@ Built by Team **EdgeCase** (solo, Indie track) for the **Meta Global AI Develope
 11. [Project layout](#project-layout)
 12. [Built during the hackathon](#built-during-the-hackathon)
 13. [License](#license)
+
+## Quick start (no-key demo)
+
+You need Python 3.11+, Node.js, ffmpeg on PATH, a virtual environment with the requirements installed ([Getting started](#getting-started) steps 1 to 3), and the two demo clips at `videos/clip1.mp4` and `videos/clip2.mp4`. The clips are not in the repository (`videos/` is git-ignored). **No Meta key, no `.env` and no network are needed.**
+
+Terminal 1, from the project root (PowerShell):
+
+```
+.venv\Scripts\python.exe -m scripts.run_demo
+```
+
+Terminal 2:
+
+```
+cd web; $env:VITE_API_URL='http://localhost:8000'; npm run dev
+```
+
+Open `http://localhost:5173`, pick 30 Oct 2026, and ask *person carrying a box*. You get clip2 with the red box overlay on the playing video, the proof and a snapshot; clip1 is not returned.
+
+What `scripts.run_demo` does: checks both clips and ffmpeg exist (it prints what is missing and exits with code 2 if not), makes the 5 fps copies in `data/prepared/`, stores the tracks from the saved replies in `data/real/library.sqlite` (first run only), then serves the API on port 8000 (`--port N` changes it; use the same port in `VITE_API_URL`). If the prepared bytes differ from the ones the replies were recorded for (a different clip file or ffmpeg build), it stops and says so with a hint. The same steps can be run one by one:
+
+```
+.venv\Scripts\python.exe -m scripts.prepare_clips
+.venv\Scripts\python.exe -m scripts.ingest_real_clips
+.venv\Scripts\python.exe -m uvicorn askfootage.interfaces.real_clips:create_app --factory --port 8000
+```
+
+**Real mode (your own key, spends money).** Put your key in `.env` (see [Configuration and secrets](#configuration-and-secrets)), then check it and record new replies with `scripts.api_spike` and `scripts.record_sam_demo` (section 7 below; every command is a dry run until you add `--yes`). The API does not index new footage yet, so there is no one-command real mode.
 
 ## What it does
 
@@ -100,7 +129,7 @@ question ──> Muse Spark parses it into a fixed structure
 
 ### 1. Perception: SAM 3.1
 
-SAM 3.1 runs through the Meta Model API and returns a box, a mask and a tracking ID for every object matching a short text phrase. The API accepts **one object type per request**, so each type is a separate pass over the video. Raw responses are saved before anything is parsed, so a parsing bug never costs a second API run.
+SAM 3.1 runs through the Meta Model API and returns a box, a mask and a tracking ID for every object matching a short text phrase. It finds the objects and tracks them in the footage, **once per object type** (the API accepts one type per request, so each type is a separate pass over the video). The two real clips were run once with a key; the replies were saved (masks removed, which the product never uses) in `demo/sam`, so anyone can run the demo with **no key**: a replay transport answers every request from those files and nothing is sent to Meta. Raw responses are saved before anything is parsed, so a parsing bug never costs a second API run.
 
 ### 2. The index
 
@@ -118,6 +147,8 @@ Neither model decides what "carrying" means. That is ordinary, testable code (`a
 
 ### 4. Query interpretation: Muse Spark
 
+*Current wiring:* the API, in demo mode and in the real-clips demo, reads questions with the deterministic keyword reader only. The Muse Spark parser below is built and tested over replayed replies but is not connected to the API, so the demo makes no language-model call.
+
 Muse Spark (`muse-spark-1.3`, in `askfootage/adapters/meta/muse.py`) turns a question into a fixed structure and nothing else. The reply must be a JSON object that passes the strict schema check in `domain/vocabulary.parse_question`, or it is discarded. It may only pick object types from the indexed vocabulary, one of the supported relations, and a zone from your named list. Anything else is reported as unsupported, or as "needs indexing" with a cost estimate.
 
 ```json
@@ -133,7 +164,7 @@ Muse Spark (`muse-spark-1.3`, in `askfootage/adapters/meta/muse.py`) turns a que
 
 ### 5. Search: stored tracks first, demo matcher as fallback
 
-`askfootage/application/search_relations.py` reads the question, then for each ready recording with stored tracks it stitches the tracks and runs `carrying`, `region_entry` or `dwell`. Each interval becomes a clip plus a proof (relation, frames and seconds, track ids, measures, a few boxes to draw), returned in the `proofs` array added in API contract 1.3.0. A recording with no stored tracks, no frame size (needed to turn saved zones into pixels), or a question with no relation uses the older demo keyword matcher over stored clips, and those clips have no proof. The default `create_app()` wires no track store, so a plain `uvicorn` start still serves the demo matcher; the stored-track path runs when tracks and a frame-size source are passed in (as the API tests do). Nothing connects the CLI's JSON files to the API yet. See [ADR 0010](docs/adr/0010-relation-search-over-stored-tracks-with-demo-fallback.md).
+`askfootage/application/search_relations.py` reads the question, then for each ready recording with stored tracks it stitches the tracks and runs `carrying`, `region_entry` or `dwell`. Each interval becomes a clip plus a proof (relation, frames and seconds, track ids, measures, a few boxes to draw), returned in the `proofs` array added in API contract 1.3.0. A recording with no stored tracks, no frame size (needed to turn saved zones into pixels), or a question with no relation uses the older demo keyword matcher over stored clips, and those clips have no proof. The default `create_app()` wires no track store, so a plain `uvicorn` start still serves the demo matcher; the stored-track path runs in `askfootage.interfaces.real_clips`, which passes in the SQLite tracks and a frame-size source (and in the API tests). The CLI's JSON files are not connected to the API. See [ADR 0010](docs/adr/0010-relation-search-over-stored-tracks-with-demo-fallback.md).
 
 ### 6. Optional verification *(Not done)*
 
@@ -232,7 +263,7 @@ cd web
 npm run dev
 ```
 
-Open the address it prints (the API only accepts requests from `http://localhost:5173`). Questions here are answered by the keyword demo matcher over seeded clips, so this shows the interface and the evidence panel, not real perception.
+Open the address it prints (the API only accepts requests from `http://localhost:5173`). In PowerShell, the web reads the API address from `$env:VITE_API_URL` (for example `'http://localhost:8000'`), set before `npm run dev`. Questions here are answered by the keyword demo matcher over seeded clips, so this shows the interface and the evidence panel, not real perception.
 
 ### 6. Try the ingest and evaluate command lines (no key, no spend)
 
@@ -261,15 +292,15 @@ Needs your own key in `.env` (see below). Every command is a dry run until you a
 .venv\Scripts\python.exe -m scripts.api_spike sam --video data\synthetic.mp4 --object person --duration-seconds 6 --yes
 ```
 
-`check-key` sends one tiny request and prints PASS or FAIL with a hint. `sam` prints the estimated cost first and refuses if it is above `--max-cost-usd` or `MAX_RUN_COST_USD`. A live run saves each successful reply under `data/recordings`, so repeating the same command replays it free. The SAM reply is printed raw and unparsed: **the SAM reply parser (`adapters/meta/sam.py`) waits for a real reply and does not exist yet.**
+`check-key` sends one tiny request and prints PASS or FAIL with a hint. `sam` prints the estimated cost first and refuses if it is above `--max-cost-usd` or `MAX_RUN_COST_USD`. A live run saves each successful reply under `data/recordings`, so repeating the same command replays it free. The SAM reply is printed raw and unparsed; parsing is done by `adapters/meta/sam.py` during ingest.
 
-### 8. Run on the full pipeline *(Not done)*
+### 8. Run on your own footage with a key *(Not done)*
 
-Real indexing needs the SAM adapter, which is not built, so there is no honest "index my video" command yet. The intended flow is the `ingest` command without `--fake`, then search from the UI.
+Live indexing from the API (`POST /api/recordings/{id}/index`) answers 503 and the `ingest` command without `--fake` is not configured. New footage can only be perceived through `scripts.api_spike` and `scripts.record_sam_demo`, which spend money and need a key.
 
-### 9. Demo mode without a key *(Not done, Gate 4)*
+### 9. Demo mode without a key
 
-The plan is a short sample clip with its model responses saved in `demo/`, replayed through the record-and-replay transport so judges can run it without a key. `demo/` is empty today and `ASKFOOTAGE_DEMO` is read by the settings but not yet used to switch on a replay mode. Today's no-key experience is step 5 (seeded demo data) and step 6 (`--fake`).
+See the [Quick start](#quick-start-no-key-demo): `.venv\Scripts\python.exe -m scripts.run_demo`. Design notes: [ADR 0015](docs/adr/0015-one-command-no-key-demo.md).
 
 ## Configuration and secrets
 
@@ -281,7 +312,7 @@ Settings come from environment variables, loaded from a local `.env` file. These
 | `META_API_BASE_URL` | API address, as given in the Meta Model API docs | No |
 | `MAX_RUN_COST_USD` | Hard cap in US dollars for one run (default 25) | No |
 | `DATA_DIR` | Where videos, raw responses and the index live | No |
-| `ASKFOOTAGE_DEMO` | Reserved for replay demo mode (Gate 4); no effect yet | No |
+| `ASKFOOTAGE_DEMO` | Read by the settings, no effect yet; the no-key demo is started with `scripts.run_demo`, which reads no settings | No |
 
 **Rules**
 
@@ -338,7 +369,7 @@ The scoring code exists (`askfootage/application/evaluate.py`); accuracy will be
 - AskFootage has **no face recognition and no identification** of anyone.
 - The demo footage is filmed by the author with the consent of everyone in it.
 - Indexing uploads video to Meta's servers. Meta's docs say uploaded files do not expire by default, so the app sets a short expiry and deletes the upload after indexing. Meta may retain inputs and outputs under its standard terms, so read Meta's data-handling terms before uploading anyone's image.
-- The index, the questions you ask and the results stay on your machine. Interpreting a question sends the text to Muse Spark. If verification is switched on, a few frames from each candidate are sent as well.
+- The index, the questions you ask and the results stay on your machine. In the current API, questions are read locally by the keyword reader and nothing is sent; the Muse Spark parser, if connected in future, would send the question text. If verification is switched on, a few frames from each candidate are sent as well.
 - Do not use this to make decisions about people without human review.
 - Only use footage you have the right to use.
 
@@ -366,7 +397,7 @@ AskFootage/
     ports/
   contract/             openapi.yaml, the single source of truth for the API
     examples/
-  demo/                 demo material
+  demo/sam/             saved SAM 3.1 replies and a manifest, for the no-key demo
   docs/                 architecture notes and decision records
     adr/
     wireframes/

@@ -1,4 +1,4 @@
-"""The 21 operations of contract/openapi.yaml, all under /api.
+"""The 25 operations of contract/openapi.yaml, all under /api.
 
 Each handler validates its input (path, query and body models), calls one application
 use case and shapes the result into the contract's models. Failures are raised as
@@ -22,10 +22,22 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Path, Query, Request, Response
+from fastapi.responses import FileResponse
+from pydantic import BeforeValidator
 
-from askfootage.application import cameras, ingest_video, recordings, saved_clips, search, zones
+from askfootage.application import (
+    cameras,
+    concepts,
+    ingest_video,
+    recording_boxes,
+    recordings,
+    saved_clips,
+    search,
+    zones,
+)
 from askfootage.application.errors import NotFoundError
-from askfootage.interfaces.api.context import Context
+from askfootage.domain.tracks import LABEL_MAX
+from askfootage.interfaces.api.context import Context, snapshot_url_of
 from askfootage.interfaces.api.errors import error_responses, json_error_responses
 from askfootage.interfaces.api.footage import VideoFileResponse
 from askfootage.interfaces.api.schemas import (
@@ -34,11 +46,14 @@ from askfootage.interfaces.api.schemas import (
     CameraCreate,
     CameraUpdate,
     Clip,
+    ConceptJob,
+    ConceptRequest,
     Day,
     DaySummary,
     IndexAccepted,
     Recording,
     RecordingAccepted,
+    RecordingBoxes,
     SavedClip,
     SavedClipCreate,
     SavedClipUpdate,
@@ -62,10 +77,41 @@ OptionalCameraQuery = Annotated[
         examples=["CAM-001"],
     ),
 ]
+
+
+def _exactly_true_or_false(value: object) -> object:
+    """Accept only the text true or false (pydantic would also take 1, yes, on, ...)."""
+    if value is True or value is False or value in ("true", "false"):
+        return value
+    raise ValueError("must be true or false")
+
+
+DeleteRecordingsQuery = Annotated[
+    bool,
+    BeforeValidator(_exactly_true_or_false),
+    Query(
+        alias="deleteRecordings",
+        description=(
+            "True to delete the camera together with its recordings, clips, saved clips and "
+            "zones; false (the default) refuses when the camera has recordings"
+        ),
+        examples=[False],
+    ),
+]
+NounPath = Annotated[
+    str,
+    Path(
+        min_length=1,
+        max_length=LABEL_MAX,
+        description="The object in plain English, such as forklift (URL-encode spaces)",
+        examples=["forklift"],
+    ),
+]
 DayQuery = Annotated[Day, Query(examples=["2026-10-29"])]
 OptionalDayQuery = Annotated[Day | None, Query(examples=["2026-10-29"])]
 
 _MP4_SCHEMA: dict[str, Any] = {"type": "string", "contentMediaType": "video/mp4"}
+_JPEG_SCHEMA: dict[str, Any] = {"type": "string", "contentMediaType": "image/jpeg"}
 _UPLOAD_LIMIT_MIB = MAX_UPLOAD_BYTES // (1024 * 1024)
 _UPLOAD_BODY: dict[str, Any] = {
     "required": True,
@@ -181,14 +227,22 @@ async def update_camera(id: IdPath, body: CameraUpdate, context: Context) -> Cam
     response_class=Response,
     summary="Delete a camera and everything recorded on it",
     description=(
-        "Also removes the camera's recordings (with their clips and saved clips) and its "
-        "zones. A second delete of the same camera returns 404."
+        "A camera with no recordings is deleted at once (204), whatever deleteRecordings "
+        "says; its zones go with it. A camera with one or more recordings is not deleted "
+        "unless deleteRecordings is true: the answer is 409 with code camera_has_recordings "
+        "and a message that says how many recordings and saved clips it has, and nothing is "
+        "changed. With deleteRecordings=true the camera is deleted together with its "
+        "recordings, their clips, the saved clips and its zones. A second delete of the same "
+        "camera returns 404. deleteRecordings must be exactly true or false; any other value "
+        "returns 422."
     ),
-    responses=error_responses(404, 422, 500),
+    responses=error_responses(404, 409, 422, 500),
 )
-async def delete_camera(id: IdPath, context: Context) -> Response:
-    """Delete a camera and everything recorded on it."""
-    cameras.delete_camera(context.library, id)
+async def delete_camera(
+    id: IdPath, context: Context, delete_recordings: DeleteRecordingsQuery = False
+) -> Response:
+    """Delete a camera; with recordings it needs deleteRecordings=true."""
+    cameras.delete_camera(context.library, id, delete_recordings=delete_recordings)
     return Response(status_code=204)
 
 
@@ -288,6 +342,29 @@ async def get_recording_video(id: IdPath, context: Context) -> VideoFileResponse
     return VideoFileResponse(path, stat_result)
 
 
+@router.get(
+    "/recordings/{id}/boxes",
+    operation_id="getRecordingBoxes",
+    response_description="The boxes",
+    summary="The boxes of the objects found in a recording, frame by frame",
+    description=(
+        "The stored object tracks of the recording, for the player to draw boxes over the "
+        "playing video. Boxes are in pixels of the frameWidth x frameHeight frame; a frame "
+        "number n is at second n / fps from the start of the recording. A track has a point "
+        "only on frames where the object was detected. Hands are left out. A recording that "
+        "is known but has no stored tracks returns an empty tracks list; 404 when the "
+        "recording is unknown."
+    ),
+    responses=error_responses(404, 422, 500),
+)
+async def get_recording_boxes(id: IdPath, context: Context) -> RecordingBoxes:
+    """The boxes of one recording's stored tracks, hands left out."""
+    view = recording_boxes.get_recording_boxes(
+        context.library, context.tracks, context.frame_size, id
+    )
+    return RecordingBoxes.from_view(view)
+
+
 @router.post(
     "/recordings/{id}/index",
     operation_id="indexRecording",
@@ -343,8 +420,77 @@ async def search_footage(body: SearchRequest, context: Context) -> SearchRespons
         tracks=context.tracks,
         parser=context.question_parser,
         frame_size=context.frame_size,
+        snapshots=context.snapshots,
+        concepts=context.concepts,
     )
-    return SearchResponse.from_result(result)
+    return SearchResponse.from_result(result, snapshot_url_of(context))
+
+
+# --- Concepts: searching for a new object -------------------------------------------------------
+
+
+@router.post(
+    "/concepts",
+    operation_id="requestConcept",
+    response_description="Accepted; the pass is queued and runs after the reply",
+    status_code=202,
+    summary="Search the recordings that lack a new object, once",
+    description=(
+        "Queues ONE pass for the noun over the ready recordings that have no stored tracks "
+        "for it (the recordings of day and camera, or the 7 days ending today). This is the "
+        "only call that can spend: confirm must be exactly true. The estimate is the sum over "
+        "the recordings of 0.20 dollars per 1,000 frames at 5 frames per second, at least 50 "
+        "frames per recording; if the spending cap could not pay for it (with the passes "
+        "already waiting counted) the answer is 409 budget_exceeded and nothing starts. "
+        "Idempotent per noun: while a pass for the noun is queued or running, asking again "
+        "returns that pass with 200 and starts nothing; so does asking when no recording "
+        "lacks the noun (state done, no recordings). A failed pass can be asked for again. "
+        "Poll GET /api/concepts/{noun}; when it is done, search again. Without a key the "
+        "pass replays saved results and spends nothing; a noun with no saved result fails "
+        "with a fixed message. A build that cannot search for new objects answers 503."
+    ),
+    responses={
+        200: {
+            "model": ConceptJob,
+            "description": "The pass that already exists (nothing new started)",
+        },
+        **error_responses(409, 422, 500, 503),
+    },
+)
+async def request_concept(
+    body: ConceptRequest, context: Context, background: BackgroundTasks, response: Response
+) -> ConceptJob:
+    """Queue one pass for a noun (after the reply), or return the one already there."""
+    result = concepts.request_concept(
+        context.concepts,
+        body.noun,
+        confirm=body.confirm,
+        day=body.day,
+        camera=body.camera,
+        today=context.today(),
+    )
+    if result.run is not None:
+        context.schedule_after_reply(background, result.run)
+    else:
+        response.status_code = 200
+    return ConceptJob.from_job(result.job)
+
+
+@router.get(
+    "/concepts/{noun}",
+    operation_id="getConcept",
+    response_description="The pass for the object",
+    summary="Where the pass for an object is",
+    description=(
+        "The state of the latest pass asked for this object since the server started, for "
+        "polling. 404 when none was asked for; 503 when this build cannot search for new "
+        "objects."
+    ),
+    responses=error_responses(404, 422, 500, 503),
+)
+async def get_concept(noun: NounPath, context: Context) -> ConceptJob:
+    """The pass for one noun."""
+    return ConceptJob.from_job(concepts.get_concept(context.concepts, noun))
 
 
 @router.get(
@@ -357,7 +503,33 @@ async def search_footage(body: SearchRequest, context: Context) -> SearchRespons
 async def get_clip(id: IdPath, context: Context) -> Clip:
     """One clip with its evidence and its camera."""
     found = recordings.get_clip(context.library, id)
-    return Clip.from_port(found.clip, found.camera)
+    return Clip.from_port(found.clip, found.camera, snapshot_url_of(context))
+
+
+@router.get(
+    "/clips/{id}/snapshot",
+    operation_id="getClipSnapshot",
+    status_code=200,
+    summary="The evidence snapshot of a clip",
+    description=(
+        "A JPEG of the frame where the match began, with the object's box drawn in red and "
+        "the person's box in a neutral grey. Made when a search finds the clip from stored "
+        "object tracks. Returns 404 with the standard error body when the clip is unknown or "
+        "has no snapshot."
+    ),
+    response_class=FileResponse,
+    responses={
+        200: {"description": "The snapshot", "content": {"image/jpeg": {"schema": _JPEG_SCHEMA}}},
+        **json_error_responses(404, 422, 500),
+    },
+)
+async def get_clip_snapshot(id: IdPath, context: Context) -> FileResponse:
+    """The clip's evidence snapshot; 404 when the clip or its snapshot does not exist."""
+    recordings.get_clip(context.library, id)
+    snapshots = context.snapshots
+    if snapshots is None or not snapshots.has(id):
+        raise NotFoundError("Snapshot not found.")
+    return FileResponse(snapshots.path_for(id), media_type="image/jpeg")
 
 
 # --- Zones ------------------------------------------------------------------------------------
@@ -436,7 +608,7 @@ async def delete_zone(id: IdPath, context: Context) -> Response:
 async def list_saved_clips(context: Context, day: OptionalDayQuery = None) -> list[SavedClip]:
     """Saved clips, newest save first."""
     found = saved_clips.list_saved_clips(context.library, day)
-    return [SavedClip.from_found(saved) for saved in found]
+    return [SavedClip.from_found(saved, snapshot_url_of(context)) for saved in found]
 
 
 @router.post(
@@ -453,7 +625,7 @@ async def save_clip(body: SavedClipCreate, context: Context) -> SavedClip:
     saved = saved_clips.save_clip(
         context.library, body.clip_id, body.note, context.utc_now(), make_id=context.make_id
     )
-    return SavedClip.from_found(saved)
+    return SavedClip.from_found(saved, snapshot_url_of(context))
 
 
 @router.patch(
@@ -465,7 +637,8 @@ async def save_clip(body: SavedClipCreate, context: Context) -> SavedClip:
 )
 async def update_saved_clip(id: IdPath, body: SavedClipUpdate, context: Context) -> SavedClip:
     """Replace a saved clip's note."""
-    return SavedClip.from_found(saved_clips.update_note(context.library, id, body.note))
+    updated = saved_clips.update_note(context.library, id, body.note)
+    return SavedClip.from_found(updated, snapshot_url_of(context))
 
 
 @router.delete(

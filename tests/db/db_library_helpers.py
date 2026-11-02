@@ -171,6 +171,7 @@ TABLES = (
     "saved_clips",
     "tracks",
     "track_points",
+    "concepts_searched",
 )
 """Every table in schema.sql."""
 
@@ -217,7 +218,8 @@ def clip_json(value: Clip) -> dict[str, object]:
 
 def api_clip_json(value: Clip, camera_id: str) -> dict[str, object]:
     """A clip in the API's shape (contract/openapi.yaml, Clip): its recording's camera too."""
-    return {**clip_json(value), "camera": camera_id}
+    # snapshotUrl is made by the API from its snapshot store; it is never stored.
+    return {**clip_json(value), "camera": camera_id, "snapshotUrl": None}
 
 
 def recording_json(value: Recording) -> dict[str, object]:

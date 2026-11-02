@@ -16,7 +16,12 @@ import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from askfootage.application.errors import CameraNameTakenError, InvalidInputError, NotFoundError
+from askfootage.application.errors import (
+    CameraNameTakenError,
+    ConflictError,
+    InvalidInputError,
+    NotFoundError,
+)
 from askfootage.application.library import CAMERA_NOT_FOUND, Library
 from askfootage.ports.library_store import (
     CAMERA_NAME_MAX,
@@ -66,6 +71,13 @@ _DIGITS_AND_DOTS = re.compile(r"[0-9.]+")
 _UNRESERVED = frozenset(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
 _NO_COUNTS = CameraCounts(recordings=0, zones=0, saved_clips=0)
 _NAME_TAKEN = "Another camera already has that name."
+
+
+class CameraHasRecordingsError(ConflictError):
+    """The camera still has recordings and the caller did not ask to delete them too.
+
+    The message says how many recordings and saved clips it has, in plain English.
+    """
 
 
 # --- The masked stream URL ---------------------------------------------------------------------
@@ -283,13 +295,33 @@ def set_camera_status(library: Library, camera_id: str, status: str) -> CameraOv
     return CameraOverview(camera, library.cameras.camera_counts().get(camera.id, _NO_COUNTS))
 
 
-def delete_camera(library: Library, camera_id: str) -> None:
-    """Delete a camera with its recordings, clips, saved clips and zones.
+def delete_camera(library: Library, camera_id: str, *, delete_recordings: bool = False) -> None:
+    """Delete a camera; its recordings are only deleted along with it when asked.
 
-    Raises NotFoundError when there is no such camera (so a second delete is 404).
+    A camera with no recordings is deleted at once. A camera with recordings is left
+    untouched and CameraHasRecordingsError is raised, unless delete_recordings is True, in
+    which case it goes with its recordings, clips, saved clips and zones. Raises
+    NotFoundError when there is no such camera (so a second delete is 404).
     """
+    if not delete_recordings:
+        counts = library.cameras.camera_counts().get(camera_id)
+        if counts is not None and counts.recordings > 0:
+            raise CameraHasRecordingsError(_has_recordings_message(counts))
     if not library.cameras.delete_camera(camera_id):
         raise NotFoundError(CAMERA_NOT_FOUND)
+
+
+def _has_recordings_message(counts: CameraCounts) -> str:
+    recordings = _plural(counts.recordings, "recording")
+    saved = _plural(counts.saved_clips, "saved clip")
+    return (
+        f"This camera has {recordings} and {saved}. Deleting it would delete them too; "
+        "confirm to delete the camera together with its recordings."
+    )
+
+
+def _plural(count: int, noun: str) -> str:
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
 
 
 def _name_taken(library: Library, name: str) -> bool:

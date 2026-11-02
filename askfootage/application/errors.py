@@ -6,7 +6,7 @@ them to clients as they are.
 
 from __future__ import annotations
 
-from askfootage.ports.perception import NOT_CONFIGURED_MESSAGE
+from askfootage.ports.perception import NOT_CONFIGURED_MESSAGE, PerceptionNotSentError
 
 
 class ApplicationError(Exception):
@@ -69,3 +69,22 @@ class InvalidInputError(ApplicationError):
         super().__init__(f"{field}: {problem}")
         self.field = field
         self.problem = problem
+
+
+class BudgetRefusedError(ConflictError):
+    """The spending cap would be passed, so a pass over a new object was not started.
+
+    The message states amounts only: what is needed and what is left.
+    """
+
+
+NO_RECORDED_RESULT_MESSAGE = (
+    "No recorded result for this object in the demo; add a key to run it live"
+)
+
+
+class NoRecordedResultError(PerceptionNotSentError):
+    """Replay mode has no saved reply for this object. Nothing was sent, so nothing was billed."""
+
+    def __init__(self, message: str = NO_RECORDED_RESULT_MESSAGE) -> None:
+        super().__init__(message)

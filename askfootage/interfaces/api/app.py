@@ -22,10 +22,13 @@ from starlette.datastructures import Headers
 from starlette.middleware.cors import CORSMiddleware
 from starlette.types import Receive, Scope, Send
 
+from askfootage.application.concepts import ConceptService
 from askfootage.application.ingest_video import IndexingPipeline
 from askfootage.application.library import IdFactory, Library, new_id
+from askfootage.application.recordings import FootageSource
 from askfootage.application.search import Interpreter, QuestionInterpreter
 from askfootage.application.search_relations import FrameSizeSource, frame_size_source_of
+from askfootage.application.snapshots import SnapshotStore
 from askfootage.interfaces.api.body_limit import BodyLimitMiddleware
 from askfootage.interfaces.api.context import ApiContext, JobScheduler, run_after_reply
 from askfootage.interfaces.api.errors import InternalErrorMiddleware, install_error_handlers
@@ -36,7 +39,7 @@ from askfootage.ports.language_model import QuestionParser
 from askfootage.ports.track_store import TrackStore
 from askfootage.settings import Settings, load_settings
 
-API_VERSION = "1.3.0"
+API_VERSION = "1.7.0"
 """The contract version this app serves (info.version in contract/openapi.yaml)."""
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_VIDEOS_DIR = REPO_ROOT / "videos"
@@ -66,6 +69,9 @@ def create_app(
     tracks: TrackStore | None = None,
     question_parser: QuestionParser | None = None,
     frame_size: FrameSizeSource | None = None,
+    snapshots: SnapshotStore | None = None,
+    footage: FootageSource | None = None,
+    concepts: ConceptService | None = None,
 ) -> FastAPI:
     """Build the AskFootage API.
 
@@ -80,6 +86,14 @@ def create_app(
     `question_parser` reads questions before the keyword reader; `frame_size` gives a
     recording's pixel size so zone questions can run (default: the track store's own
     frame_size method, when it has one). Without tracks, search is the demo keyword matcher.
+
+    `footage` says which file plays for a recording (default: the demo clip).
+    `snapshots` makes and serves the evidence snapshot of each clip found from tracks (none in
+    demo mode).
+
+    `concepts` searches the ready recordings for a new object (POST /api/concepts) and lets
+    search list the objects it could add. None by default, as in demo mode: that route
+    answers 503 indexing_not_configured and search lists nothing.
 
     `indexing` is the pipeline POST /api/recordings/{id}/index runs. It is None by
     default: this build has no perception yet, so that route answers 503
@@ -115,7 +129,9 @@ def create_app(
     app.state.context = ApiContext(
         library=library,
         interpreter=interpreter if interpreter is not None else QuestionInterpreter(),
-        footage=DemoFootageSource(videos_dir if videos_dir is not None else DEFAULT_VIDEOS_DIR),
+        footage=footage
+        if footage is not None
+        else DemoFootageSource(videos_dir if videos_dir is not None else DEFAULT_VIDEOS_DIR),
         today=today if today is not None else _fixed_day(read_demo_today()),
         utc_now=utc_now if utc_now is not None else _utc_now,
         make_id=make_id,
@@ -125,6 +141,8 @@ def create_app(
         tracks=store_of_tracks,
         question_parser=question_parser,
         frame_size=frame_size if frame_size is not None else frame_size_source_of(store_of_tracks),
+        snapshots=snapshots,
+        concepts=concepts,
     )
     install_error_handlers(app)
     app.include_router(router)

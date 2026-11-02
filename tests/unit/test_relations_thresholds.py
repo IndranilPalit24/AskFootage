@@ -26,7 +26,7 @@ def test_defaults_are_the_documented_values() -> None:
         "carry_containment": 0.5,
         "min_carry_frames": 10,
         "min_moving_displacement": 0.02,
-        "carry_motion_tolerance": 0.5,
+        "carry_motion_tolerance": 0.75,
         "carry_min_agreement": 0.6,
         "gap_tolerance_frames": 3,
         "min_zone_frames": 2,

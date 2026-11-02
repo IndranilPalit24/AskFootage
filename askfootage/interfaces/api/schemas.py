@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Annotated, Literal
 
 from pydantic import (
@@ -24,15 +25,19 @@ from pydantic import (
 )
 from pydantic.alias_generators import to_camel
 
-from askfootage.application import cameras
+from askfootage.application import cameras, nouns
 from askfootage.application.cameras import CameraDraft, CameraOverview
 from askfootage.application.clips import SavedClipWithCamera
+from askfootage.application.concepts import ConceptJob as ConceptJobResult
+from askfootage.application.concepts import IndexingNeed
 from askfootage.application.errors import InvalidInputError
+from askfootage.application.recording_boxes import RecordingBoxesView
 from askfootage.application.recordings import ServiceStatus
 from askfootage.application.saved_clips import MAX_NOTE_LENGTH
 from askfootage.application.search import MAX_QUESTION_LENGTH, SearchResult
 from askfootage.application.search_relations import ClipProof as ClipProofResult
 from askfootage.application.zones import MAX_ZONE_NAME_LENGTH, MAX_ZONE_POINTS, MIN_ZONE_POINTS
+from askfootage.domain.tracks import LABEL_MAX
 from askfootage.ports import library_store as ports
 
 ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
@@ -339,7 +344,72 @@ class IndexAccepted(ResponseModel):
     status: Literal["preparing"]
 
 
+class BoxPoint(ResponseModel):
+    """One box on one frame, in pixels of the frame the recording was analysed in."""
+
+    frame: int = Field(ge=0)
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+
+
+class BoxTrack(ResponseModel):
+    """One tracked object and the frames it was detected on."""
+
+    track_id: int = Field(ge=0)
+    label: str = Field(description="A neutral object noun, such as person or cardboard box")
+    role: Literal["person", "object"] = Field(
+        description="person for a person; object for anything else (drawn highlighted)"
+    )
+    points: list[BoxPoint] = Field(
+        description="Ordered by frame; frames without a point had no detection"
+    )
+
+
+class RecordingBoxes(ResponseModel):
+    """The boxes of a recording's stored tracks, for drawing over the playing video."""
+
+    recording_id: str
+    frame_width: float = Field(gt=0, description="Width in pixels of the frame the boxes are in")
+    frame_height: float = Field(gt=0)
+    fps: float = Field(
+        gt=0, description="Frames per second of the analysed video: frame n is at n / fps seconds"
+    )
+    tracks: list[BoxTrack]
+
+    @classmethod
+    def from_view(cls, view: RecordingBoxesView) -> RecordingBoxes:
+        """The response model for a recording's boxes."""
+        return cls(
+            recording_id=view.recording_id,
+            frame_width=view.frame_width,
+            frame_height=view.frame_height,
+            fps=view.fps,
+            tracks=[
+                BoxTrack(
+                    track_id=t.track_id,
+                    label=t.label,
+                    role=t.role,
+                    points=[
+                        BoxPoint(frame=p.frame, x1=p.x1, y1=p.y1, x2=p.x2, y2=p.y2)
+                        for p in t.points
+                    ],
+                )
+                for t in view.tracks
+            ],
+        )
+
+
 # --- Clips and search ---------------------------------------------------------------------
+
+SnapshotUrl = Callable[[str], str | None]
+"""Maps a clip id to the URL of its evidence snapshot, or None when it has none."""
+
+
+def no_snapshot(clip_id: str) -> str | None:
+    """The SnapshotUrl for an app with no snapshots."""
+    return None
 
 
 class Evidence(ResponseModel):
@@ -374,9 +444,17 @@ class Clip(ResponseModel):
     why_matched: str
     key_frames: list[KeyFrame]
     thumbnail_url: str | None
+    snapshot_url: str | None = Field(
+        description=(
+            "URL of the evidence snapshot (GET /api/clips/{id}/snapshot), or null when none was "
+            "made. Only clips found from stored object tracks can have one."
+        )
+    )
 
     @classmethod
-    def from_port(cls, clip: ports.Clip, camera: str) -> Clip:
+    def from_port(
+        cls, clip: ports.Clip, camera: str, snapshot_url: SnapshotUrl = no_snapshot
+    ) -> Clip:
         """The response model for a stored clip and its recording's camera."""
         return cls(
             id=clip.id,
@@ -395,6 +473,7 @@ class Clip(ResponseModel):
                 for frame in clip.key_frames
             ],
             thumbnail_url=clip.thumbnail_url,
+            snapshot_url=snapshot_url(clip.id),
         )
 
 
@@ -473,6 +552,38 @@ class ClipProof(ResponseModel):
         )
 
 
+class NeedsIndexing(ResponseModel):
+    """An object the question names that some ready recordings have not been searched for."""
+
+    noun: str = Field(description="The object, in its one spelling (box is cardboard box)")
+    estimated_cost_usd: float = Field(
+        ge=0,
+        description=(
+            "US dollars one pass over recordingIds is estimated to cost: 0.20 per 1,000 "
+            "frames at 5 frames per second, at least 50 frames per recording"
+        ),
+    )
+    recording_ids: list[str] = Field(description="The searched ready recordings that lack it")
+    state: Literal["not_indexed", "queued", "running"] = Field(
+        description="not_indexed: nothing asked yet; queued and running: a pass is on its way"
+    )
+
+    @classmethod
+    def from_need(cls, need: IndexingNeed) -> NeedsIndexing:
+        """The response model for one need."""
+        return cls(
+            noun=need.noun,
+            estimated_cost_usd=_dollars(need.estimated_cost),
+            recording_ids=list(need.recording_ids),
+            state=need.state,
+        )
+
+
+def _dollars(amount: Decimal) -> float:
+    """A cost for JSON: whole ten-thousandths of a dollar, which every estimate is."""
+    return float(round(amount, 4))
+
+
 class SearchResponse(ResponseModel):
     """The matching clips, earliest first, and what the answer left out."""
 
@@ -486,16 +597,94 @@ class SearchResponse(ResponseModel):
             "empty when every clip came from the demo keyword search"
         )
     )
+    needs_indexing: list[NeedsIndexing] = Field(
+        description=(
+            "Objects the question names that some searched ready recordings have no stored "
+            "tracks for, each with the estimated cost of searching for it. Search itself never "
+            "spends: POST /api/concepts does, once the user confirms. Empty when nothing is "
+            "missing or this build cannot search for new objects"
+        )
+    )
 
     @classmethod
-    def from_result(cls, result: SearchResult) -> SearchResponse:
+    def from_result(
+        cls, result: SearchResult, snapshot_url: SnapshotUrl = no_snapshot
+    ) -> SearchResponse:
         """The response model for a search result."""
         return cls(
             question=result.question,
             day=result.day,
-            clips=[Clip.from_port(found.clip, found.camera) for found in result.clips],
+            clips=[
+                Clip.from_port(found.clip, found.camera, snapshot_url) for found in result.clips
+            ],
             note=result.note,
             proofs=[ClipProof.from_result(proof) for proof in result.proofs],
+            needs_indexing=[NeedsIndexing.from_need(need) for need in result.needs_indexing],
+        )
+
+
+# --- Concepts (a new object to search for) ------------------------------------------------------
+
+
+class ConceptRequest(RequestModel):
+    """Ask for one pass that searches the ready recordings that lack a new object."""
+
+    noun: Annotated[
+        str,
+        Field(
+            min_length=1,
+            max_length=LABEL_MAX,
+            description=(
+                "The object in plain English, such as forklift or traffic cone: letters, "
+                "digits, spaces, hyphens and apostrophes; not blank after trimming; people are "
+                "not objects to search for. "
+                "Stored and returned in its one spelling (box becomes "
+                "cardboard box)"
+            ),
+        ),
+        AfterValidator(_by_rule(nouns.check_noun)),
+    ]
+    confirm: Annotated[Literal[True], BeforeValidator(_true_only)] = Field(
+        description="Must be true: the user accepts the estimated cost shown in needsIndexing"
+    )
+    day: Day | None = Field(
+        default=None,
+        description=(
+            "Only the recordings of this day; leave it out for the 7 days ending today. Send "
+            "the day of the search so the cost matches the estimate that was shown"
+        ),
+    )
+    camera: Id | None = Field(
+        default=None, description="Only this camera's recordings; null or left out means all"
+    )
+
+
+class ConceptJob(ResponseModel):
+    """One pass that searches recordings for one object."""
+
+    noun: str = Field(description="The object, in its one spelling")
+    state: Literal["queued", "running", "done", "failed"] = Field(
+        description=(
+            "queued, then running, then done or failed. A failed pass can be asked for again"
+        )
+    )
+    recording_ids: list[str] = Field(description="The recordings the pass covers")
+    estimated_cost_usd: float = Field(
+        ge=0, description="US dollars the pass was estimated to cost when it was asked for"
+    )
+    message: str | None = Field(
+        description="A fixed sentence saying why a failed pass failed; null in every other state"
+    )
+
+    @classmethod
+    def from_job(cls, job: ConceptJobResult) -> ConceptJob:
+        """The response model for one pass."""
+        return cls(
+            noun=job.noun,
+            state=job.state,
+            recording_ids=list(job.recording_ids),
+            estimated_cost_usd=_dollars(job.estimated_cost),
+            message=job.message,
         )
 
 
@@ -547,11 +736,13 @@ class SavedClip(ResponseModel):
     saved_at: datetime
 
     @classmethod
-    def from_found(cls, found: SavedClipWithCamera) -> SavedClip:
+    def from_found(
+        cls, found: SavedClipWithCamera, snapshot_url: SnapshotUrl = no_snapshot
+    ) -> SavedClip:
         """The response model for a saved clip and its camera; savedAt is UTC to the second."""
         saved = found.saved
         saved_at = saved.saved_at.astimezone(UTC).replace(microsecond=0)
-        clip = Clip.from_port(saved.clip, found.camera)
+        clip = Clip.from_port(saved.clip, found.camera, snapshot_url)
         return cls(id=saved.id, clip=clip, note=saved.note, saved_at=saved_at)
 
 

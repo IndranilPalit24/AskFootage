@@ -20,11 +20,12 @@ How the file is kept safe:
   camera id is never handed out twice, even after its camera is deleted.
 - No password is stored anywhere: the API checks a camera's stream password and drops it.
 
-Schema versions: SCHEMA_VERSION is 3 (v3 added object tracks and recordings.status_note).
-Demo data only: opening a v1 or v2 database drops every table and recreates the schema;
-the seed then refills it, and uploaded recordings must be added and indexed again (their
-files under data/ are not touched). The drop and the new schema run in the one
-transaction that opens the file, so a failure leaves the old database exactly as it was.
+Schema versions: SCHEMA_VERSION is 4 (v3 added object tracks and recordings.status_note; v4
+added concepts_searched, the "searched, found nothing" marker). A v3 database is upgraded in
+place and keeps its data. Demo data only: opening a v1 or v2 database drops every table and
+recreates the schema; the seed then refills it, and uploaded recordings must be added and
+indexed again (their files under data/ are not touched). The drop and the new schema run in
+the one transaction that opens the file, so a failure leaves the old database exactly as it was.
 
 Errors the contract does not cover: a wrong Python type (a datetime where a date is
 expected) raises TypeError; a value of the right type that the library cannot hold exactly
@@ -68,7 +69,7 @@ from askfootage.ports.library_store import (
     camera_number,
 )
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 """The schema version this code writes and reads; schema.sql records it in user_version."""
 
 MAX_NOTE_LENGTH = 500
@@ -84,8 +85,22 @@ _MIN_SQLITE_VERSION = (3, 38, 0)  # STRICT tables need 3.37; built-in json_each 
 _BUSY_TIMEOUT_SECONDS = 10.0
 
 # Schema changes that keep the data go here: _MIGRATIONS[n] is the SQL that takes a
-# database from version n to n + 1, ending with "PRAGMA user_version = n + 1;". None yet.
-_MIGRATIONS: dict[int, str] = {}
+# database from version n to n + 1, ending with "PRAGMA user_version = n + 1;". Each runs in
+# the one transaction that opens the file, so a failure leaves the old database as it was.
+_MIGRATIONS: dict[int, str] = {
+    # v3 -> v4: the "concept searched" marker. Additive, so every row is kept.
+    3: """
+        CREATE TABLE concepts_searched (
+            recording_id TEXT NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
+            label        TEXT NOT NULL
+                         CHECK (label <> ''
+                                AND label = trim(label, char(32, 9, 10, 11, 12, 13))
+                                AND length(label) <= 40),
+            PRIMARY KEY (recording_id, label)
+        ) STRICT, WITHOUT ROWID;
+        PRAGMA user_version = 4;
+    """,
+}
 
 # Versions whose rows are thrown away on upgrade, with the SQL that drops their tables.
 # Demo data only: upgrading from v1 or v2 drops and recreates; the seed then refills it.

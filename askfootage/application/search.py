@@ -22,13 +22,16 @@ id). That is what lets GET /clips/{id} and saving work for it. Such clips (ids s
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date
 from typing import Protocol
 
 from askfootage.application.clips import ClipWithCamera
+from askfootage.application.concepts import ConceptService, IndexingNeed
 from askfootage.application.errors import InvalidInputError
 from askfootage.application.library import Library, require_camera_filter
 from askfootage.application.search_relations import (
@@ -39,9 +42,15 @@ from askfootage.application.search_relations import (
     answer_recording,
     read_question,
 )
+from askfootage.application.snapshots import SnapshotStore
 from askfootage.ports.language_model import QuestionParser
 from askfootage.ports.library_store import Clip, DuplicateError, EvidenceKind, MissingReferenceError
 from askfootage.ports.track_store import TrackStore
+
+logger = logging.getLogger("askfootage.search")
+
+SNAPSHOT_WORKERS = 4
+"""Evidence snapshots rendered at the same time for one search."""
 
 MAX_QUESTION_LENGTH = 300
 """Longest question accepted, in characters, before trimming."""
@@ -180,6 +189,8 @@ class SearchResult:
     note: str | None
     proofs: tuple[ClipProof, ...] = ()
     """Proof for the clips found from stored tracks; demo-matched clips have none."""
+    needs_indexing: tuple[IndexingNeed, ...] = ()
+    """Objects the question names that some ready recordings have no tracks for yet."""
 
 
 def check_question(question: str) -> str:
@@ -202,6 +213,8 @@ def search_day(
     tracks: TrackStore | None = None,
     parser: QuestionParser | None = None,
     frame_size: FrameSizeSource | None = None,
+    snapshots: SnapshotStore | None = None,
+    concepts: ConceptService | None = None,
 ) -> SearchResult:
     """Answer a question about one day of footage, from one camera or (None) every camera.
 
@@ -214,6 +227,10 @@ def search_day(
     understood. Each clip comes with its recording's camera, taken from the day's
     recordings. Raises InvalidInputError for a bad question and NotFoundError for an
     unknown camera.
+
+    With `concepts` (and `tracks`), the result also lists the objects the question names that
+    some searched ready recordings have no stored tracks for, each with its estimated cost.
+    Looking is all this does: it never starts a pass or spends anything.
     """
     question = check_question(question)
     require_camera_filter(library, camera_id)
@@ -259,6 +276,8 @@ def search_day(
         and plan.matches(clip)
     )
     clips = sorted(found, key=lambda item: (item.clip.start_time, item.clip.id))
+    if snapshots is not None:
+        _make_snapshots(snapshots, clips, proofs)
 
     notes: list[str] = list(relation_notes)
     if not plan.understood and not relation_used:
@@ -272,7 +291,31 @@ def search_day(
         clips=clips,
         note=" ".join(notes) or None,
         proofs=tuple(proofs[item.clip.id] for item in clips if item.clip.id in proofs),
+        needs_indexing=(
+            concepts.needs_indexing(question, zone_names, ready)
+            if concepts is not None and tracks is not None
+            else ()
+        ),
     )
+
+
+def _make_snapshots(
+    snapshots: SnapshotStore, clips: Sequence[ClipWithCamera], proofs: dict[str, ClipProof]
+) -> None:
+    """Make the evidence snapshot of each clip that has a proof. A failure is logged by type
+    and skipped: a missing picture must never break a search."""
+    jobs = [(item.clip, proofs[item.clip.id]) for item in clips if item.clip.id in proofs]
+
+    def make(job: tuple[Clip, ClipProof]) -> None:
+        clip, proof = job
+        try:
+            snapshots.create(clip, proof)
+        except Exception as error:
+            logger.warning("Snapshot for %s not made (%s)", clip.id, type(error).__name__)
+
+    # Each render is its own ffmpeg process, so they run side by side; the search still waits.
+    with ThreadPoolExecutor(max_workers=SNAPSHOT_WORKERS) as pool:
+        list(pool.map(make, jobs))
 
 
 def _remember_clips(library: Library, clips: Sequence[Clip]) -> None:
