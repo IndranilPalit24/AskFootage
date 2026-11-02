@@ -15,8 +15,15 @@ export const SIGN_IN_COPY = {
   codeCancel: 'Cancel',
 } as const;
 
-/** Shown in demo mode. The first button is disabled and points at it. */
-export const DEMO_NOTE = 'Enter the demo access code you were given. This build has no real sign-in; the code only opens the demo screens.';
+/** Shown under the buttons in demo mode: two lines, exactly this wording. */
+export const DEMO_INFO = {
+  mfa: 'Multi Factor Authentication is managed by your organization',
+  accessLead: 'Need Access? ',
+  accessLink: 'Contact your factory administrator',
+} as const;
+
+/** Read by screen readers only: why the first button does nothing. Not shown on screen. */
+export const DEMO_DISABLED_HINT = 'Microsoft single sign-on is not available in this demo build. Use company SSO with the demo access code.';
 
 /** Calm messages for a code that did not work. */
 export const CODE_MESSAGES = {
@@ -38,5 +45,5 @@ export const SSO_COPY = {
 
 /** What each mode shows below the buttons. Only the demo row is ever reached by the running app. */
 export function modeCopy(mode: AuthMode) {
-  return mode === 'sso' ? { note: null, sso: true, demo: false } : { note: DEMO_NOTE, sso: false, demo: true };
+  return mode === 'sso' ? { sso: true, demo: false } : { sso: false, demo: true };
 }

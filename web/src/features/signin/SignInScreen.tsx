@@ -8,7 +8,7 @@ import { usePageTitle } from '../../hooks/usePageTitle';
 import '../../styles/signin.css';
 import { CodeEntry } from './CodeEntry';
 import { AUTH_MODE, type AuthMode } from './authMode';
-import { modeCopy, SIGN_IN_COPY, SSO_COPY } from './copy';
+import { DEMO_DISABLED_HINT, DEMO_INFO, modeCopy, SIGN_IN_COPY, SSO_COPY } from './copy';
 import { startDemoSession, useDemoSession } from './demoSession';
 import { FloorPlan } from './FloorPlan';
 import { SignInMark } from './SignInMark';
@@ -99,10 +99,20 @@ export function SignInContent({
             ) : (
               <UnavailableButton icon="building" label={SIGN_IN_COPY.ssoButton} variant="plain" />
             )}
-            {copy.note ? (
-              <p className="signin__note" id={NOTE_ID}>
-                {copy.note}
-              </p>
+            {/* Heard by screen readers (the disabled button points at it), never shown. */}
+            {copy.demo ? (
+              <>
+                <span className="visually-hidden" id={NOTE_ID}>
+                  {DEMO_DISABLED_HINT}
+                </span>
+                <p className="signin__note">{DEMO_INFO.mfa}</p>
+                <p className="signin__access">
+                  {DEMO_INFO.accessLead}
+                  <Link to="/security" className="signin__link">
+                    {DEMO_INFO.accessLink}
+                  </Link>
+                </p>
+              </>
             ) : null}
             {copy.sso ? (
               <>

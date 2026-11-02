@@ -8,7 +8,7 @@ import { MockApiClient } from '../../web/src/api/mockClient';
 import { App } from '../../web/src/app/App';
 import packageJson from '../../web/package.json';
 import { AUTH_MODE, AUTH_MODES } from '../../web/src/features/signin/authMode';
-import { DEMO_NOTE, SIGN_IN_COPY, SSO_COPY } from '../../web/src/features/signin/copy';
+import { DEMO_DISABLED_HINT, DEMO_INFO, SIGN_IN_COPY, SSO_COPY } from '../../web/src/features/signin/copy';
 import { clearDemoSession, hasDemoSession, startDemoSession } from '../../web/src/features/signin/demoSession';
 import { SignInContent } from '../../web/src/features/signin/SignInScreen';
 import signInCss from '../../web/src/styles/signin.css?raw';
@@ -47,8 +47,8 @@ describe('AUTH_MODE', () => {
     window.sessionStorage.setItem('authMode', 'sso');
     signedOut('/sign-in?mode=sso&authMode=sso');
     expect(screen.queryByText(SSO_COPY.mfa)).toBeNull();
-    expect(screen.queryByText(/Need access/)).toBeNull();
-    expect(screen.getByText(DEMO_NOTE)).toBeTruthy();
+    expect(screen.queryByText(/Need access\./)).toBeNull();
+    expect(screen.getByText(DEMO_INFO.mfa)).toBeTruthy();
     window.sessionStorage.removeItem('authMode');
   });
 });
@@ -64,7 +64,8 @@ describe('/sign-in in demo mode', () => {
       'Review the evidence.',
       'Secure access to recorded footage for your operations team.',
       'or',
-      DEMO_NOTE,
+      DEMO_INFO.mfa,
+      'Contact your factory administrator',
       'AskFootage',
       'Continue with Microsoft',
       'Continue with company SSO',
@@ -77,18 +78,22 @@ describe('/sign-in in demo mode', () => {
     expect(document.title).toBe('Sign in · AskFootage');
   });
 
-  it('hides the sso-only lines', () => {
+  it('shows the two demo lines exactly, with a cobalt link to /security and no email', () => {
     signedOut();
+    // CHANGED on purpose (was: the long "Enter the demo access code..." note, and the sso lines hidden).
+    expect(screen.getByText('Multi Factor Authentication is managed by your organization')).toBeTruthy();
+    const link = screen.getByRole('link', { name: 'Contact your factory administrator' });
+    expect(link.getAttribute('href')).toBe('/security');
+    expect(link.textContent).toBe('Contact your factory administrator');
+    expect(link.parentElement!.textContent).toBe('Need Access? Contact your factory administrator');
+    expect(document.body.textContent).not.toMatch(/@|Enter the demo access code you were given/);
     expect(screen.queryByText(SSO_COPY.mfa)).toBeNull();
-    expect(screen.queryByText(/multi-factor/i)).toBeNull();
-    expect(screen.queryByText(/Need access/)).toBeNull();
-    expect(screen.queryByText(/Contact your factory administrator/)).toBeNull();
   });
 
-  it('the Microsoft button is disabled and explained by the note; clicking it does nothing', () => {
+  it('the Microsoft button is disabled and explained by a hidden description; clicking it does nothing', () => {
     signedOut();
-    const note = screen.getByText(DEMO_NOTE);
-    expect(note.textContent).toBe('Enter the demo access code you were given. This build has no real sign-in; the code only opens the demo screens.');
+    const note = screen.getByText(DEMO_DISABLED_HINT);
+    expect(note.classList.contains('visually-hidden')).toBe(true);
     const button = screen.getByRole('button', { name: 'Continue with Microsoft' });
     expect(button.getAttribute('aria-disabled')).toBe('true');
     expect(button.getAttribute('aria-describedby')).toBe(note.id);
@@ -183,8 +188,8 @@ describe('/sign-in in demo mode', () => {
     vi.restoreAllMocks();
   });
 
-  it('the buttons are 70px tall (copied from the reference) (56px on a phone), above the 48px minimum', () => {
-    expect(signInCss).toMatch(/\.signin__btn \{[^}]*min-height: 70px/);
+  it('the buttons are 56px tall (also on a phone), above the 48px minimum', () => {
+    expect(signInCss).toMatch(/\.signin__btn \{[^}]*min-height: 56px/);
     expect(signInCss).toMatch(/\.signin__btn \{\s*min-height: 56px/);
   });
 
@@ -217,12 +222,12 @@ describe('/sign-in in demo mode', () => {
     expect(screenSource).not.toMatch(/['"]1\.0\.0['"]|v1\.0/);
   });
 
-  it('tab order: skip link, Microsoft (disabled but reachable), SSO, Privacy, Security', () => {
+  it('tab order: skip link, Microsoft (disabled but reachable), SSO, the administrator link, Privacy, Security', () => {
     const { container } = signedOut();
     const order = [...container.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]')]
       .filter((element) => element.tabIndex >= 0)
       .map((element) => element.textContent?.trim());
-    expect(order).toEqual(['Skip to content', 'Continue with Microsoft', 'Continue with company SSO', 'Privacy', 'Security']);
+    expect(order).toEqual(['Skip to content', 'Continue with Microsoft', 'Continue with company SSO', 'Contact your factory administrator', 'Privacy', 'Security']);
   });
 
   it('works from the keyboard: real buttons, and Enter in the field submits the form', async () => {
@@ -249,7 +254,7 @@ describe('the "sso" copy (never reached by the running app)', () => {
     expect(screen.getByText('Multi-factor authentication is managed by your organization.')).toBeTruthy();
     expect(screen.getByText(SSO_COPY.accessLink).textContent).toBe('Contact your factory administrator.');
     expect(screen.getByText(SSO_COPY.accessLink).parentElement!.textContent).toBe('Need access? Contact your factory administrator.');
-    expect(screen.queryByText(DEMO_NOTE)).toBeNull();
+    expect(screen.queryByText(DEMO_DISABLED_HINT)).toBeNull();
     for (const name of [SIGN_IN_COPY.microsoftButton, SIGN_IN_COPY.ssoButton]) {
       expect(screen.getByRole('button', { name }).getAttribute('type')).toBe('button');
     }

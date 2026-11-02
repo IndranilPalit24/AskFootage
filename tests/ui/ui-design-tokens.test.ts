@@ -30,17 +30,17 @@ describe('design tokens (calm, precise review tool)', () => {
       expect(tokens.color).not.toHaveProperty(removed);
     }
     // Layout.
-    expect(tokens.size.topbarHeight).toBe('72px');
-    expect(tokens.size.drawerWidth).toBe('216px');
+    expect(tokens.size.topbarHeight).toBe('52px');
+    expect(tokens.size.drawerWidth).toBe('208px');
     expect(tokens.size.drawerWidthCollapsed).toBe('76px');
     expect(tokens.size.contentMaxWidth).toBe('840px');
     expect(tokens.size.gutter).toBe('16px');
-    expect(tokens.size.controlHeight).toBe('40px');
-    expect(tokens.size.controlHeightSmall).toBe('36px');
+    expect(tokens.size.controlHeight).toBe('36px');
+    expect(tokens.size.controlHeightSmall).toBe('32px');
     expect(tokens.size.iconButton).toBe('44px');
-    expect(tokens.size.navItemMinHeight).toBe('44px');
+    expect(tokens.size.navItemMinHeight).toBe('40px');
     expect(tokens.size.statusDot).toBe('8px');
-    expect(tokens.layout.mainPadding).toBe('28px 32px 64px');
+    expect(tokens.layout.mainPadding).toBe('20px 28px 12px');
     // Radii: two only.
     expect(tokens.radius).toEqual({ control: '6px', card: '8px' });
     // Type: Inter at six sizes and three weights. CHANGED on purpose (was 12/14/16/24/32 and 400/600): the
@@ -48,7 +48,7 @@ describe('design tokens (calm, precise review tool)', () => {
     // headline and a 500 weight for labels and buttons.
     expect(tokens.font.family.startsWith('Inter,')).toBe(true);
     expect(Object.keys(tokens.font.size).length).toBeLessThanOrEqual(6);
-    expect(tokens.font.size).toEqual({ 12: '13px', 13: '15px', 14: '16px', 16: '18px', 20: '32px', 28: '40px' });
+    expect(tokens.font.size).toEqual({ 12: '11px', 13: '12px', 14: '13px', 16: '14.5px', 20: '24px', 28: '26px' });
     expect(tokens.font.weight).toEqual({ regular: '400', medium: '500', semibold: '600' });
     // Ids and timestamps use a monospace stack (always with tabular numerals).
     expect(tokens.font.mono).toContain('monospace');
@@ -82,8 +82,8 @@ describe('design tokens (calm, precise review tool)', () => {
     const css = document.getElementById(TOKENS_STYLE_ID)!.textContent!;
     expect(css).toContain('--color-accent: #005FCE;');
     expect(css).toContain('--color-border: #E3E5E9;');
-    expect(css).toContain('--topbar-height: 72px;');
-    expect(css).toContain('--drawer-width: 216px;');
+    expect(css).toContain('--topbar-height: 52px;');
+    expect(css).toContain('--drawer-width: 208px;');
     expect(css).toContain('--drawer-width-collapsed: 76px;');
     expect(css).toContain('--radius-control: 6px;');
     expect(css).toContain('--radius-card: 8px;');
@@ -139,7 +139,7 @@ describe('design tokens (calm, precise review tool)', () => {
     expect(css).toContain('--color-navy: #0F1F3D;');
     expect(css).toContain('--landing-max-width: 1120px;');
     // CHANGED on purpose: the welcome headline moves from 32px to the 28px focal size of the new scale.
-    expect(css).toContain('--font-size-28: 40px;');
+    expect(css).toContain('--font-size-28: 26px;');
     expect(css).not.toContain('--font-size-32');
     expect(css).toContain('--space-9: 64px;');
   });

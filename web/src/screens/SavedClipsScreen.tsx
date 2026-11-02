@@ -83,7 +83,7 @@ export function SavedClipsScreen() {
     );
   } else {
     body = (
-      <ul className="clip-list" aria-label="Saved clips">
+      <ul className="clip-list clip-list--saved" aria-label="Saved clips">
         {saved.data.map((item) => (
           <SavedClipRow
             key={item.id}
