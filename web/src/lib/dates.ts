@@ -81,3 +81,9 @@ export function formatWeekdayShort(day: string): string {
 export function dayOfMonth(day: string): number {
   return parts(day).date;
 }
+
+/** "30 Oct 2026" */
+export function formatFullDay(day: string): string {
+  const { year, month, date } = parts(day);
+  return `${date} ${MONTHS[month].slice(0, 3)} ${year}`;
+}

@@ -36,7 +36,7 @@ export default defineConfig({
     // jsdom + role queries are slow on a cold, busy machine: generous limits instead of flaky timeouts.
     testTimeout: 30_000,
     // Vitest blanks CSS imports by default; the design-token test reads global.css (?raw) to check it.
-    css: { include: [/global\.css/] },
+    css: { include: [/(global|signin)\.css/] },
     setupFiles: [fileURLToPath(new URL('../tests/ui/setup-ui-tests.ts', import.meta.url))],
   },
 });

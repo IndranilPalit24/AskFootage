@@ -68,3 +68,9 @@ export function formatDuration(totalSeconds: number): string {
   const seconds = pad2(value % 60);
   return hours > 0 ? `${hours}:${pad2(minutes)}:${seconds}` : `${minutes}:${seconds}`;
 }
+
+/** 4 -> "00:04", 75 -> "01:15": the playback readout ("00:00 / 00:25"). Hours roll into the minutes. */
+export function formatClock(totalSeconds: number): string {
+  const value = Math.max(0, Math.floor(Number.isFinite(totalSeconds) ? totalSeconds : 0));
+  return `${pad2(Math.floor(value / 60))}:${pad2(value % 60)}`;
+}

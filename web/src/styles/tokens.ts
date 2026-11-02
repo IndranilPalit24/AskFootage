@@ -2,7 +2,7 @@
 // publishes them as CSS custom properties on :root, and every stylesheet reads them through var(--...).
 // Three layers: primitives (the raw hex values below), semantic tokens (color.text, color.accent, ...)
 // that the stylesheet reads, and component rules in global.css that only ever use the semantic ones.
-// Light is the default; darkColor overrides the same semantic names when the OS asks for dark.
+// One theme only: the light reference theme, whatever the system setting (no dark palette, no toggle).
 // Style: a calm, precise review tool: one accent, neutral cool greys, hairlines, an elevation scale of
 // three steps (0 none, 1 hairline lift, 2 raised), no gradients or glow, a strict 4px spacing scale.
 // The app canvas is the light grey (surface) with white cards on it; the player sits on a dark letterbox.
@@ -13,7 +13,7 @@ export const tokens = {
     family: 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
     /** Ids, camera numbers and timestamps. Always paired with tabular numerals. */
     mono: 'ui-monospace, SFMono-Regular, "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace',
-    baseSize: '14px',
+    baseSize: '16px',
     lineHeight: '1.5',
     lineHeightTight: '1.25',
     /**
@@ -21,7 +21,7 @@ export const tokens = {
      * 20 page title, 28 the one focal headline (Find Footage start, welcome page). Hierarchy comes from
      * size and weight only.
      */
-    size: { 12: '12px', 13: '13px', 14: '14px', 16: '16px', 20: '20px', 28: '28px' },
+    size: { 12: '13px', 13: '15px', 14: '16px', 16: '18px', 20: '32px', 28: '40px' },
     /** Three weights: text, labels and buttons, titles. */
     weight: { regular: '400', medium: '500', semibold: '600' },
   },
@@ -29,19 +29,30 @@ export const tokens = {
     text: '#16181C',
     page: '#FFFFFF',
     /** The app canvas behind the cards (the cards and bars are the page colour); same grey as surface in light. */
-    canvas: '#F6F7F9',
-    /** The sign-in page's brand panel: a warm off-white; muted text on it is 5.6:1. */
-    surfaceWarm: '#F7F5F1',
+    canvas: '#F8F8F9',
+    /** The sign-in page's brand panel: a warm off-white (sampled from the reference); muted text on it is 5.5:1. */
+    surfaceWarm: '#F5F3F1',
     textMuted: '#5B6170',
     /** The one hairline colour: cards, tables, dividers, buttons, the drawer and the top bar. */
     border: '#E3E5E9',
+    /** The sign-in page's floor plan and travel path: a muted blue, decoration only. */
+    planBlue: '#2F5FA8',
+    /** Outline of the secondary sign-in button (decoration around text that is 15:1; a 1px edge). */
+    buttonBorder: '#D5D8DE',
+    /** The sidebar (sampled from the reference board) and the grey panel behind "Why this matched". */
+    sidebar: '#F1F2F4',
+    panelFill: '#F3F5F6',
+    /** Sidebar item text. */
+    navText: '#3D495C',
     /** Hover fill of a control. */
     hoverFill: '#F2F3F5',
     /** Pressed fill of a control. */
     activeFill: '#E8EAEE',
     /** The one accent: primary actions, links, the current item, the focus ring. */
-    accent: '#1D4ED8',
-    accentHover: '#163BA6',
+    accent: '#005FCE',
+    accentHover: '#004CA6',
+    /** The current page's row in the sidebar: a faint cobalt tint (accent text on it is 6.0:1). */
+    accentSubtle: '#E6F0FB',
     /** Text on an accent fill. */
     onAccent: '#FFFFFF',
     /**
@@ -60,7 +71,7 @@ export const tokens = {
     // Trust colours, used by the welcome page. The trust blue is the accent above.
     /** Deep navy: the welcome page's hero and closing bands. */
     navy: '#0F1F3D',
-    /** Headings on the page background (navy in light, near-white in dark). */
+    /** Headings on the page background (navy). */
     heading: '#0F1F3D',
     /** Text and the focus ring on navy, 16.4:1. */
     onNavy: '#FFFFFF',
@@ -69,22 +80,22 @@ export const tokens = {
     /** Hairline on navy (decoration only, like the hairline on white). */
     navyBorder: '#33476B',
     /** Light grey behind alternate welcome sections; muted text on it is 5.8:1. */
-    surface: '#F6F7F9',
+    surface: '#F8F8F9',
     /** Outline of a matched object on an evidence frame, and its label fill (white label text 4.8:1). */
     evidenceBox: '#DC2626',
-    /** The player letterbox and the scrubber panel: the same near-black in light and dark. */
+    /** The player letterbox and the scrubber panel: near-black. */
     playerBg: '#0B0F17',
     /** Text on the player letterbox (15.8:1) and the quieter readout text (8.3:1). */
     onPlayer: '#E6E9EF',
     onPlayerMuted: '#A3ABBC',
-    /** The accent on the letterbox: the dark-mode accent blue, 8.4:1 there (the light accent is under 3:1 on it). */
+    /** The accent on the letterbox: a light blue, 8.4:1 on the letterbox (the accent is under 3:1 on it). */
     playerAccent: '#8CAAF8',
     /** Scrubber track on the letterbox, and the hairline of the player panel. */
     playerTrack: '#2A3448',
   },
   size: {
-    topbarHeight: '56px',
-    drawerWidth: '248px',
+    topbarHeight: '72px',
+    drawerWidth: '216px',
     drawerWidthCollapsed: '76px',
     /** App screens: the content column never grows past this. */
     contentMaxWidth: '840px',
@@ -106,6 +117,9 @@ export const tokens = {
     controlHeight: '40px',
     controlHeightSmall: '36px',
     iconButton: '44px',
+    /** Result card poster frame (4:3) and the thumbnail of a saved clip or a compact match row. */
+    resultFrameWidth: '320px',
+    thumbWidth: '160px',
     navItemMinHeight: '44px',
     dayButtonWidth: '76px',
     dayButtonHeight: '60px',
@@ -122,7 +136,7 @@ export const tokens = {
   /** Strict 4px scale. */
   space: { 1: '4px', 2: '8px', 3: '12px', 4: '16px', 5: '24px', 6: '32px', 7: '40px', 8: '48px', 9: '64px', 10: '80px' },
   layout: {
-    mainPadding: '40px 40px 72px',
+    mainPadding: '28px 32px 64px',
     drawerPadding: '16px 12px',
     navItemPadding: '8px 12px',
     dayButtonPadding: '8px',
@@ -144,31 +158,6 @@ export const tokens = {
   state: { disabledOpacity: '0.5' },
 } as const;
 
-/**
- * Dark mode: the semantic colours that change. Anything not listed (status dots, evidence box, white on
- * navy) keeps its light value. On dark the accent is a lighter blue and text on it is dark, so each pair
- * keeps its contrast; ui-contrast.test.ts computes every pair in both modes.
- */
-export const darkColor = {
-  text: '#E6E9EF',
-  page: '#0B1322',
-  canvas: '#070C17',
-  surfaceWarm: '#0E1626',
-  textMuted: '#A3ABBC',
-  border: '#27334B',
-  hoverFill: '#16223A',
-  activeFill: '#1D2B47',
-  accent: '#8CAAF8',
-  accentHover: '#B0C4FA',
-  onAccent: '#0B1322',
-  fieldBorder: '#6B7690',
-  danger: '#F87171',
-  scrim: 'rgba(0, 0, 0, 0.6)',
-  navy: '#0A1630',
-  heading: '#EEF2FA',
-  surface: '#0E182B',
-} as const;
-
 const CAPITAL = /[A-Z]/g;
 
 /** "accentTint" -> "accent-tint" */
@@ -176,7 +165,7 @@ function kebab(name: string): string {
   return name.replace(CAPITAL, (letter) => `-${letter.toLowerCase()}`);
 }
 
-/** Every token as a CSS custom property name and value, e.g. --color-accent: #1D4ED8. */
+/** Every token as a CSS custom property name and value, e.g. --color-accent: #005FCE. */
 export function cssVariables(): Record<string, string> {
   const { font, color, size, radius, space, layout, focusRing, motion, state, elevation } = tokens;
   const vars: Record<string, string> = {
@@ -204,24 +193,18 @@ export function cssVariables(): Record<string, string> {
   return vars;
 }
 
-/** The dark overrides as CSS custom properties. */
-export function darkCssVariables(): Record<string, string> {
-  const vars: Record<string, string> = {};
-  for (const [name, value] of Object.entries(darkColor)) vars[`--color-${kebab(name)}`] = value;
-  return vars;
-}
-
 function declarations(vars: Record<string, string>, indent: string): string {
   return Object.entries(vars)
     .map(([name, value]) => `${indent}${name}: ${value};`)
     .join('\n');
 }
 
-/** The tokens as one :root rule, then the dark overrides inside prefers-color-scheme: dark. */
+/** The tokens as one :root rule. There is one theme only: light. */
 export function tokensCss(): string {
-  const light = `:root {\n${declarations(cssVariables(), '  ')}\n}\n`;
-  const dark = `@media (prefers-color-scheme: dark) {\n  :root {\n${declarations(darkCssVariables(), '    ')}\n  }\n}\n`;
-  return light + dark;
+  return `:root {
+${declarations(cssVariables(), '  ')}
+}
+`;
 }
 
 export const TOKENS_STYLE_ID = 'askfootage-tokens';

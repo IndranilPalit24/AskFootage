@@ -9,16 +9,17 @@ import { ClipListSkeleton } from '../components/Skeletons';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { SavedClipRow } from '../features/saved/SavedClipRow';
 import { useAsyncData } from '../hooks/useAsyncData';
-import { formatShortDay } from '../lib/dates';
+import { Icon } from '../components/Icon';
+import { formatFullDay } from '../lib/dates';
 
 const ALL_DAYS = '';
 
 const loading = <ClipListSkeleton label="Loading saved clips…" />;
 
 export function SavedClipsScreen() {
-  usePageTitle('Saved clips');
+  usePageTitle('Saved Clips');
   const client = useApiClient();
-  const { days } = useAppData();
+  const { days, cameras } = useAppData();
   const { unsave } = useSavedClipActions();
   // Its own filter, starting at "All days": the shared selected day is about footage, not the saved list.
   const [dayFilter, setDayFilter] = useState(ALL_DAYS);
@@ -76,7 +77,7 @@ export function SavedClipsScreen() {
         }
       >
         {dayFilter
-          ? `No saved clips from ${formatShortDay(dayFilter)}.`
+          ? `No saved clips from ${formatFullDay(dayFilter)}.`
           : 'No saved clips yet. Use Save clip on any result to keep it here.'}
       </EmptyState>
     );
@@ -84,7 +85,13 @@ export function SavedClipsScreen() {
     body = (
       <ul className="clip-list" aria-label="Saved clips">
         {saved.data.map((item) => (
-          <SavedClipRow key={item.id} saved={item} onSaveNote={saveNote} onRemove={remove} />
+          <SavedClipRow
+            key={item.id}
+            saved={item}
+            onSaveNote={saveNote}
+            onRemove={remove}
+            cameraName={cameras?.find((camera) => camera.id === item.clip.camera)?.name}
+          />
         ))}
       </ul>
     );
@@ -93,30 +100,25 @@ export function SavedClipsScreen() {
   return (
     <div className="screen--wide">
       <div className="page-head">
-        <div>
-          <h1 ref={headingRef} tabIndex={-1}>
-            Saved clips
-          </h1>
-          <p className="page-head__subtitle">Clips you kept as evidence, with your notes.</p>
-        </div>
-        <div className="field field--inline">
-          <label htmlFor="saved-day" className="field__label">
-            Day
-          </label>
-          <select
-            id="saved-day"
-            className="select"
-            value={dayFilter}
-            onChange={(event) => setDayFilter(event.target.value)}
-          >
+        <h1 ref={headingRef} tabIndex={-1}>
+          Saved Clips
+        </h1>
+      </div>
+      <div className="filters">
+        <label htmlFor="saved-day" className="visually-hidden">
+          Day
+        </label>
+        <span className="select-icon">
+          <Icon name="calendar" size={16} />
+          <select id="saved-day" className="select" value={dayFilter} onChange={(event) => setDayFilter(event.target.value)}>
             <option value={ALL_DAYS}>All days</option>
             {(days ?? []).map((entry) => (
               <option key={entry.day} value={entry.day}>
-                {formatShortDay(entry.day)}
+                {formatFullDay(entry.day)}
               </option>
             ))}
           </select>
-        </div>
+        </span>
       </div>
       <p className="visually-hidden" role="status">
         {announcement}

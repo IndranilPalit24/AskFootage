@@ -12,12 +12,13 @@ import { ProofPanel } from '../evidence/ProofPanel';
  * One result, a dense row: the poster frame with its length, the time range and camera, the label, the match
  * reason in plain words, the evidence, and Open / Save clip.
  */
-export const ClipCard = memo(function ClipCard({ clip, cameraName, proof }: { clip: Clip; cameraName: string; proof?: ClipProof }) {
+export const ClipCard = memo(function ClipCard({ clip, cameraName, proof, first = false }: { clip: Clip; cameraName: string; proof?: ClipProof; first?: boolean }) {
   const client = useApiClient();
   const labelId = `clip-label-${clip.id}`;
   const posterPath = clipPosterPath(clip);
   return (
     <li>
+      {first ? <h2 className="clip-list__more">More matches</h2> : null}
       <article className="card clip-card" aria-labelledby={labelId}>
         <ClipThumb url={posterPath === null ? null : client.assetUrl(posterPath)} duration={formatDuration(clipDuration(clip))} />
         <div className="clip-card__body">

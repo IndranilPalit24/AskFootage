@@ -20,6 +20,16 @@ export interface ErrorBody {
   error: ErrorDetail;
 }
 
+/** POST /api/auth/demo-code body: the 6-digit demo access code, digits only. */
+export interface DemoCodeRequest {
+  code: string;
+}
+
+/** 200 of POST /api/auth/demo-code. A demo gate for the UI only; no token. */
+export interface DemoCodeAccepted {
+  ok: true;
+}
+
 export interface Status {
   /** True when the app serves the seeded demo data. Not shown in the UI. */
   demoMode: boolean;

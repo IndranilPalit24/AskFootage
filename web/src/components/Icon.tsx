@@ -61,6 +61,40 @@ const PATHS = {
       <path d="M6 5.5h2M6 8.5h2M6 11.5h2" />
     </>
   ),
+  /** A small chevron pointing down. */
+  chevronDown: <path d="m4.5 7 4.5 4.5L13.5 7" />,
+  /** A plus. */
+  plus: <path d="M9 3.5v11M3.5 9h11" />,
+  /** Three dots in a column. */
+  kebab: (
+    <>
+      <circle cx="9" cy="3.5" r="1" />
+      <circle cx="9" cy="9" r="1" />
+      <circle cx="9" cy="14.5" r="1" />
+    </>
+  ),
+  /** A square with an arrow leaving its corner: opens something. */
+  external: <path d="M7.5 3.5h-4v11h11v-4M10.5 2.5h5v5M15.5 2.5 8.5 9.5" />,
+  /** A neutral person outline: the signed-in demo session (no face, no identity). */
+  session: (
+    <>
+      <circle cx="9" cy="6.5" r="3" />
+      <path d="M3 15.5c.6-3 3-4.5 6-4.5s5.4 1.5 6 4.5" />
+    </>
+  ),
+  /** A list with lines: the activity log. */
+  log: (
+    <>
+      <rect x="3" y="2.5" width="12" height="13" rx="2" />
+      <path d="M6 6.5h6M6 9h6M6 11.5h3.5" />
+    </>
+  ),
+  /** An arrow pointing right. */
+  arrowRight: <path d="M3 9h12m-5-5 5 5-5 5" />,
+  /** A pointer arrow. */
+  cursor: <path d="M4 2.5 14 8l-4.2 1.3L8 13.5z" />,
+  /** A square with a corner bracket: full screen. */
+  fullscreen: <path d="M3 7V3h4M15 7V3h-4M3 11v4h4M15 11v4h-4" />,
   /** A tick. */
   check: <path d="M3.5 9.5L7 13l7.5-8" />,
 } as const;

@@ -4,6 +4,7 @@ import { formatShortDay } from '../../lib/dates';
 import { EmptyState } from '../../components/EmptyState';
 import { ClipListSkeleton } from '../../components/Skeletons';
 import { ClipCard } from './ClipCard';
+import { FeaturedClipCard } from './FeaturedClipCard';
 import { NeedsIndexingPanel } from './NeedsIndexingPanel';
 
 interface SearchResultsProps {
@@ -16,8 +17,8 @@ interface SearchResultsProps {
 }
 
 function countLine(count: number, day: string, selectedDay: string | null): string {
-  const clips = count === 1 ? '1 clip' : `${count} clips`;
-  return day === selectedDay ? clips : `${clips} on ${formatShortDay(day)}`;
+  const results = count === 1 ? '1 result' : `${count} results`;
+  return day === selectedDay ? results : `${results} on ${formatShortDay(day)}`;
 }
 
 /** What was searched, from what the person picked and what the server knows: "Searched all 2 cameras on Fri 30 Oct". */
@@ -87,14 +88,25 @@ export function SearchResults({ state, selectedDay, onRetry, cameraNames }: Sear
         : null}
       {clips.length > 0 ? (
         <ul className="clip-list" aria-label="Results">
-          {clips.map((clip) => (
-            <ClipCard
-              key={clip.id}
-              clip={clip}
-              cameraName={cameraNames.get(clip.camera) ?? clip.camera}
-              proof={proofs.find((p) => p.clipId === clip.id)}
-            />
-          ))}
+          {/* The best match leads, with its video and proof; the rest are compact rows. */}
+          {clips.map((clip, index) =>
+            index === 0 ? (
+              <FeaturedClipCard
+                key={clip.id}
+                clip={clip}
+                cameraName={cameraNames.get(clip.camera) ?? clip.camera}
+                proof={proofs.find((p) => p.clipId === clip.id)}
+              />
+            ) : (
+              <ClipCard
+                key={clip.id}
+                first={index === 1}
+                clip={clip}
+                cameraName={cameraNames.get(clip.camera) ?? clip.camera}
+                proof={proofs.find((p) => p.clipId === clip.id)}
+              />
+            ),
+          )}
         </ul>
       ) : null}
     </>

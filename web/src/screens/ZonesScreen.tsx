@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import type { Point, Zone } from '../api/generated/types';
 import { useApiClient } from '../app/ApiContext';
@@ -7,6 +7,7 @@ import { MAX_ZONE_POINTS, sortZones } from '../features/zones/geometry';
 import { NewZoneForm } from '../features/zones/NewZoneForm';
 import { ZoneFrame } from '../features/zones/ZoneFrame';
 import { ZoneList } from '../features/zones/ZoneList';
+import { Icon } from '../components/Icon';
 import { EmptyState } from '../components/EmptyState';
 import { useSelectedDay } from '../app/SelectedDayContext';
 import { useAsyncData } from '../hooks/useAsyncData';
@@ -39,7 +40,11 @@ export function ZonesScreen() {
   const { day } = useSelectedDay();
   const [chosenCamera, setChosenCamera] = useState<string | null>(null);
   // Derived, not synced: the picked camera while it exists, otherwise the first one.
-  const camera = cameras?.find((item) => item.id === chosenCamera) ?? cameras?.[0] ?? null;
+  // With no pick yet, a camera that has a real still frame to draw on comes first.
+  const withStill = useAsyncData(day ? () => client.listRecordings(day) : null, ['zone-default-camera', day]);
+  const stillCamera = withStill.data?.find((recording) => recording.posterUrl !== null)?.camera;
+  const camera =
+    cameras?.find((item) => item.id === chosenCamera) ?? cameras?.find((item) => item.id === stillCamera) ?? cameras?.[0] ?? null;
   const cameraId = camera?.id ?? null;
   const zones = useAsyncData(cameraId ? () => client.listZones(cameraId) : null, ['zones', cameraId]);
   // The still frame to draw on: a poster of this camera's footage on the selected day, when there is any.
@@ -60,6 +65,25 @@ export function ZonesScreen() {
   const addPoint = useCallback((point: Point) => {
     setDraft((current) => (current && current.length < MAX_ZONE_POINTS ? [...current, point] : current));
   }, []);
+
+  // Double click: the corners are done. The two clicks of the double click each added a point; drop the repeat,
+  // then go to the name field.
+  function finishDraft() {
+    setDraft((current) => {
+      if (!current || current.length < 2) return current;
+      const [lastX, lastY] = current[current.length - 1]!;
+      const [prevX, prevY] = current[current.length - 2]!;
+      return Math.abs(lastX - prevX) < 0.01 && Math.abs(lastY - prevY) < 0.01 ? current.slice(0, -1) : current;
+    });
+    document.getElementById('new-zone-name')?.focus();
+  }
+
+  function handleEscape(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === 'Escape' && draft !== null) {
+      event.preventDefault();
+      setDraft(null);
+    }
+  }
 
   async function createZone(name: string) {
     if (!cameraId || !draft) return;
@@ -112,12 +136,13 @@ export function ZonesScreen() {
 
   const pageHead = (
     <div className="page-head">
-      <div>
-        <h1>Zones</h1>
-        <p className="page-head__subtitle">
-          Mark areas of the camera view. Questions can name them, e.g. &ldquo;anyone in the loading door&rdquo;.
-        </p>
-      </div>
+      <h1>Zones</h1>
+      {camera && !drawing ? (
+        <button type="button" className="btn btn--primary" onClick={() => setDraft([])}>
+          <Icon name="plus" size={16} />
+          New zone
+        </button>
+      ) : null}
     </div>
   );
 
@@ -150,48 +175,41 @@ export function ZonesScreen() {
         <select id="zones-camera" className="select" value={camera.id} onChange={(event) => pickCamera(event.target.value)}>
           {cameras.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.name}
+              {item.id} - {item.name}
             </option>
           ))}
         </select>
       </div>
 
-      <div className="zones-grid">
-        <section className="card card--padded" aria-labelledby="frame-heading">
-          <div className="section-header">
-            <h2 id="frame-heading">{drawing ? 'Draw a new zone' : 'Camera view'}</h2>
-            {drawing ? null : (
-              <button type="button" className="btn btn--primary" onClick={() => setDraft([])}>
-                New zone
-              </button>
-            )}
-          </div>
+      <div className="zones-grid" onKeyDown={handleEscape}>
+        <section className="zones-main" aria-label="Camera view">
           <ZoneFrame
             zones={list}
-            caption={`${camera.name} · still frame`}
+            caption={`${camera.id} - ${camera.name}`}
             drawing={drawing}
             draft={draft ?? []}
             onAddPoint={addPoint}
+            onFinish={finishDraft}
             instructionsId={INSTRUCTIONS_ID}
             imageUrl={stillUrl}
           />
+          <p id={INSTRUCTIONS_ID} className="zone-hint">
+            <Icon name="cursor" size={16} />
+            {drawing
+              ? 'Click to add points. Double click to finish. Escape cancels. A zone needs at least 3 points. With a keyboard: focus the frame, move the cursor with the arrow keys (Shift for bigger steps) and press Enter to add a point.'
+              : 'Click New zone, then click the picture to add points and draw a zone. Double click to finish.'}
+          </p>
           {drawing ? (
-            <>
-              <p id={INSTRUCTIONS_ID} className="muted small zone-editor__help">
-                Click the frame to add each corner. With a keyboard: focus the frame, move the cursor with the arrow
-                keys (Shift for bigger steps) and press Enter to add a point.
-              </p>
-              <NewZoneForm
-                pointCount={draft.length}
-                onUndo={() => setDraft((current) => (current ? current.slice(0, -1) : current))}
-                onCancel={() => setDraft(null)}
-                onSave={createZone}
-              />
-            </>
+            <NewZoneForm
+              pointCount={draft.length}
+              onUndo={() => setDraft((current) => (current ? current.slice(0, -1) : current))}
+              onCancel={() => setDraft(null)}
+              onSave={createZone}
+            />
           ) : null}
         </section>
 
-        <section className="card card--padded" aria-labelledby="zone-list-heading">
+        <section className="card card--padded zones-side" aria-labelledby="zone-list-heading">
           <h2 id="zone-list-heading" className="section-title">
             Zones on this camera
           </h2>

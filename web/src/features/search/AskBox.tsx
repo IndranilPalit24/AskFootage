@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import type { Camera, DaySummary } from '../../api/generated/types';
 import { Icon } from '../../components/Icon';
-import { formatShortDay } from '../../lib/dates';
+import { formatFullDay } from '../../lib/dates';
 
 export const EXAMPLE_QUESTIONS = [
   'someone carrying a box',
@@ -76,6 +76,19 @@ export function AskBox({ initialQuestion, onSubmit, days, day, onDayChange, came
             onChange={(event) => setQuestion(event.target.value)}
             onKeyDown={handleKeyDown}
           />
+          {blank ? null : (
+            <button
+              type="button"
+              className="icon-btn ask__clear"
+              aria-label="Clear question"
+              onClick={() => {
+                setQuestion('');
+                textareaRef.current?.focus();
+              }}
+            >
+              <Icon name="close" size={16} />
+            </button>
+          )}
           <div className="ask__actions">
             <span className="ask__state" aria-hidden="true">
               {busy ? 'Searching…' : 'Enter to search · Shift+Enter for a new line'}
@@ -106,21 +119,23 @@ export function AskBox({ initialQuestion, onSubmit, days, day, onDayChange, came
         ))}
       </ul>
       <div className="scope">
-        <label htmlFor="ask-camera">Cameras:</label>
+        <label htmlFor="ask-day">Day:</label>
+        <span className="select-icon">
+          <Icon name="calendar" size={16} />
+          <select id="ask-day" className="select" value={day} onChange={(event) => onDayChange(event.target.value)}>
+            {days.map((entry) => (
+              <option key={entry.day} value={entry.day}>
+                {formatFullDay(entry.day)}
+              </option>
+            ))}
+          </select>
+        </span>
+        <label htmlFor="ask-camera">Camera:</label>
         <select id="ask-camera" className="select" value={camera} onChange={(event) => onCameraChange(event.target.value)}>
           <option value="">All cameras</option>
           {cameras.map((entry) => (
             <option key={entry.id} value={entry.id}>
-              {entry.name}
-              {entry.location ? ` · ${entry.location}` : ''}
-            </option>
-          ))}
-        </select>
-        <label htmlFor="ask-day">Day:</label>
-        <select id="ask-day" className="select" value={day} onChange={(event) => onDayChange(event.target.value)}>
-          {days.map((entry) => (
-            <option key={entry.day} value={entry.day}>
-              {formatShortDay(entry.day)}
+              {entry.id} - {entry.name}
             </option>
           ))}
         </select>

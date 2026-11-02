@@ -59,7 +59,7 @@ export function FindFootageScreen() {
         <div className="page-head find__head">
           <div>
             <h1>Find Footage</h1>
-            <p className="page-head__subtitle">Ask a question about your footage. Each result shows the proof.</p>
+            {started ? null : <p className="page-head__subtitle">Ask a question about your footage. Each result shows the proof.</p>}
           </div>
         </div>
         {days && day ? (

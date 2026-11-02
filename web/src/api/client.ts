@@ -16,6 +16,7 @@ import type {
   SavedClipUpdate,
   SearchRequest,
   SearchResponse,
+  DemoCodeAccepted,
   Status,
   Zone,
   ZoneCreate,
@@ -31,6 +32,11 @@ export interface DeleteCameraOptions {
 /** One method per operation in contract/openapi.yaml. */
 export interface ApiClient {
   getStatus(): Promise<Status>;
+  /**
+   * A demo gate for the UI only (it protects nothing). 200 {ok:true}; 401 invalid_demo_code "That code is not valid.";
+   * 422 for a body that is not 6 digits; 429 too_many_attempts. The code is never stored or logged.
+   */
+  checkDemoCode(code: string): Promise<DemoCodeAccepted>;
   /** In id order. */
   listCameras(): Promise<Camera[]>;
   getCamera(id: string): Promise<Camera>;
@@ -136,6 +142,10 @@ export class FetchApiClient implements ApiClient {
 
   getStatus(): Promise<Status> {
     return this.request('GET', '/api/status');
+  }
+
+  checkDemoCode(code: string): Promise<DemoCodeAccepted> {
+    return this.request('POST', '/api/auth/demo-code', { json: { code } });
   }
 
   listCameras(): Promise<Camera[]> {
