@@ -45,31 +45,17 @@ Built by Team **EdgeCase** (solo, Indie track) for the **Meta Global AI Develope
 Three screens show the flow from sign-in to a match with its proof.
 
 ### 1. Sign-in page
+<img width="1907" height="917" alt="SigninPage" src="https://github.com/user-attachments/assets/fdb22e53-6c76-4494-8c06-7b138bfd2dc0" />
 
-<!-- ADD IMAGE HERE: save the file as docs/images/sign-in.png, then replace this comment and the tag below with:
-<img src="docs/images/sign-in.png" alt="AskFootage demo sign-in page" width="900">
--->
-**[ ADD IMAGE HERE: docs/images/sign-in.png ]**
-
-*The demo sign-in page. It is a demo gate, not security (see [Getting started](#getting-started)).*
 
 ### 2. Find Footage page
+<img width="1906" height="922" alt="FindFootagePage" src="https://github.com/user-attachments/assets/337aa366-cc79-4928-9110-a96b67ccfb64" />
 
-<!-- ADD IMAGE HERE: save the file as docs/images/find-footage.png, then replace this comment and the tag below with:
-<img src="docs/images/find-footage.png" alt="Find Footage page with the question box, example chips, day and camera filters" width="900">
--->
-**[ ADD IMAGE HERE: docs/images/find-footage.png ]**
-
-*Ask a question in plain English, then pick the day and the camera.*
 
 ### 3. A match with its proof: "someone carrying a box"
 
-<!-- ADD IMAGE HERE: save the file as docs/images/carrying-a-box.png, then replace this comment and the tag below with:
-<img src="docs/images/carrying-a-box.png" alt="Search result for someone carrying a box, with the clip, time range and the Why this matched panel" width="900">
--->
-**[ ADD IMAGE HERE: docs/images/carrying-a-box.png ]**
+<img width="1905" height="921" alt="FindingFootage" src="https://github.com/user-attachments/assets/16647706-44a7-4424-8835-4a806368593e" />
 
-*The result shows the clip, the time range, and a "Why this matched" panel with the relation and measures. The clip is a short test clip filmed indoors by the author.*
 
 ## Author
 
