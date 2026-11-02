@@ -262,7 +262,7 @@ ALL_CHECKS = (
 
 
 def test_the_contract_has_the_twenty_two_operations_the_api_serves() -> None:
-    assert len(_operations(CONTRACT)) == 22
+    assert len(_operations(CONTRACT)) == 23
     assert _operations(CONTRACT)[("GET", "/api/clips/{id}/snapshot")]["operationId"] == (
         "getClipSnapshot"
     )
@@ -272,7 +272,7 @@ def test_the_contract_has_the_twenty_two_operations_the_api_serves() -> None:
 
 
 def test_the_app_serves_the_contracts_version(app_spec: Spec) -> None:
-    assert CONTRACT["info"]["version"] == "1.5.0"
+    assert CONTRACT["info"]["version"] == "1.6.0"
     assert app_spec["info"]["version"] == API_VERSION == CONTRACT["info"]["version"]
 
 
@@ -487,6 +487,7 @@ def test_each_check_reports_drift(check: Any, change: Any, app_spec: Spec) -> No
         ("zones.json", list[schemas.Zone]),
         ("saved-clips.json", list[schemas.SavedClip]),
         ("error.json", schemas.Error),
+        ("recording-boxes.json", schemas.RecordingBoxes),
         ("camera-has-recordings.json", schemas.Error),
     ],
 )
