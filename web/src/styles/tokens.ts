@@ -1,7 +1,7 @@
 // Design tokens: the single source of truth, taken from the Camera design reference. applyTokens()
 // publishes them as CSS custom properties on :root, and every stylesheet reads them through var(--...).
 // Light theme only (no dark mode). Style: Minimalism & Swiss: one accent, neutral greys, hairlines, no
-// shadows or gradients, a strict 4px spacing scale.
+// shadows or gradients, a strict 4px spacing scale. The welcome page adds the trust navy and a light grey.
 
 export const tokens = {
   font: {
@@ -10,8 +10,11 @@ export const tokens = {
     baseSize: '14px',
     lineHeight: '1.5',
     lineHeightTight: '1.25',
-    /** Four sizes: caption, body, section heading, page title. Hierarchy comes from size and weight only. */
-    size: { 12: '12px', 14: '14px', 16: '16px', 24: '24px' },
+    /**
+     * Five sizes: caption, body, section heading, page title, and the welcome page's one headline (32).
+     * Hierarchy comes from size and weight only.
+     */
+    size: { 12: '12px', 14: '14px', 16: '16px', 24: '24px', 32: '32px' },
     /** Two weights. */
     weight: { regular: '400', semibold: '600' },
   },
@@ -43,6 +46,19 @@ export const tokens = {
     statusOffline: '#DC2626',
     /** Behind a dialog. */
     scrim: 'rgba(22, 24, 28, 0.45)',
+    // Trust colours, used by the welcome page. The trust blue is the accent above.
+    /** Deep navy: the welcome page's hero and closing bands, and its headings. */
+    navy: '#0F1F3D',
+    /** Text and the focus ring on navy, 16.4:1. */
+    onNavy: '#FFFFFF',
+    /** Secondary text on navy, 10.1:1. */
+    onNavyMuted: '#C3CCDD',
+    /** Hairline on navy (decoration only, like the hairline on white). */
+    navyBorder: '#33476B',
+    /** Light grey behind alternate welcome sections; muted text on it is 5.8:1. */
+    surface: '#F6F7F9',
+    /** Outline of a matched object on an evidence frame, and its label fill (white label text 4.8:1). */
+    evidenceBox: '#DC2626',
   },
   size: {
     topbarHeight: '56px',
@@ -50,6 +66,12 @@ export const tokens = {
     drawerWidthCollapsed: '76px',
     /** App screens: the content column never grows past this. */
     contentMaxWidth: '840px',
+    /** The welcome page's content column. */
+    landingMaxWidth: '1120px',
+    /** The welcome hero's column (headline, ask box, examples). */
+    heroWidth: '720px',
+    /** Longest line of running text on the welcome page. */
+    textMeasure: '640px',
     /** Side gutter of the content on small screens. */
     gutter: '16px',
     controlHeight: '40px',
@@ -69,7 +91,7 @@ export const tokens = {
     card: '8px',
   },
   /** Strict 4px scale. */
-  space: { 1: '4px', 2: '8px', 3: '12px', 4: '16px', 5: '24px', 6: '32px', 7: '40px', 8: '48px' },
+  space: { 1: '4px', 2: '8px', 3: '12px', 4: '16px', 5: '24px', 6: '32px', 7: '40px', 8: '48px', 9: '64px', 10: '80px' },
   layout: {
     mainPadding: '40px 40px 72px',
     drawerPadding: '16px 12px',

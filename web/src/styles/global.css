@@ -792,7 +792,56 @@ a:hover {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: contain;
   background: var(--color-text);
+}
+
+/* The wrapper goes full screen (not the video), so the boxes stay on the picture. */
+.player:fullscreen {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 0;
+}
+
+.player__fullscreen {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-on-navy);
+  border-radius: var(--radius-control);
+  background: var(--color-navy);
+  color: var(--color-on-navy);
+  font: inherit;
+  font-size: var(--font-size-12);
+  cursor: pointer;
+}
+
+.player__fullscreen:hover {
+  background: var(--color-navy-border);
+}
+
+/* Boxes over the picture: they never take the pointer, so the video controls underneath keep working. */
+.box-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.box-overlay__box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 3px solid var(--color-evidence-box);
+  background: none;
+  pointer-events: none;
+}
+
+.box-overlay__box--person {
+  border-color: var(--color-on-navy);
+  outline: 1px solid var(--color-navy);
 }
 
 .player__placeholder {
@@ -1322,6 +1371,240 @@ a:hover {
   overflow-wrap: anywhere;
 }
 
+/* ---------- Welcome page (/welcome) ----------
+   Mobile first: one column with the 16px gutter, then 768px (tablet) and 1024px (desktop). Breakpoints
+   are literals because custom properties cannot be used in a media query. Text stays left-aligned; the
+   hero's column is centred as a block. Navy bands use the on-navy colours and a white focus ring. */
+
+.welcome {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.welcome-wrap {
+  width: 100%;
+  max-width: calc(var(--landing-max-width) + var(--space-6) * 2);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.welcome-main:focus {
+  outline: none;
+}
+
+.welcome h2,
+.welcome h3 {
+  color: var(--color-navy);
+  text-wrap: balance;
+}
+
+.welcome h2 {
+  font-size: var(--font-size-24);
+}
+
+.welcome h3 {
+  font-size: var(--font-size-16);
+}
+
+.welcome-lead {
+  max-width: var(--text-measure);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-16);
+}
+
+/* Top bar: wordmark and demo link on one row, the section links on a second row on a phone. */
+.welcome-topbar {
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-page);
+}
+
+.welcome-topbar__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  min-height: var(--topbar-height);
+  padding-block: var(--space-2);
+}
+
+.welcome-topbar__brand {
+  flex: 1;
+  color: var(--color-navy);
+  font-size: var(--font-size-16);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.welcome-topbar__nav {
+  flex-basis: 100%;
+  order: 3;
+}
+
+.welcome-topbar__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.welcome-topbar__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--nav-item-min-height);
+  color: var(--color-text);
+  font-size: var(--font-size-14);
+  text-decoration: none;
+}
+
+@media (min-width: 768px) {
+  .welcome-wrap {
+    padding-inline: var(--space-6);
+  }
+
+  .welcome-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .welcome-topbar__inner {
+    flex-wrap: nowrap;
+    padding-block: 0;
+  }
+
+  .welcome-topbar__brand {
+    flex: none;
+  }
+
+  .welcome-topbar__nav {
+    flex-basis: auto;
+    order: 0;
+    margin-left: auto;
+  }
+
+  /* The sticky top bar never covers a section reached by a link, or the control that has focus. */
+  html:has(.welcome) {
+    scroll-padding-top: var(--topbar-height);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.welcome) {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Navy bands (hero, closing call to action): white and light text only; the accent is 2.4:1 on navy. */
+.welcome-band {
+  background: var(--color-navy);
+  color: var(--color-on-navy);
+}
+
+.welcome .welcome-band h2 {
+  color: var(--color-on-navy);
+}
+
+.welcome-band__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height);
+  color: var(--color-on-navy);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Hero */
+.welcome-hero {
+  padding-block: var(--space-8);
+}
+
+.welcome-hero__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: var(--hero-width);
+  margin-inline: auto;
+}
+
+.welcome-hero__title {
+  color: var(--color-on-navy);
+  font-size: var(--font-size-32);
+  text-wrap: balance;
+}
+
+.welcome-hero__sub {
+  max-width: var(--text-measure);
+  margin-bottom: var(--space-2);
+  color: var(--color-on-navy-muted);
+  font-size: var(--font-size-16);
+}
+
+.welcome-hero__note {
+  color: var(--color-on-navy-muted);
+  font-size: var(--font-size-14);
+}
+
+/* The ask box: a link into the demo that looks like the app's ask box, with its action inside. */
+.welcome-ask {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-page);
+  border-radius: var(--radius-card);
+  background: var(--color-page);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.welcome-ask__question {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  font-size: var(--font-size-16);
+}
+
+.welcome-ask__question svg {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.welcome-hero__examples {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* Non-interactive example chips on navy: light text, navy hairline, and long ones wrap. */
+.welcome-hero__chip {
+  max-width: 100%;
+  border-color: var(--color-navy-border);
+  color: var(--color-on-navy);
+  white-space: normal;
+}
+
+.welcome-hero__actions {
+  gap: var(--space-5);
+  margin-top: var(--space-2);
+}
+
+@media (min-width: 768px) {
+  .welcome-hero {
+    padding-block: var(--space-10);
+  }
+
+  .welcome-ask {
+    flex-direction: row;
+    align-items: center;
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  }
+}
+
 /* ---------- Interaction states (defined once) ---------- */
 
 /* Anything clickable: pointer, and a short colour change. Hover and press are fills, never shadows. */
@@ -1405,4 +1688,42 @@ a:hover {
 
 .btn[aria-busy='true'] {
   cursor: progress;
+}
+
+/* Welcome page. On navy the accent ring would be 2.4:1, so the ring turns white there (16.4:1). */
+.welcome-band :focus-visible {
+  outline-color: var(--color-on-navy);
+}
+
+.welcome-ask {
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease;
+}
+
+.welcome-ask:hover {
+  border-color: var(--color-hover-fill);
+  background: var(--color-hover-fill);
+  color: var(--color-text);
+}
+
+.welcome-ask:active {
+  border-color: var(--color-active-fill);
+  background: var(--color-active-fill);
+}
+
+.welcome-ask:hover .welcome-ask__action {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
+}
+
+/* The white button on navy keeps its dark text on hover (the shared rule inherits the band's white). */
+.welcome-band .btn:hover {
+  color: var(--color-text);
+}
+
+.welcome-band__link:hover {
+  color: var(--color-on-navy);
+  text-decoration-thickness: 2px;
 }

@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<meta name="description" content="Ask your footage. Get the clip and the proof." />
+<link rel="icon" href="data:," />
+<title>AskFootage: Ask your footage. Get the clip and the proof.</title>
+<style>
+/* Demo link target: the app is served at "/" (BrowserRouter, no basename). Every "Try the demo" link is href="/". */
+:root{
+  --navy:#0F1F3D; --accent:#1D4ED8; --link:#1D4ED8;
+  --bg:#FFFFFF; --bg-alt:#F6F7F9; --card:#FFFFFF;
+  --heading:#0F1F3D; --text:#16181C; --muted:#5B6170; --border:#E3E5E9;
+  --ok:#16A34A; --warn:#CA8A04; --bad:#DC2626;
+  --band:#0F1F3D; --on-band:#FFFFFF; --on-band-muted:#C3CCDD;
+  --frame:#E9ECF1; --frame-2:#D5DAE3; --focus:#1D4ED8;
+  --radius:12px; --w:1120px; --gutter:16px;
+  --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --link:#8CAAF8; --bg:#0B1322; --bg-alt:#0E182B; --card:#121D33;
+    --heading:#EEF2FA; --text:#E6E9EF; --muted:#A3ABBC; --border:#27334B;
+    --ok:#4ADE80; --warn:#FACC15; --bad:#F87171;
+    --band:#0A1630; --frame:#1A2740; --frame-2:#243452; --focus:#8CAAF8;
+  }
+}
+:root[data-theme="dark"]{
+  --link:#8CAAF8; --bg:#0B1322; --bg-alt:#0E182B; --card:#121D33;
+  --heading:#EEF2FA; --text:#E6E9EF; --muted:#A3ABBC; --border:#27334B;
+  --ok:#4ADE80; --warn:#FACC15; --bad:#F87171;
+  --band:#0A1630; --frame:#1A2740; --frame-2:#243452; --focus:#8CAAF8;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;font-family:var(--font);font-size:16px;line-height:1.6;color:var(--text);background:var(--bg)}
+h1,h2,h3,p{margin:0}
+h1,h2,h3{color:var(--heading);line-height:1.2;letter-spacing:-.01em}
+a{color:var(--link)}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:6px}
+.band :focus-visible{outline-color:#fff}
+.sr{position:absolute;left:-999px}
+.wrap{max-width:var(--w);margin:0 auto;padding:0 var(--gutter)}
+section{padding:72px 0}
+section.alt{background:var(--bg-alt)}
+.eyebrow{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--link);margin-bottom:12px}
+.sec-head{max-width:680px;margin-bottom:40px}
+.sec-head h2{font-size:clamp(26px,4vw,34px);margin-bottom:12px}
+.sec-head p{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 22px;border-radius:10px;font:600 15px var(--font);text-decoration:none;border:1px solid transparent;cursor:pointer}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#1E40AF}
+.btn-light{background:#fff;color:var(--navy)}
+.btn-light:hover{background:#E8EDF7}
+.skip{position:absolute;left:-999px;top:8px;background:#fff;color:#000;padding:8px 12px;z-index:10}
+.skip:focus{left:8px}
+.dot{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--text)}
+.dot::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
+.dot.ok::before{background:var(--ok)}.dot.warn::before{background:var(--warn)}.dot.bad::before{background:var(--bad)}
+/* top bar */
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--border)}
+.top .wrap{display:flex;align-items:center;gap:20px;min-height:64px}
+.brand{font-weight:700;font-size:20px;color:var(--heading);text-decoration:none;letter-spacing:-.02em}
+.brand span{color:var(--link)}
+nav.main{margin-left:auto;display:flex;gap:24px;align-items:center}
+nav.main a.nl{color:var(--text);text-decoration:none;font-size:15px;font-weight:500;padding:8px 2px}
+nav.main a.nl:hover{color:var(--link)}
+.theme{min-height:44px;min-width:44px;background:none;border:1px solid var(--border);border-radius:10px;color:var(--text);cursor:pointer;font:500 13px var(--font)}
+.top .btn{min-height:44px}
+@media(max-width:820px){nav.main a.nl{display:none}.top .wrap{gap:10px}nav.main{gap:10px}}
+/* hero */
+.hero{background:var(--band);color:var(--on-band);padding:72px 0 80px}
+.hero h1{color:#fff;font-size:clamp(32px,6vw,54px);max-width:820px;margin:0 auto;text-align:center;letter-spacing:-.025em}
+.hero .sub{color:var(--on-band-muted);text-align:center;max-width:620px;margin:20px auto 36px;font-size:18px}
+.ask{max-width:760px;margin:0 auto;background:#fff;border-radius:14px;padding:8px;display:flex;gap:8px;flex-wrap:wrap}
+.ask input{flex:1 1 240px;min-height:56px;border:0;font:500 17px var(--font);padding:0 16px;color:#16181C;background:transparent;border-radius:10px;min-width:0}
+.ask input::placeholder{color:#5B6170}
+.ask input:focus-visible{outline-color:#1D4ED8}
+.ask .btn{min-height:56px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:18px auto 0;max-width:760px;padding:0;list-style:none}
+.chip{background:transparent;color:#fff;border:1px solid #7487AB;border-radius:999px;padding:8px 14px;font:500 14px var(--font);cursor:pointer;min-height:36px}
+.chip:hover{background:#1B2E55}
+.hero-actions{display:flex;gap:20px;justify-content:center;align-items:center;margin-top:28px;flex-wrap:wrap}
+.hero-actions a.quiet{color:#fff;font-weight:500}
+.preview{max-width:760px;margin:48px auto 0;background:var(--card);color:var(--text);border-radius:var(--radius);border:1px solid var(--border);padding:16px}
+.preview .row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-bottom:12px}
+.sample-tag{font-size:12px;font-weight:600;color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:2px 10px}
+.results{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:560px){.results{grid-template-columns:1fr}}
+.res{border:1px solid var(--border);border-radius:10px;padding:10px;font-size:13px;color:var(--muted)}
+.res svg{display:block;width:100%;height:auto;border-radius:6px;margin-bottom:8px}
+.res b{color:var(--heading);display:block;font-weight:600}
+/* pipeline */
+.flow{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;position:relative;list-style:none;padding:0;margin:0}
+.flow::before{content:"";position:absolute;top:20px;left:16.6%;right:16.6%;height:2px;background:var(--border)}
+.flow li{position:relative;text-align:center}
+.node{position:relative;width:42px;height:42px;border-radius:50%;background:var(--accent);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 0 0 6px var(--bg-alt)}
+.flow h3{font-size:20px;margin-bottom:6px}
+.flow p{color:var(--muted);margin-bottom:16px}
+.mini{text-align:left;font-size:13px;color:var(--muted);min-height:120px}
+.mini .line{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
+.mini .line:last-child{border:0}
+.bar{height:8px;background:var(--frame);border-radius:4px;overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;width:72%;background:var(--accent)}
+@media(max-width:820px){
+  .flow{grid-template-columns:1fr}
+  .flow::before{display:none}
+  .flow li+li::before{content:"";display:block;width:2px;height:24px;background:var(--border);margin:-24px auto 0;transform:translateY(-12px)}
+}
+/* proof */
+.proof{display:grid;grid-template-columns:1.6fr 1fr;gap:24px;align-items:start}
+@media(max-width:900px){.proof{grid-template-columns:1fr}}
+.screen svg{display:block;width:100%;height:auto;border-radius:8px}
+.timeline{margin-top:16px}
+.track{position:relative;height:12px;background:var(--frame);border-radius:6px}
+.track .hit{position:absolute;left:10%;width:40%;top:0;bottom:0;background:var(--accent);border-radius:6px}
+.ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:6px}
+.why dl{margin:16px 0 0;display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:15px}
+.why dt{color:var(--muted)}.why dd{margin:0;color:var(--text);font-weight:500}
+.caption{margin-top:20px;color:var(--muted);font-size:15px}
+/* grid */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+@media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.grid{grid-template-columns:1fr}}
+.feat svg{width:28px;height:28px;stroke:var(--link);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;margin-bottom:14px}
+.feat h3{font-size:18px;margin-bottom:6px}
+.feat p{color:var(--muted);font-size:15px}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;list-style:none;padding:0;margin:0}
+@media(max-width:900px){.tiles{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.tiles{grid-template-columns:1fr}}
+.tiles li{border:1px solid var(--border);border-radius:var(--radius);padding:20px;background:var(--card);font-weight:500;color:var(--heading);display:flex;gap:12px;align-items:center}
+.tiles svg{width:24px;height:24px;stroke:var(--muted);fill:none;stroke-width:1.7;flex:none;stroke-linecap:round;stroke-linejoin:round}
+.scen h3{font-size:19px;margin-bottom:14px}
+.scen .lab{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px}
+.scen p+.lab{margin-top:16px}
+.scen p{color:var(--text);font-size:15px}
+.note{margin-top:20px;font-size:14px;color:var(--muted)}
+/* privacy */
+.priv{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
+@media(max-width:900px){.priv{grid-template-columns:1fr;gap:24px}}
+.priv h2{font-size:clamp(26px,4vw,34px)}
+.priv ul{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.priv li{display:flex;gap:12px;align-items:flex-start}
+.priv li svg{flex:none;width:22px;height:22px;stroke:var(--ok);fill:none;stroke-width:2;margin-top:2px}
+.cost{max-width:760px}
+.cost .big{font-size:20px;color:var(--heading);font-weight:600;margin-bottom:12px}
+.worked{margin-top:20px;border-top:1px solid var(--border);padding-top:20px}
+.worked table{border-collapse:collapse;width:100%;font-size:15px;margin-top:10px}
+.worked th,.worked td{text-align:left;padding:8px 0;border-bottom:1px solid var(--border);font-weight:400}
+.worked th{color:var(--muted)}
+.worked td:last-child{text-align:right}
+.worked tr:last-child th,.worked tr:last-child td{font-weight:600;color:var(--heading);border:0}
+/* cta */
+.cta{background:var(--band);text-align:center;padding:80px 0}
+.cta h2{color:#fff;font-size:clamp(26px,4.5vw,38px);max-width:700px;margin:0 auto 28px}
+footer{background:var(--bg);border-top:1px solid var(--border);padding:28px 0;font-size:14px;color:var(--muted)}
+footer .wrap{display:flex;gap:16px;justify-content:space-between;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="AskFootage home">Ask<span>Footage</span></a>
+    <nav class="main" aria-label="Primary">
+      <a class="nl" href="#how">How it works</a>
+      <a class="nl" href="#features">Features</a>
+      <a class="nl" href="#privacy">Privacy</a>
+      <a class="nl" href="#cost">Cost</a>
+      <button class="theme" id="theme" type="button" aria-label="Switch colour theme">Theme</button>
+      <a class="btn btn-primary" href="/">Try the demo</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero band" id="top" aria-labelledby="hero-title">
+    <div class="wrap">
+      <h1 id="hero-title">Ask your footage. Get the clip and the proof.</h1>
+      <p class="sub">Type what you are looking for in plain English. AskFootage finds the moment and shows why it matched.</p>
+      <form class="ask" action="/" method="get" role="search">
+        <label for="q" class="sr">Ask your footage</label>
+        <input id="q" name="q" type="text" placeholder="Show me when a person carried a box" autocomplete="off" />
+        <button class="btn btn-primary" type="submit">Ask</button>
+      </form>
+      <ul class="chips" aria-label="Example questions">
+        <li><button class="chip" type="button">Show me when a person carried a box</button></li>
+        <li><button class="chip" type="button">A person walked through the door</button></li>
+        <li><button class="chip" type="button">A car stopped near the gate</button></li>
+      </ul>
+      <div class="hero-actions">
+        <a class="btn btn-light" href="/">Try the demo</a>
+        <a class="quiet" href="#how">See how it works</a>
+      </div>
+      <div class="preview" role="group" aria-label="Product preview, sample content">
+        <div class="row"><span>Results for "a person carried a box"</span><span class="sample-tag">Sample content</span></div>
+        <div class="results">
+          <div class="res">
+            <svg viewBox="0 0 160 90" aria-hidden="true"><rect width="160" height="90" fill="var(--frame)"/><rect x="0" y="62" width="160" height="28" fill="var(--frame-2)"/><rect x="60" y="30" width="22" height="34" rx="4" fill="var(--muted)" opacity=".5"/><rect x="84" y="46" width="16" height="14" fill="none" stroke="#DC2626" stroke-width="2"/></svg>
+            <b>Clip 1</b>0:01 to 0:05
+          </div>
+          <div class="res">
+            <svg viewBox="0 0 160 90" aria-hidden="true"><rect width="160" height="90" fill="var(--frame)"/><rect x="0" y="62" width="160" height="28" fill="var(--frame-2)"/><rect x="30" y="30" width="22" height="34" rx="4" fill="var(--muted)" opacity=".5"/><rect x="54" y="46" width="16" height="14" fill="none" stroke="#DC2626" stroke-width="2"/></svg>
+            <b>Clip 2</b>0:22 to 0:27
+          </div>
+          <div class="res">
+            <svg viewBox="0 0 160 90" aria-hidden="true"><rect width="160" height="90" fill="var(--frame)"/><rect x="0" y="62" width="160" height="28" fill="var(--frame-2)"/><rect x="100" y="30" width="22" height="34" rx="4" fill="var(--muted)" opacity=".5"/><rect x="124" y="46" width="16" height="14" fill="none" stroke="#DC2626" stroke-width="2"/></svg>
+            <b>Clip 3</b>0:41 to 0:44
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt" id="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">How it works</p>
+        <h2 id="how-title">Index once. Ask as often as you like.</h2>
+        <p>Three steps from raw footage to a clip you can check for yourself.</p>
+      </div>
+      <ol class="flow">
+        <li>
+          <div class="node" aria-hidden="true">1</div>
+          <h3><span class="sr">Step 1: </span>Add footage</h3>
+          <p>Connect a camera or upload a clip.</p>
+          <div class="card mini" role="group" aria-label="Sample: add footage">
+            <div class="line"><span>Camera 1 (sample)</span><span class="dot ok">Connected</span></div>
+            <div class="line"><span>sample-clip.mp4</span><span class="dot warn">Uploading</span></div>
+          </div>
+        </li>
+        <li>
+          <div class="node" aria-hidden="true">2</div>
+          <h3><span class="sr">Step 2: </span>Index once</h3>
+          <p>Objects are found and tracked, and the results are saved.</p>
+          <div class="card mini" role="group" aria-label="Sample: indexing">
+            <div>Finding and tracking objects</div>
+            <div class="bar" role="img" aria-label="Sample progress bar"><i></i></div>
+            <div class="dot ok">Results saved</div>
+          </div>
+        </li>
+        <li>
+          <div class="node" aria-hidden="true">3</div>
+          <h3><span class="sr">Step 3: </span>Ask anything</h3>
+          <p>Search costs nothing after indexing.</p>
+          <div class="card mini" role="group" aria-label="Sample: ask">
+            <div class="line"><span>"a person carried a box"</span></div>
+            <div class="line"><span>3 sample clips</span><span class="dot ok">Free to search</span></div>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="proof" aria-labelledby="proof-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">The proof</p>
+        <h2 id="proof-title">See exactly why a clip matched.</h2>
+        <p>Open any result to see the moment, the time range and the evidence behind it.</p>
+      </div>
+      <div class="proof">
+        <div class="card screen" role="group" aria-label="Clip detail, sample content">
+          <svg viewBox="0 0 640 360" role="img" aria-label="Sample video frame with a red box around a carried box">
+            <rect width="640" height="360" fill="var(--frame)"/>
+            <rect y="250" width="640" height="110" fill="var(--frame-2)"/>
+            <rect x="60" y="60" width="120" height="150" rx="4" fill="var(--frame-2)"/>
+            <rect x="250" y="90" width="70" height="150" rx="14" fill="var(--muted)" opacity=".55"/>
+            <circle cx="285" cy="70" r="24" fill="var(--muted)" opacity=".55"/>
+            <rect x="322" y="150" width="64" height="52" fill="#B08968" opacity=".75"/>
+            <rect x="314" y="140" width="80" height="70" fill="none" stroke="#DC2626" stroke-width="3"/>
+            <rect x="314" y="118" width="62" height="22" fill="#DC2626"/>
+            <text x="322" y="134" font-size="13" font-weight="600" fill="#fff" font-family="system-ui,sans-serif">box</text>
+            <text x="16" y="342" font-size="13" fill="var(--muted)" font-family="system-ui,sans-serif">Sample frame, not real footage</text>
+          </svg>
+          <div class="timeline">
+            <div class="track" role="img" aria-label="Timeline with the matched interval from 0:01 to 0:05 highlighted"><div class="hit"></div></div>
+            <div class="ticks"><span>0:00</span><span>0:01 to 0:05 matched</span><span>0:10</span></div>
+          </div>
+        </div>
+        <div class="card why">
+          <h3>Why this matched</h3>
+          <dl>
+            <dt>Relation</dt><dd>Carrying</dd>
+            <dt>Time range</dt><dd>0:01 to 0:05</dd>
+            <dt>Object</dt><dd>Box (red outline)</dd>
+            <dt>Confidence</dt><dd><span class="dot ok">High, 0.91 (sample)</span></dd>
+          </dl>
+        </div>
+      </div>
+      <p class="caption">Every match shows its evidence.</p>
+    </div>
+  </section>
+
+  <section class="alt" id="features" aria-labelledby="feat-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Features</p>
+        <h2 id="feat-title">Everything you need to find a moment.</h2>
+      </div>
+      <div class="grid">
+        <article class="card feat"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><h3>Plain-English search</h3><p>Ask the way you would ask a colleague.</p></article>
+        <article class="card feat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><rect x="8" y="9" width="8" height="6"/></svg><h3>Proof with every clip</h3><p>A red box, timestamps and measures show why it matched.</p></article>
+        <article class="card feat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><h3>Daily footage library per camera</h3><p>Each camera keeps its own day-by-day recordings.</p></article>
+        <article class="card feat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5z" stroke-dasharray="3 3"/><path d="M9 9h6v6"/></svg><h3>Zones you draw on a still frame</h3><p>Mark an area once and ask about it.</p></article>
+        <article class="card feat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><h3>Saved clips</h3><p>Keep the moments you need to come back to.</p></article>
+        <article class="card feat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg><h3>Any object you can name</h3><p>Boxes, pallets, bikes: if you can name it, you can ask.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section id="works" aria-labelledby="works-title">
+    <div class="wrap">
+      <div class="sec-head"><h2 id="works-title">Works with what you already have</h2></div>
+      <ul class="tiles">
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h12l4-3v14l-4-3H4z"/></svg>IP cameras (RTSP)</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>MP4 and MOV uploads</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h7l2 2h9v11H3z"/></svg>Daily recording folders</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/></svg>Your own database</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="alt" id="scenarios" aria-labelledby="scen-title">
+    <div class="wrap">
+      <div class="sec-head"><h2 id="scen-title">Example scenarios</h2></div>
+      <div class="grid">
+        <article class="card scen">
+          <h3>Warehouse loading dock</h3>
+          <p class="lab">You could ask</p><p>"Show me when a pallet was loaded onto the truck."</p>
+          <p class="lab">What you get</p><p>The clip of the loading, the time range, and the pallet outlined in red.</p>
+        </article>
+        <article class="card scen">
+          <h3>Retail shop floor</h3>
+          <p class="lab">You could ask</p><p>"Show me when someone stood at the shelf."</p>
+          <p class="lab">What you get</p><p>The matching moments, each with the area and the time it happened.</p>
+        </article>
+        <article class="card scen">
+          <h3>Office entrance</h3>
+          <p class="lab">You could ask</p><p>"Show me when a person walked through the door."</p>
+          <p class="lab">What you get</p><p>A short clip for each time it happened, with the evidence beside it.</p>
+        </article>
+      </div>
+      <p class="note">Illustrative examples, not customer testimonials.</p>
+    </div>
+  </section>
+
+  <section id="privacy" aria-labelledby="priv-title">
+    <div class="wrap priv">
+      <div>
+        <p class="eyebrow">Privacy and control</p>
+        <h2 id="priv-title">No face recognition. No identity features.</h2>
+      </div>
+      <ul>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Footage stays in your library.</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>The camera password is checked and never stored.</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>You decide what is indexed.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="alt" id="cost" aria-labelledby="cost-title">
+    <div class="wrap">
+      <div class="sec-head"><p class="eyebrow">Cost</p><h2 id="cost-title">Pay once to index. Search is free.</h2></div>
+      <div class="card cost">
+        <p class="big">About $0.20 per 1,000 frames per object type.</p>
+        <p style="color:var(--muted)">Indexing uses the 5 fps copy of your footage. After that, every search costs nothing.</p>
+        <div class="worked">
+          <strong style="color:var(--heading)">Worked example (illustration)</strong>
+          <table>
+            <caption class="sr">Worked cost example</caption>
+            <tr><th scope="row">60-second clip at 5 fps</th><td>300 frames</td></tr>
+            <tr><th scope="row">One object type</th><td>300 / 1,000 x $0.20</td></tr>
+            <tr><th scope="row">Indexing, once</th><td>about $0.06</td></tr>
+            <tr><th scope="row">Every search afterwards</th><td>$0.00</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta band" aria-labelledby="cta-title">
+    <div class="wrap">
+      <h2 id="cta-title">See it find a moment in your footage</h2>
+      <a class="btn btn-light" href="/">Try the demo</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>AskFootage. Built as a hackathon project.</span>
+    <span>All previews on this page are sample content.</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var q=document.getElementById('q');
+  document.querySelectorAll('.chip').forEach(function(c){
+    c.addEventListener('click',function(){q.value=c.textContent;q.focus();});
+  });
+  var root=document.documentElement,btn=document.getElementById('theme');
+  btn.addEventListener('click',function(){
+    var t=root.getAttribute('data-theme');
+    var dark=t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+    root.setAttribute('data-theme',dark?'light':'dark');
+  });
+})();
+</script>
+</body>
+</html>
