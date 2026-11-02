@@ -33,6 +33,15 @@ describe('contrast (light theme, the only theme)', () => {
     ['text on accent button', color.onAccent, color.accent],
     ['text on accent button, hover', color.onAccent, color.accentHover],
     ['error text on page', color.danger, color.page],
+    // Welcome page (trust colours).
+    ['white text on navy', color.onNavy, color.navy],
+    ['muted text on navy', color.onNavyMuted, color.navy],
+    ['navy heading on page', color.navy, color.page],
+    ['navy heading on surface', color.navy, color.surface],
+    ['text on surface', color.text, color.surface],
+    ['muted text on surface', color.textMuted, color.surface],
+    ['accent text on surface', color.accent, color.surface],
+    ['white label on the evidence box fill', color.onNavy, color.evidenceBox],
   ];
   it.each(textPairs)('%s is at least 4.5:1', (_name, foreground, background) => {
     expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
@@ -43,7 +52,14 @@ describe('contrast (light theme, the only theme)', () => {
     ['focus ring on page', color.accent, color.page],
     ['online dot on page', color.statusOnline, color.page],
     ['offline dot on page', color.statusOffline, color.page],
+    ['focus ring on navy (white)', color.onNavy, color.navy],
+    ['evidence box outline on the frame placeholder', color.evidenceBox, color.hoverFill],
   ];
+
+  it('the accent is not used on navy: it is only 2.4:1 there, so navy bands use white', () => {
+    expect(contrast(color.accent, color.navy)).toBeLessThan(3);
+    expect(globalCss).toMatch(/\.welcome-band :focus-visible \{\s*outline-color: var\(--color-on-navy\);/);
+  });
   it.each(graphicPairs)('%s is at least 3:1', (_name, foreground, background) => {
     expect(contrast(foreground, background)).toBeGreaterThanOrEqual(3);
   });
@@ -62,9 +78,11 @@ describe('Swiss style rules in the stylesheet', () => {
     expect(globalCss).not.toMatch(/text-align:\s*center/);
   });
 
-  it('only the four type sizes and two weights are used', () => {
+  it('only the five type sizes and two weights are used', () => {
     const sizes = new Set([...globalCss.matchAll(/font-size:\s*var\(--font-size-(\w+)\)/g)].map((match) => match[1]));
-    expect([...sizes].sort()).toEqual(['12', '14', '16', '24', 'base']); // base is the 14px body size
+    // base is the 14px body size; 32 is the welcome page's headline, used once.
+    expect([...sizes].sort()).toEqual(['12', '14', '16', '24', '32', 'base']);
+    expect(globalCss.match(/font-size:\s*var\(--font-size-32\)/g)).toHaveLength(1);
     const weights = new Set([...globalCss.matchAll(/font-weight:\s*var\(--font-weight-(\w+)\)/g)].map((match) => match[1]));
     expect([...weights].sort()).toEqual(['regular', 'semibold']);
   });

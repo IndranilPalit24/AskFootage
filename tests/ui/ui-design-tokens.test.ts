@@ -41,7 +41,8 @@ describe('design tokens (Minimalism & Swiss Style)', () => {
     // Type: Inter, at most five sizes, two weights.
     expect(tokens.font.family.startsWith('Inter,')).toBe(true);
     expect(Object.keys(tokens.font.size).length).toBeLessThanOrEqual(5);
-    expect(tokens.font.size).toEqual({ 12: '12px', 14: '14px', 16: '16px', 24: '24px' });
+    // 32 is the welcome page's one headline size.
+    expect(tokens.font.size).toEqual({ 12: '12px', 14: '14px', 16: '16px', 24: '24px', 32: '32px' });
     expect(tokens.font.weight).toEqual({ regular: '400', semibold: '600' });
   });
 
@@ -88,9 +89,24 @@ describe('design tokens (Minimalism & Swiss Style)', () => {
     expect(globalCss).not.toMatch(/border-radius:\s*\d+px/);
   });
 
-  it('loads Inter and stays a light page', () => {
-    // index.html (outside web/src) still requests 400;500;600: the unused 500 is harmless.
-    expect(indexHtml).toContain('family=Inter:wght@400');
+  it('loads Inter in exactly the two token weights and stays a light page', () => {
+    expect(indexHtml).toContain('family=Inter:wght@400;600&display=swap');
+    expect(indexHtml).not.toMatch(/wght@[^"&]*500/);
     expect(indexHtml).toContain('<meta name="color-scheme" content="light" />');
+  });
+
+  it('holds the trust colours and the welcome page layout tokens', () => {
+    expect(tokens.color.navy).toBe('#0F1F3D');
+    expect(tokens.color.onNavy).toBe('#FFFFFF');
+    expect(tokens.color.surface).toBe('#F6F7F9');
+    expect(tokens.color.evidenceBox).toBe('#DC2626');
+    expect(tokens.size.landingMaxWidth).toBe('1120px');
+    expect(tokens.size.contentMaxWidth).toBe('840px');
+    applyTokens(document);
+    const css = document.getElementById(TOKENS_STYLE_ID)!.textContent!;
+    expect(css).toContain('--color-navy: #0F1F3D;');
+    expect(css).toContain('--landing-max-width: 1120px;');
+    expect(css).toContain('--font-size-32: 32px;');
+    expect(css).toContain('--space-9: 64px;');
   });
 });
