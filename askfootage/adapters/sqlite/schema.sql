@@ -26,6 +26,9 @@
 --   tracks behind it. volume_state remembers the camera counter from before the volume was
 --   added, so removing the volume can put it back. Additive: a v4 database is upgraded in
 --   place and keeps its data (store.py runs _MIGRATIONS[4]).
+-- - 6: demo_access_codes, the 6-digit demo access codes (only a salted scrypt hash is kept,
+--   never the code). A demo gate for the UI, not protection for footage. Additive: a v5
+--   database is upgraded in place and keeps its data (store.py runs _MIGRATIONS[5]).
 --
 -- Conventions
 -- - Recording, clip, zone and saved-clip ids are chosen by the caller: 1 to 64 letters,
@@ -291,4 +294,26 @@ CREATE TABLE volume_state (
     prior_last_camera_number INTEGER NOT NULL CHECK (prior_last_camera_number >= 0)
 ) STRICT;
 
-PRAGMA user_version = 5;
+CREATE TABLE demo_access_codes (
+    id         TEXT NOT NULL PRIMARY KEY CHECK (length(id) = 8 AND id NOT GLOB '*[^0-9a-f]*'),
+    -- scrypt of the code with this row's salt, as 64 lower-case hex characters. Never the code.
+    code_hash  TEXT NOT NULL CHECK (length(code_hash) = 64 AND code_hash NOT GLOB '*[^0-9a-f]*'),
+    salt       TEXT NOT NULL CHECK (length(salt) = 32 AND salt NOT GLOB '*[^0-9a-f]*'),
+    -- Who the code was made for, such as 'judges': a group word, trimmed, 1 to 40 characters.
+    label      TEXT NOT NULL
+               CHECK (label = trim(label, char(32, 9, 10, 11, 12, 13))
+                      AND length(label) BETWEEN 1 AND 40),
+    created_at TEXT NOT NULL
+               CHECK (created_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9][0-9][0-9][0-9]Z'
+                      AND date(created_at) IS substr(created_at, 1, 10)),
+    revoked_at TEXT
+               CHECK (revoked_at IS NULL
+                      OR (revoked_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9][0-9][0-9][0-9]Z'
+                          AND date(revoked_at) IS substr(revoked_at, 1, 10)
+                          AND revoked_at >= created_at))
+) STRICT;
+
+-- list_codes: oldest first.
+CREATE INDEX demo_access_codes_by_created ON demo_access_codes (created_at, id);
+
+PRAGMA user_version = 6;

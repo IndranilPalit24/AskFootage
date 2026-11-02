@@ -139,6 +139,28 @@ class Error(ResponseModel):
     error: ErrorDetail
 
 
+# --- Demo access code -----------------------------------------------------------------------
+
+DEMO_CODE_PATTERN = r"^[0-9]{6}$"
+"""A demo access code: exactly six ASCII digits."""
+
+
+class DemoCodeRequest(RequestModel):
+    """A demo access code to check. Never logged or echoed; repr() hides it."""
+
+    code: str = Field(
+        pattern=DEMO_CODE_PATTERN,
+        repr=False,
+        description="The 6-digit demo access code, digits only",
+    )
+
+
+class DemoCodeAccepted(ResponseModel):
+    """The code is valid. No token is returned: the UI keeps its own flag."""
+
+    ok: Literal[True] = Field(description="Always true: the code is valid")
+
+
 # --- Status ---------------------------------------------------------------------------------
 
 

@@ -20,8 +20,9 @@ How the file is kept safe:
   camera id is never handed out twice, even after its camera is deleted.
 - No password is stored anywhere: the API checks a camera's stream password and drops it.
 
-Schema versions: SCHEMA_VERSION is 5 (v3 added object tracks and recordings.status_note; v4
-added concepts_searched, the "searched, found nothing" marker; v5 added origin columns,
+Schema versions: SCHEMA_VERSION is 6 (v6 added demo_access_codes; v3 added object tracks and
+recordings.status_note; v4 added concepts_searched, the "searched, found nothing"
+marker; v5 added origin columns,
 recordings.has_footage and volume_state for the generated demo volume). A v3 or v4
 database is upgraded in place and keeps its data. Demo data only: opening a v1 or v2
 database drops every table and recreates the schema; the seed then refills it, and
@@ -71,7 +72,7 @@ from askfootage.ports.library_store import (
     camera_number,
 )
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 """The schema version this code writes and reads; schema.sql records it in user_version."""
 
 MAX_NOTE_LENGTH = 500
@@ -85,6 +86,12 @@ MAX_CAMERA_IP_LENGTH = 253
 
 _MIN_SQLITE_VERSION = (3, 38, 0)  # STRICT tables need 3.37; built-in json_each needs 3.38
 _BUSY_TIMEOUT_SECONDS = 10.0
+
+_UTC_GLOB = (
+    "'[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]"
+    ".[0-9][0-9][0-9][0-9][0-9][0-9]Z'"
+)
+"""SQL text of the GLOB pattern for the schema's UTC timestamps (a constant, no user input)."""
 
 # Schema changes that keep the data go here: _MIGRATIONS[n] is the SQL that takes a
 # database from version n to n + 1, ending with "PRAGMA user_version = n + 1;". Each runs in
@@ -118,6 +125,29 @@ _MIGRATIONS: dict[int, str] = {
             prior_last_camera_number INTEGER NOT NULL CHECK (prior_last_camera_number >= 0)
         ) STRICT;
         PRAGMA user_version = 5;
+    """,
+    # v5 -> v6: demo_access_codes. Additive, so every row is kept.
+    5: f"""
+        CREATE TABLE demo_access_codes (
+            id         TEXT NOT NULL PRIMARY KEY
+                       CHECK (length(id) = 8 AND id NOT GLOB '*[^0-9a-f]*'),
+            code_hash  TEXT NOT NULL
+                       CHECK (length(code_hash) = 64 AND code_hash NOT GLOB '*[^0-9a-f]*'),
+            salt       TEXT NOT NULL CHECK (length(salt) = 32 AND salt NOT GLOB '*[^0-9a-f]*'),
+            label      TEXT NOT NULL
+                       CHECK (label = trim(label, char(32, 9, 10, 11, 12, 13))
+                              AND length(label) BETWEEN 1 AND 40),
+            created_at TEXT NOT NULL
+                       CHECK (created_at GLOB {_UTC_GLOB}
+                              AND date(created_at) IS substr(created_at, 1, 10)),
+            revoked_at TEXT
+                       CHECK (revoked_at IS NULL
+                              OR (revoked_at GLOB {_UTC_GLOB}
+                                  AND date(revoked_at) IS substr(revoked_at, 1, 10)
+                                  AND revoked_at >= created_at))
+        ) STRICT;
+        CREATE INDEX demo_access_codes_by_created ON demo_access_codes (created_at, id);
+        PRAGMA user_version = 6;
     """,
 }
 

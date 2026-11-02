@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import BackgroundTasks, Depends, Request
 
 from askfootage.application.concepts import ConceptService
+from askfootage.application.demo_access import CodeVerifier, FailedAttemptLimiter, no_valid_codes
 from askfootage.application.ingest_video import IndexingPipeline
 from askfootage.application.library import IdFactory, Library
 from askfootage.application.posters import PosterStore, has_footage
@@ -46,6 +47,8 @@ class ApiContext:
     posterUrl and the poster route is 404).
     concepts is None when the build cannot search for a new object (POST /api/concepts is
     503, and search lists no needsIndexing).
+    verify_demo_code checks a demo access code (default: none is valid); code_limiter counts
+    wrong codes per client (in memory).
     """
 
     library: Library
@@ -63,6 +66,8 @@ class ApiContext:
     concepts: ConceptService | None = None
     posters: PosterStore | None = None
     schedule_after_reply: JobScheduler = run_after_reply
+    verify_demo_code: CodeVerifier = no_valid_codes
+    code_limiter: FailedAttemptLimiter = field(default_factory=FailedAttemptLimiter)
 
 
 def snapshot_url_of(context: ApiContext) -> Callable[[str], str | None]:
