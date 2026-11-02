@@ -1,4 +1,4 @@
-"""The 22 operations of contract/openapi.yaml, all under /api.
+"""The 23 operations of contract/openapi.yaml, all under /api.
 
 Each handler validates its input (path, query and body models), calls one application
 use case and shapes the result into the contract's models. Failures are raised as
@@ -25,7 +25,15 @@ from fastapi import APIRouter, BackgroundTasks, Path, Query, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BeforeValidator
 
-from askfootage.application import cameras, ingest_video, recordings, saved_clips, search, zones
+from askfootage.application import (
+    cameras,
+    ingest_video,
+    recording_boxes,
+    recordings,
+    saved_clips,
+    search,
+    zones,
+)
 from askfootage.application.errors import NotFoundError
 from askfootage.interfaces.api.context import Context, snapshot_url_of
 from askfootage.interfaces.api.errors import error_responses, json_error_responses
@@ -41,6 +49,7 @@ from askfootage.interfaces.api.schemas import (
     IndexAccepted,
     Recording,
     RecordingAccepted,
+    RecordingBoxes,
     SavedClip,
     SavedClipCreate,
     SavedClipUpdate,
@@ -318,6 +327,29 @@ async def get_recording_video(id: IdPath, context: Context) -> VideoFileResponse
     except OSError:
         raise NotFoundError("Footage file not attached.") from None
     return VideoFileResponse(path, stat_result)
+
+
+@router.get(
+    "/recordings/{id}/boxes",
+    operation_id="getRecordingBoxes",
+    response_description="The boxes",
+    summary="The boxes of the objects found in a recording, frame by frame",
+    description=(
+        "The stored object tracks of the recording, for the player to draw boxes over the "
+        "playing video. Boxes are in pixels of the frameWidth x frameHeight frame; a frame "
+        "number n is at second n / fps from the start of the recording. A track has a point "
+        "only on frames where the object was detected. Hands are left out. A recording that "
+        "is known but has no stored tracks returns an empty tracks list; 404 when the "
+        "recording is unknown."
+    ),
+    responses=error_responses(404, 422, 500),
+)
+async def get_recording_boxes(id: IdPath, context: Context) -> RecordingBoxes:
+    """The boxes of one recording's stored tracks, hands left out."""
+    view = recording_boxes.get_recording_boxes(
+        context.library, context.tracks, context.frame_size, id
+    )
+    return RecordingBoxes.from_view(view)
 
 
 @router.post(

@@ -38,7 +38,7 @@ from askfootage.ports.language_model import QuestionParser
 from askfootage.ports.track_store import TrackStore
 from askfootage.settings import Settings, load_settings
 
-API_VERSION = "1.5.0"
+API_VERSION = "1.6.0"
 """The contract version this app serves (info.version in contract/openapi.yaml)."""
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_VIDEOS_DIR = REPO_ROOT / "videos"

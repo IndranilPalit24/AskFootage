@@ -28,6 +28,7 @@ from askfootage.application import cameras
 from askfootage.application.cameras import CameraDraft, CameraOverview
 from askfootage.application.clips import SavedClipWithCamera
 from askfootage.application.errors import InvalidInputError
+from askfootage.application.recording_boxes import RecordingBoxesView
 from askfootage.application.recordings import ServiceStatus
 from askfootage.application.saved_clips import MAX_NOTE_LENGTH
 from askfootage.application.search import MAX_QUESTION_LENGTH, SearchResult
@@ -337,6 +338,63 @@ class IndexAccepted(ResponseModel):
 
     id: str = Field(pattern=ID_PATTERN)
     status: Literal["preparing"]
+
+
+class BoxPoint(ResponseModel):
+    """One box on one frame, in pixels of the frame the recording was analysed in."""
+
+    frame: int = Field(ge=0)
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+
+
+class BoxTrack(ResponseModel):
+    """One tracked object and the frames it was detected on."""
+
+    track_id: int = Field(ge=0)
+    label: str = Field(description="A neutral object noun, such as person or cardboard box")
+    role: Literal["person", "object"] = Field(
+        description="person for a person; object for anything else (drawn highlighted)"
+    )
+    points: list[BoxPoint] = Field(
+        description="Ordered by frame; frames without a point had no detection"
+    )
+
+
+class RecordingBoxes(ResponseModel):
+    """The boxes of a recording's stored tracks, for drawing over the playing video."""
+
+    recording_id: str
+    frame_width: float = Field(gt=0, description="Width in pixels of the frame the boxes are in")
+    frame_height: float = Field(gt=0)
+    fps: float = Field(
+        gt=0, description="Frames per second of the analysed video: frame n is at n / fps seconds"
+    )
+    tracks: list[BoxTrack]
+
+    @classmethod
+    def from_view(cls, view: RecordingBoxesView) -> RecordingBoxes:
+        """The response model for a recording's boxes."""
+        return cls(
+            recording_id=view.recording_id,
+            frame_width=view.frame_width,
+            frame_height=view.frame_height,
+            fps=view.fps,
+            tracks=[
+                BoxTrack(
+                    track_id=t.track_id,
+                    label=t.label,
+                    role=t.role,
+                    points=[
+                        BoxPoint(frame=p.frame, x1=p.x1, y1=p.y1, x2=p.x2, y2=p.y2)
+                        for p in t.points
+                    ],
+                )
+                for t in view.tracks
+            ],
+        )
 
 
 # --- Clips and search ---------------------------------------------------------------------
