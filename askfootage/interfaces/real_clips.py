@@ -16,6 +16,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
+from askfootage.adapters.media.ffmpeg import PreparedCopyPreparer
 from askfootage.adapters.media.snapshots import FfmpegSnapshotRenderer
 from askfootage.adapters.sqlite.store import SqliteLibraryStore
 from askfootage.adapters.sqlite.tracks import SqliteTrackStore
@@ -42,6 +43,29 @@ class PerRecordingFootage:
         return path if path.is_file() else None
 
 
+class PreparedFrameSize:
+    """Pixel size of each recording's working copy, read once with ffprobe and remembered."""
+
+    def __init__(self, data_dir: Path) -> None:
+        self._dir = Path(data_dir)
+        self._sizes: dict[str, tuple[float, float]] = {}
+
+    def __call__(self, recording_id: str) -> tuple[float, float] | None:
+        """(width, height) of data_dir/<id>/prepared.mp4, or None when it cannot be read."""
+        if recording_id in self._sizes:
+            return self._sizes[recording_id]
+        path = self._dir / recording_id / "prepared.mp4"
+        try:
+            described = PreparedCopyPreparer().describe(path)
+        except Exception:  # noqa: BLE001 - a missing file or ffprobe means "size not known"
+            return None
+        if described.width is None or described.height is None:
+            return None
+        size = (float(described.width), float(described.height))
+        self._sizes[recording_id] = size
+        return size
+
+
 def create_app(data_dir: Path = DEFAULT_DATA_DIR, videos_dir: Path = DEFAULT_VIDEOS_DIR) -> FastAPI:
     """The API over the ingested real clips (an empty library if nothing was ingested)."""
     library = SqliteLibraryStore(Path(data_dir) / "library.sqlite")
@@ -53,4 +77,5 @@ def create_app(data_dir: Path = DEFAULT_DATA_DIR, videos_dir: Path = DEFAULT_VID
         tracks=tracks,
         snapshots=SnapshotStore(prepared / SNAPSHOTS_DIR_NAME, renderer),
         footage=PerRecordingFootage(videos_dir),
+        frame_size=PreparedFrameSize(prepared),
     )
