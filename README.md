@@ -2,8 +2,6 @@
 
 **Ask your footage. Get the clip and the proof.**
 
-[![tests](https://github.com/IndranilPalit24/AskFootage/actions/workflows/tests.yml/badge.svg)](https://github.com/IndranilPalit24/AskFootage/actions/workflows/tests.yml)
-
 AskFootage lets you ask a plain-English question about recorded camera footage, such as *"was a pallet left blocking the exit?"* or *"show me anyone carrying a box through the loading door"*. It returns the matching clips, marks each occurrence on a timeline, outlines the objects involved, and shows the measurements that justify every match.
 
 Built by Team **EdgeCase** (solo, Indie track) for the **Meta Global AI Developer Hackathon**, Oct 27 to Nov 4, 2026, using **SAM 3.1** and **Muse Spark** through the Meta Model API.
