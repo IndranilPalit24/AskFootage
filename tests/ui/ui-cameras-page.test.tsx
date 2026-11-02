@@ -60,7 +60,7 @@ function fillValid(): void {
 }
 
 function acknowledge(): void {
-  fireEvent.click(screen.getByRole('checkbox', { name: 'I understand that searching footage uses my Meta credits' }));
+  fireEvent.click(screen.getByRole('checkbox', { name: 'I understand that indexing footage for a new object type has a cost, shown above' }));
 }
 
 function submitButton(): HTMLButtonElement {

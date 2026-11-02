@@ -89,10 +89,10 @@ describe('design tokens (Minimalism & Swiss Style)', () => {
     expect(globalCss).not.toMatch(/border-radius:\s*\d+px/);
   });
 
-  it('loads Inter in exactly the two token weights and stays a light page', () => {
+  it('loads Inter in exactly the two token weights and follows the system light or dark setting', () => {
     expect(indexHtml).toContain('family=Inter:wght@400;600&display=swap');
     expect(indexHtml).not.toMatch(/wght@[^"&]*500/);
-    expect(indexHtml).toContain('<meta name="color-scheme" content="light" />');
+    expect(indexHtml).toContain('<meta name="color-scheme" content="light dark" />');
   });
 
   it('holds the trust colours and the welcome page layout tokens', () => {
