@@ -1,6 +1,6 @@
 # AskFootage architecture
 
-Status: the domain, ports, application, SQLite and JSON adapters, API (contract 1.3.0), CLIs and budget guard exist. Real SAM perception (`adapters/meta/sam.py`, currently empty) and the no-key demo mode (Gate 4) do not.
+Status: the domain, ports, application, SQLite and JSON adapters, API (contract 1.3.0), CLIs and budget guard exist. The SAM adapter (`adapters/meta/sam.py`) exists and the no-key demo replays saved replies from `demo/sam` (`python -m scripts.run_demo`, ADR 0015). Live indexing from the API does not exist.
 
 ## Purpose
 
@@ -40,7 +40,7 @@ interfaces -> application -> domain
 | `askfootage/domain` | Pure logic; imports nothing from other layers. `relations` (carrying, region traversal and entry, dwell), `stitching`, `vocabulary` (closed nouns and questions, `interpret_text`), `tracks`, `intervals`, `timebase`. |
 | `askfootage/ports` | Interfaces the application depends on: `budget`, `language_model`, `perception`, `track_store`, `library_store`, `video_store`. |
 | `askfootage/application` | Use cases through domain and ports: `search` and `search_relations` (answer from stored tracks, demo matcher as fallback), `ingest_video`, `add_concept`, `evaluate`, `budgeted_perception`, library, zones, cameras, clips. |
-| `askfootage/adapters/meta` | Meta API calls behind ports: `client` and `transport`, `budget`, `record_replay`, `muse` (question parser). `sam.py` is empty until a real reply is seen. |
+| `askfootage/adapters/meta` | Meta API calls behind ports: `client` and `transport`, `budget`, `record_replay`, `muse` (question parser). `sam` (SAM 3.1 perception, parses the streamed reply; replays offline from `demo/sam`). |
 | `askfootage/adapters/fake` | Demo perception and a copying preparer for `--fake`. |
 | `askfootage/adapters/sqlite` | The local library and track index (the API demo uses `data/demo.sqlite`). |
 | `askfootage/adapters/media` | ffmpeg and ffprobe: the constant 5 fps, silent H.264 working copy. |
