@@ -203,9 +203,6 @@ Muse Spark (`muse-spark-1.3`, in `askfootage/adapters/meta/muse.py`) turns a que
 
 `askfootage/application/search_relations.py` reads the question, then for each ready recording with stored tracks it stitches the tracks and runs `carrying`, `region_entry` or `dwell`. Each interval becomes a clip plus a proof (relation, frames and seconds, track ids, measures, a few boxes to draw), returned in the `proofs` array added in API contract 1.3.0. A recording with no stored tracks, no frame size (needed to turn saved zones into pixels), or a question with no relation uses the older demo keyword matcher over stored clips, and those clips have no proof. The default `create_app()` wires no track store, so a plain `uvicorn` start still serves the demo matcher; the stored-track path runs in `askfootage.interfaces.real_clips`, which passes in the SQLite tracks and a frame-size source (and in the API tests). The CLI's JSON files are not connected to the API. See [ADR 0010](docs/adr/0010-relation-search-over-stored-tracks-with-demo-fallback.md).
 
-### 6. Optional verification *(Not done)*
-
-Muse Spark can look at a few frames from each candidate result and say whether it agrees. This is **shown beside the result and never silently removes one**, and every verdict is logged so you can see what it disagreed with.
 
 ## Tech stack
 
