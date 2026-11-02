@@ -64,14 +64,6 @@ _MAX_ECHOED_ZONE = 60
 _SECONDS = re.compile(r"(\d+(?:\.\d+)?)\s*(seconds?|secs?|s|minutes?|mins?|m)\b")
 
 
-class FrameSizeProvider(Protocol):
-    """A track store that also remembers each video's pixel size (JsonTrackStore does)."""
-
-    def frame_size(self, video_id: str) -> tuple[float, float] | None:
-        """(width, height) of the video's analysed frames, or None when not saved."""
-        ...
-
-
 def frame_size_source_of(store: object | None) -> FrameSizeSource | None:
     """The store's frame_size method when it has one, else None."""
     method = getattr(store, "frame_size", None)
