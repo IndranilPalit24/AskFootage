@@ -4,6 +4,8 @@ import type {
   CameraCreate,
   CameraUpdate,
   Clip,
+  ConceptJob,
+  ConceptRequest,
   DaySummary,
   IsoDay,
   Recording,
@@ -52,6 +54,10 @@ export interface ApiClient {
   /** The URL an <img> can load for a server path such as a clip's snapshotUrl. */
   assetUrl(path: string): string;
   search(request: SearchRequest): Promise<SearchResponse>;
+  /** Search the recordings that lack a new object, once. 409 budget_exceeded and 503 indexing_not_configured are possible. */
+  requestConcept(body: ConceptRequest): Promise<ConceptJob>;
+  /** Where the pass for an object is, for polling. 404 when none was asked for. */
+  getConcept(noun: string): Promise<ConceptJob>;
   getClip(id: string): Promise<Clip>;
   listZones(camera?: string): Promise<Zone[]>;
   createZone(zone: ZoneCreate): Promise<Zone>;
@@ -183,6 +189,14 @@ export class FetchApiClient implements ApiClient {
 
   search(request: SearchRequest): Promise<SearchResponse> {
     return this.request('POST', '/api/search', { json: request });
+  }
+
+  requestConcept(body: ConceptRequest): Promise<ConceptJob> {
+    return this.request('POST', '/api/concepts', { json: body });
+  }
+
+  getConcept(noun: string): Promise<ConceptJob> {
+    return this.request('GET', `/api/concepts/${encodeURIComponent(noun)}`);
   }
 
   getClip(id: string): Promise<Clip> {

@@ -1,4 +1,4 @@
-// Hand-written TypeScript types for every schema in contract/openapi.yaml (v1.6.0).
+// Hand-written TypeScript types for every schema in contract/openapi.yaml (v1.7.0).
 // The contract is the source of truth: keep these in step with it, field for field.
 
 /** A calendar date, YYYY-MM-DD. */
@@ -9,7 +9,7 @@ export type TimeOfDay = string;
 export interface ErrorDetail {
   /**
    * validation_error, not_found, method_not_allowed, already_saved, zone_name_taken, camera_name_taken,
-   * file_too_large, unsupported_media_type or internal_error
+   * file_too_large, unsupported_media_type, budget_exceeded, indexing_not_configured or internal_error
    */
   code: string;
   /** Plain-English explanation, safe to show to a person; never contains a submitted password. */
@@ -134,6 +134,37 @@ export interface SearchResponse {
   note: string | null;
   /** Measured proof for clips found from stored object tracks, one per such clip; empty otherwise. */
   proofs: ClipProof[];
+  /** Objects the question names that some searched recordings have not been searched for yet, with the cost. */
+  needsIndexing: NeedsIndexing[];
+}
+
+export type NeedsIndexingState = 'not_indexed' | 'queued' | 'running';
+
+export interface NeedsIndexing {
+  noun: string;
+  /** US dollars one pass is estimated to cost. */
+  estimatedCostUsd: number;
+  recordingIds: string[];
+  state: NeedsIndexingState;
+}
+
+export interface ConceptRequest {
+  noun: string;
+  /** Must be true: the person accepted the estimated cost. */
+  confirm: true;
+  day?: IsoDay | null;
+  camera?: string | null;
+}
+
+export type ConceptState = 'queued' | 'running' | 'done' | 'failed';
+
+export interface ConceptJob {
+  noun: string;
+  state: ConceptState;
+  recordingIds: string[];
+  estimatedCostUsd: number;
+  /** Why a failed pass failed; null in every other state. */
+  message: string | null;
 }
 
 export type ProofRelation = 'carrying' | 'in_zone' | 'dwell';
