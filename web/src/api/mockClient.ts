@@ -25,6 +25,9 @@ import type {
   CameraStatus,
   CameraUpdate,
   Clip,
+  ConceptJob,
+  ConceptRequest,
+  NeedsIndexing,
   DaySummary,
   IsoDay,
   Point,
@@ -127,6 +130,14 @@ function validation(message: string): ApiError {
 
 /** The demo clip's recording: it is the one the demo boxes belong to. */
 const DEMO_BOXES_RECORDING = 'rec-1029-1030';
+
+/** The one object the demo offers to search for. */
+const DEMO_NEW_OBJECT = 'forklift';
+
+/** 0.20 dollars per 1,000 frames at 5 frames per second, about 1 minute (300 frames) per recording. */
+function demoCost(recordings: number): number {
+  return Math.round(recordings * 300 * 0.2) / 1000;
+}
 
 function notFound(message: string): ApiError {
   return new ApiError(404, 'not_found', message);
@@ -253,6 +264,7 @@ export class MockApiClient implements ApiClient {
   private readonly status: Status;
   private readonly latencyMs: number;
   private sequence = 0;
+  private readonly concepts = new Map<string, ConceptJob>();
   /** The number of the last camera id given out. It never goes down, so no id is reused after a delete. */
   private lastCameraNumber: number;
 
@@ -496,7 +508,41 @@ export class MockApiClient implements ApiClient {
             : `${notReady.length} recordings on this day are ${state}, so they were not searched.`,
         );
       }
-      return { question, day: request.day, clips, note: notes.length > 0 ? notes.join(' ') : null, proofs: [] };
+      return { question, day: request.day, clips, note: notes.length > 0 ? notes.join(' ') : null, proofs: [], needsIndexing: this.needsIndexingFor(tokens, [...readyIds]) };
+    });
+  }
+
+  /** The demo knows one object it has not searched for yet, so the confirm-the-cost flow can be tried. */
+  private needsIndexingFor(tokens: string[], readyIds: string[]): NeedsIndexing[] {
+    if (!tokens.includes(DEMO_NEW_OBJECT) || readyIds.length === 0) return [];
+    const job = this.concepts.get(DEMO_NEW_OBJECT);
+    if (job?.state === 'done') return [];
+    const state = job?.state === 'queued' || job?.state === 'running' ? job.state : 'not_indexed';
+    return [{ noun: DEMO_NEW_OBJECT, estimatedCostUsd: demoCost(readyIds.length), recordingIds: readyIds, state }];
+  }
+
+  requestConcept(body: ConceptRequest): Promise<ConceptJob> {
+    return this.answer(() => {
+      if (body.confirm !== true) throw validation('confirm must be true.');
+      const noun = typeof body.noun === 'string' ? body.noun.trim().toLowerCase() : '';
+      if (noun.length === 0 || noun.length > 40) throw validation('noun must be 1 to 40 characters.');
+      const existing = this.concepts.get(noun);
+      if (existing && (existing.state === 'queued' || existing.state === 'running')) return existing;
+      const ids = this.data.recordings.filter((r) => r.status === 'ready').map((r) => r.id);
+      const job: ConceptJob = { noun, state: 'queued', recordingIds: ids, estimatedCostUsd: demoCost(ids.length), message: null };
+      this.concepts.set(noun, job);
+      return job;
+    });
+  }
+
+  getConcept(noun: string): Promise<ConceptJob> {
+    return this.answer(() => {
+      const job = this.concepts.get(noun.trim().toLowerCase());
+      if (!job) throw notFound('No search was asked for that object.');
+      // Each look moves the demo pass on one step: queued, running, done.
+      if (job.state === 'queued') job.state = 'running';
+      else if (job.state === 'running') job.state = 'done';
+      return job;
     });
   }
 

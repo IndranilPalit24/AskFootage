@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { SearchState } from '../../app/SearchContext';
 import { formatShortDay } from '../../lib/dates';
 import { ClipCard } from './ClipCard';
+import { NeedsIndexingPanel } from './NeedsIndexingPanel';
 
 interface SearchResultsProps {
   state: SearchState;
@@ -59,11 +60,17 @@ export function SearchResults({ state, selectedDay, onRetry, cameraNames }: Sear
 
   const clips = state.phase === 'done' ? state.response.clips : [];
   const proofs = state.phase === 'done' ? state.response.proofs : [];
+  const needsIndexing = state.phase === 'done' ? state.response.needsIndexing : [];
   return (
     <>
       <div className="results-status" aria-live="polite">
         {status}
       </div>
+      {state.phase === 'done'
+        ? needsIndexing.map((item) => (
+            <NeedsIndexingPanel key={`${state.question}|${state.day}|${item.noun}`} item={item} day={state.day} onDone={onRetry} />
+          ))
+        : null}
       {clips.length > 0 ? (
         <ul className="clip-list" aria-label="Results">
           {clips.map((clip) => (

@@ -2046,3 +2046,39 @@ a:hover {
   color: var(--color-on-navy);
   text-decoration-thickness: 2px;
 }
+
+/* ---------- Not searched yet (confirm the cost) ---------- */
+
+.needs-indexing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.needs-indexing__title {
+  margin: 0;
+  font-size: var(--font-size-16);
+}
+
+.needs-indexing__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.needs-indexing__confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-14);
+}
+
+.needs-indexing__status p + p {
+  margin-top: var(--space-1);
+}
+
+.needs-indexing__action {
+  margin: 0;
+}
