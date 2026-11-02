@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "footage_not_included",
+    "message": "Footage is not included for this recording."
+  }
+}
