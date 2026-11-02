@@ -44,10 +44,10 @@ describe('poster frames', () => {
     await waitForBoot();
     fireEvent.change(await screen.findByLabelText('Ask about the footage'), { target: { value: 'someone carrying a box' } });
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    const card = (await screen.findAllByRole('article'))[0];
-    expect(card.querySelector('img')?.getAttribute('src')).toBe('http://localhost:8000/api/recordings/r/poster?t=3');
-    expect(card.querySelector('.thumb__duration')).not.toBeNull();
-    expect(card.querySelector('.clip-card__reason')?.textContent?.length).toBeGreaterThan(10);
+    const cards = await screen.findAllByRole('article');
+    // The lead result shows the real poster (compact rows keep the length chip: see the ClipThumb test above).
+    expect(cards[0].querySelector('img')?.getAttribute('src')).toBe('http://localhost:8000/api/recordings/r/poster?t=3');
+    expect(cards[0].querySelector('.result__reason')?.textContent?.length).toBeGreaterThan(10);
   });
 });
 

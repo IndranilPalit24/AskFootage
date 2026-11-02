@@ -82,8 +82,9 @@ describe('Swiss style rules in the stylesheet', () => {
     const sizes = new Set([...globalCss.matchAll(/font-size:\s*var\(--font-size-(\w+)\)/g)].map((match) => match[1]));
     // CHANGED on purpose (was 12/14/16/24/32): the scale is 12/13/14/16/20/28; base is the 14px body size.
     expect([...sizes].sort()).toEqual(['12', '13', '14', '16', '20', '28', 'base']);
-    // 28 is the focal headline: the Find Footage start title, the welcome headline and the sign-in pitch, nothing else.
-    expect(globalCss.match(/font-size:\s*var\(--font-size-28\)/g)).toHaveLength(3);
+    // 28 is the focal headline: the Find Footage start title, the welcome headline, nothing else.
+    // CHANGED on purpose (was 3): the sign-in page moved to signin.css, which has its own poster-scale sizes.
+    expect(globalCss.match(/font-size:\s*var\(--font-size-28\)/g)).toHaveLength(2);
     const weights = new Set([...globalCss.matchAll(/font-weight:\s*var\(--font-weight-(\w+)\)/g)].map((match) => match[1]));
     expect([...weights].sort()).toEqual(['medium', 'regular', 'semibold']);
   });
@@ -101,13 +102,16 @@ describe('Swiss style rules in the stylesheet', () => {
     expect(narrow).toMatch(/\.textarea \{\s*font-size: var\(--font-size-16\);/);
   });
 
-  it('status colours are used only by the 8px camera dots', () => {
+  it('status colours are used by the 8px camera dots, and (CHANGED on purpose) the person outline and zone polygons', () => {
     const used = [...globalCss.matchAll(/var\(--color-status-(online|standby|offline)\)/g)];
-    expect(used).toHaveLength(3);
+    // 3 dots + green person outline + amber and green zone polygon and label (the reference draws zones in blue, amber, green).
+    expect(used).toHaveLength(10);
     for (const name of ['online', 'standby', 'offline']) {
       expect(globalCss).toMatch(new RegExp(`\\.cam-dot--${name} \\{\\s*background: var\\(--color-status-${name}\\);`));
     }
     expect(globalCss).toMatch(/\.cam-dot \{[^}]*width: var\(--status-dot\);[^}]*height: var\(--status-dot\);/);
+    // Red is only the detection box and the offline dot: no zone uses it.
+    expect(globalCss).not.toMatch(/\.frame__(zone|label)[^{]*\{[^}]*status-offline/);
   });
 
   it('interaction states are defined once, for hover, active, focus-visible, disabled and loading', () => {

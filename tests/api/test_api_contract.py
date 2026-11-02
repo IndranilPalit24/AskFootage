@@ -261,8 +261,8 @@ ALL_CHECKS = (
 # --- The tests --------------------------------------------------------------------------------
 
 
-def test_the_contract_has_the_twenty_six_operations_the_api_serves() -> None:
-    assert len(_operations(CONTRACT)) == 26
+def test_the_contract_has_the_twenty_seven_operations_the_api_serves() -> None:
+    assert len(_operations(CONTRACT)) == 27
     assert _operations(CONTRACT)[("GET", "/api/clips/{id}/snapshot")]["operationId"] == (
         "getClipSnapshot"
     )
@@ -272,7 +272,7 @@ def test_the_contract_has_the_twenty_six_operations_the_api_serves() -> None:
 
 
 def test_the_app_serves_the_contracts_version(app_spec: Spec) -> None:
-    assert CONTRACT["info"]["version"] == "1.9.0"
+    assert CONTRACT["info"]["version"] == "1.10.0"
     assert app_spec["info"]["version"] == API_VERSION == CONTRACT["info"]["version"]
 
 

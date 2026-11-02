@@ -47,9 +47,12 @@ describe('Why this matched proof', () => {
     const cards = await searchWith(new ProofClient(true));
     expect(cards.length).toBeGreaterThan(0);
     const panel = within(cards[0]).getByRole('region', { name: 'Why this matched' });
-    expect(panel.textContent).toContain('Carrying · 0.5 s to 3.5 s');
-    expect(panel.textContent).toContain('Frames together: 60');
-    expect(panel.textContent).toContain('Motion agreement: 0.91');
+    // Label and value rows, only from what the API returned.
+    expect(panel.textContent).toContain('RelationCarrying');
+    expect(panel.textContent).toContain('Seen in the recording0.5 s to 3.5 s');
+    expect(panel.textContent).toContain('Frames together60');
+    expect(panel.textContent).toContain('Motion agreement0.91');
+    expect(panel.textContent).not.toMatch(/\/5|High/);
     for (const card of cards.slice(1)) expect(within(card).queryByText('Why this matched')).toBeNull();
   });
 

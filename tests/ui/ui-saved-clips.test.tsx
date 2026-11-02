@@ -15,7 +15,7 @@ async function searchThursday(): Promise<HTMLElement[]> {
   fireEvent.change(screen.getByLabelText('Day:'), { target: { value: '2026-10-29' } });
   fireEvent.change(box, { target: { value: 'someone carrying a box' } });
   fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-  await screen.findByText('6 clips');
+  await screen.findByText('6 results');
   return within(screen.getByRole('list', { name: 'Results' })).getAllByRole('article');
 }
 
@@ -32,11 +32,11 @@ describe('Save clip and the Saved clips screen', () => {
     expect(button.textContent).toBe('Saved');
     expect((await client.listSavedClips()).map((saved) => saved.clip.id)).toEqual(['clip-1029-104215']);
 
-    goTo('Saved clips');
+    goTo('Saved Clips');
     const list = await screen.findByRole('list', { name: 'Saved clips' });
     const row = within(list).getByRole('article', { name: DOCK_CLIP });
-    expect(within(row).getByText('Thu 29 Oct · 10:42:15')).toBeTruthy();
-    expect(within(row).getByRole('link', { name: 'Open' }).getAttribute('href')).toBe('/clip/clip-1029-104215');
+    expect(within(row).getByText('29 Oct 2026, 10:42')).toBeTruthy();
+    expect(within(row).getByRole('link', { name: /^Open( clip)?$/ }).getAttribute('href')).toBe('/clip/clip-1029-104215');
 
     // Back on the restored results, unsave it from the same button.
     goTo('Find Footage');
@@ -47,7 +47,7 @@ describe('Save clip and the Saved clips screen', () => {
     expect(saved.textContent).toBe('Save clip');
     expect(await client.listSavedClips()).toEqual([]);
 
-    goTo('Saved clips');
+    goTo('Saved Clips');
     expect(await screen.findByText('No saved clips yet. Use Save clip on any result to keep it here.')).toBeTruthy();
   });
 
@@ -63,7 +63,7 @@ describe('Save clip and the Saved clips screen', () => {
 
   it('starts empty and says how to save', async () => {
     renderApp('/saved');
-    expect(screen.getByRole('heading', { level: 1, name: 'Saved clips' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Saved Clips' })).toBeTruthy();
     expect(await screen.findByText('No saved clips yet. Use Save clip on any result to keep it here.')).toBeTruthy();
   });
 
@@ -75,7 +75,8 @@ describe('Save clip and the Saved clips screen', () => {
     const row = await screen.findByRole('article', { name: DOCK_CLIP });
     const note = within(row).getByLabelText<HTMLTextAreaElement>('Note');
     expect(note.value).toBe('Check this delivery');
-    expect(note.maxLength).toBe(500);
+    // The UI limit is 200 (the contract allows 500; see data/specs/needs-note-limit.md).
+    expect(note.maxLength).toBe(200);
 
     fireEvent.change(note, { target: { value: 'Matches the paperwork' } });
     fireEvent.click(within(row).getByRole('button', { name: 'Save note' }));
@@ -93,17 +94,17 @@ describe('Save clip and the Saved clips screen', () => {
     const select = screen.getByLabelText<HTMLSelectElement>('Day');
     expect([...select.options].map((option) => option.textContent)).toEqual([
       'All days',
-      'Sat 24 Oct',
-      'Sun 25 Oct',
-      'Mon 26 Oct',
-      'Tue 27 Oct',
-      'Wed 28 Oct',
-      'Thu 29 Oct',
-      'Fri 30 Oct',
+      '24 Oct 2026',
+      '25 Oct 2026',
+      '26 Oct 2026',
+      '27 Oct 2026',
+      '28 Oct 2026',
+      '29 Oct 2026',
+      '30 Oct 2026',
     ]);
 
     fireEvent.change(select, { target: { value: '2026-10-28' } });
-    expect(await screen.findByText('No saved clips from Wed 28 Oct.')).toBeTruthy();
+    expect(await screen.findByText('No saved clips from 28 Oct 2026.')).toBeTruthy();
     expect(list).toHaveBeenLastCalledWith('2026-10-28');
 
     fireEvent.change(select, { target: { value: '2026-10-29' } });
@@ -123,7 +124,7 @@ describe('Save clip and the Saved clips screen', () => {
     await waitFor(() => expect(within(list).getAllByRole('article')).toHaveLength(1));
     expect(within(list).queryByRole('article', { name: DOCK_CLIP })).toBeNull();
     expect(screen.getByText(`Removed ${DOCK_CLIP}.`)).toBeTruthy();
-    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Saved clips' }));
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Saved Clips' }));
     expect((await client.listSavedClips()).map((saved) => saved.clip.id)).toEqual(['clip-1030-065240']);
   });
 

@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import indexHtml from '../../web/index.html?raw';
 import mainSource from '../../web/src/main.tsx?raw';
 import globalCss from '../../web/src/styles/global.css?raw';
-import { applyTokens, cssVariables, tokens, TOKENS_STYLE_ID } from '../../web/src/styles/tokens';
+import { applyTokens, cssVariables, tokens, TOKENS_STYLE_ID, tokensCss } from '../../web/src/styles/tokens';
 
 describe('design tokens (calm, precise review tool)', () => {
   it('holds the target values', () => {
     // Colour: one accent, neutral greys, one hairline.
-    expect(tokens.color.accent).toBe('#1D4ED8');
-    expect(tokens.color.accentHover).toBe('#163BA6');
+    expect(tokens.color.accent).toBe('#005FCE'); // CHANGED: sampled from board.png (was #1D4ED8)
+    expect(tokens.color.accentHover).toBe('#004CA6');
     expect(tokens.color.onAccent).toBe('#FFFFFF');
     expect(tokens.color.text).toBe('#16181C');
     expect(tokens.color.page).toBe('#FFFFFF');
@@ -17,6 +17,10 @@ describe('design tokens (calm, precise review tool)', () => {
     expect(tokens.color.hoverFill).toBe('#F2F3F5');
     expect(tokens.color.activeFill).toBe('#E8EAEE');
     expect(tokens.color.fieldBorder).toBe('#868C99');
+    // Sign-in page (CHANGED on purpose): the warm panel is sampled from the reference (was #F7F5F1); two colours added.
+    expect(tokens.color.surfaceWarm).toBe('#F5F3F1');
+    expect(tokens.color.planBlue).toBe('#2F5FA8');
+    expect(tokens.color.buttonBorder).toBe('#D5D8DE');
     // Status colours exist only for the camera status dots.
     expect(tokens.color.statusOnline).toBe('#16A34A');
     expect(tokens.color.statusStandby).toBe('#CA8A04');
@@ -26,8 +30,8 @@ describe('design tokens (calm, precise review tool)', () => {
       expect(tokens.color).not.toHaveProperty(removed);
     }
     // Layout.
-    expect(tokens.size.topbarHeight).toBe('56px');
-    expect(tokens.size.drawerWidth).toBe('248px');
+    expect(tokens.size.topbarHeight).toBe('72px');
+    expect(tokens.size.drawerWidth).toBe('216px');
     expect(tokens.size.drawerWidthCollapsed).toBe('76px');
     expect(tokens.size.contentMaxWidth).toBe('840px');
     expect(tokens.size.gutter).toBe('16px');
@@ -36,7 +40,7 @@ describe('design tokens (calm, precise review tool)', () => {
     expect(tokens.size.iconButton).toBe('44px');
     expect(tokens.size.navItemMinHeight).toBe('44px');
     expect(tokens.size.statusDot).toBe('8px');
-    expect(tokens.layout.mainPadding).toBe('40px 40px 72px');
+    expect(tokens.layout.mainPadding).toBe('28px 32px 64px');
     // Radii: two only.
     expect(tokens.radius).toEqual({ control: '6px', card: '8px' });
     // Type: Inter at six sizes and three weights. CHANGED on purpose (was 12/14/16/24/32 and 400/600): the
@@ -44,7 +48,7 @@ describe('design tokens (calm, precise review tool)', () => {
     // headline and a 500 weight for labels and buttons.
     expect(tokens.font.family.startsWith('Inter,')).toBe(true);
     expect(Object.keys(tokens.font.size).length).toBeLessThanOrEqual(6);
-    expect(tokens.font.size).toEqual({ 12: '12px', 13: '13px', 14: '14px', 16: '16px', 20: '20px', 28: '28px' });
+    expect(tokens.font.size).toEqual({ 12: '13px', 13: '15px', 14: '16px', 16: '18px', 20: '32px', 28: '40px' });
     expect(tokens.font.weight).toEqual({ regular: '400', medium: '500', semibold: '600' });
     // Ids and timestamps use a monospace stack (always with tabular numerals).
     expect(tokens.font.mono).toContain('monospace');
@@ -54,6 +58,11 @@ describe('design tokens (calm, precise review tool)', () => {
     expect(Object.keys(tokens.elevation)).toEqual(['0', '1', '2']);
     expect(tokens.elevation[0]).toBe('none');
     for (const shadow of [tokens.elevation[1], tokens.elevation[2]]) expect(shadow).not.toMatch(/gradient|inset/);
+    // Reference pass: the cobalt tint of the current sidebar item exists in both palettes.
+    expect(tokens.color.accentSubtle).toBe('#E6F0FB');
+    // One theme: no dark palette and no dark media query is published.
+    expect(tokensCss()).not.toContain('prefers-color-scheme');
+    expect(tokens.size.resultFrameWidth).toBe('320px');
     expect(tokens.size.railWidth).toBe('360px');
     expect(tokens.size.workspaceMaxWidth).toBe('1280px');
   });
@@ -71,10 +80,10 @@ describe('design tokens (calm, precise review tool)', () => {
     applyTokens(document); // a second call refreshes, it does not add another <style>
     expect(document.querySelectorAll(`#${TOKENS_STYLE_ID}`)).toHaveLength(1);
     const css = document.getElementById(TOKENS_STYLE_ID)!.textContent!;
-    expect(css).toContain('--color-accent: #1D4ED8;');
+    expect(css).toContain('--color-accent: #005FCE;');
     expect(css).toContain('--color-border: #E3E5E9;');
-    expect(css).toContain('--topbar-height: 56px;');
-    expect(css).toContain('--drawer-width: 248px;');
+    expect(css).toContain('--topbar-height: 72px;');
+    expect(css).toContain('--drawer-width: 216px;');
     expect(css).toContain('--drawer-width-collapsed: 76px;');
     expect(css).toContain('--radius-control: 6px;');
     expect(css).toContain('--radius-card: 8px;');
@@ -113,7 +122,7 @@ describe('design tokens (calm, precise review tool)', () => {
     expect(indexHtml).not.toMatch(/fonts\.googleapis|fonts\.gstatic/);
     for (const weight of ['400', '500', '600']) expect(mainSource).toContain('@fontsource/inter/latin-' + weight + '.css');
     expect(mainSource).not.toMatch(/@fontsource\/inter\/latin-(100|200|300|700|800|900)/);
-    expect(indexHtml).toContain('<meta name="color-scheme" content="light dark" />');
+    expect(indexHtml).toContain('<meta name="color-scheme" content="light" />');
     // A real favicon instead of an empty data: URL.
     expect(indexHtml).toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml" />');
   });
@@ -121,7 +130,7 @@ describe('design tokens (calm, precise review tool)', () => {
   it('holds the trust colours and the welcome page layout tokens', () => {
     expect(tokens.color.navy).toBe('#0F1F3D');
     expect(tokens.color.onNavy).toBe('#FFFFFF');
-    expect(tokens.color.surface).toBe('#F6F7F9');
+    expect(tokens.color.surface).toBe('#F8F8F9');
     expect(tokens.color.evidenceBox).toBe('#DC2626');
     expect(tokens.size.landingMaxWidth).toBe('1120px');
     expect(tokens.size.contentMaxWidth).toBe('840px');
@@ -130,7 +139,7 @@ describe('design tokens (calm, precise review tool)', () => {
     expect(css).toContain('--color-navy: #0F1F3D;');
     expect(css).toContain('--landing-max-width: 1120px;');
     // CHANGED on purpose: the welcome headline moves from 32px to the 28px focal size of the new scale.
-    expect(css).toContain('--font-size-28: 28px;');
+    expect(css).toContain('--font-size-28: 40px;');
     expect(css).not.toContain('--font-size-32');
     expect(css).toContain('--space-9: 64px;');
   });

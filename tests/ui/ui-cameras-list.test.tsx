@@ -12,7 +12,7 @@ describe('Cameras list', () => {
     await screen.findByRole('table');
     const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
     const texts = rows.map((row) => within(row).getAllByRole('cell').map((cell) => cell.textContent ?? ''));
-    expect(texts.map((cells) => [cells[1], cells[2], cells[5]?.startsWith('Online') ? 'Online' : cells[5]?.slice(0, 7)])).toEqual([
+    expect(texts.map((cells) => [cells[1], cells[2], cells[4]?.startsWith('Online') ? 'Online' : cells[4]?.slice(0, 7)])).toEqual([
       ['Loading dock', 'Warehouse, north side', 'Online'],
       ['Front gate', 'Main entrance', 'Standby'],
       ['Back door', 'Not set', 'Offline'],

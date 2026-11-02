@@ -209,7 +209,7 @@ def test_a_v3_library_is_upgraded_in_place_and_keeps_its_rows(
     store = SqliteLibraryStore(library_path)
 
     with raw_connection(library_path) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 5
+        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 6
         assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
     assert [c.id for c in store.list_cameras()] == ["CAM-001"]

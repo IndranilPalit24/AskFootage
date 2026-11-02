@@ -175,7 +175,7 @@ TABLES = (
 )
 """Every table in schema.sql that holds library data (volume_state is bookkeeping)."""
 
-ALL_TABLES = (*TABLES, "volume_state")
+ALL_TABLES = (*TABLES, "volume_state", "demo_access_codes")
 """Every table in schema.sql."""
 
 

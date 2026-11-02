@@ -24,8 +24,14 @@ function rowOf(name: string): HTMLElement {
   return within(table()).getByRole('cell', { name }).closest('tr')!;
 }
 
-function statusSelect(name: string): HTMLSelectElement {
-  return screen.getByLabelText<HTMLSelectElement>(`Status of ${name}`);
+/** Opens the row's kebab menu and picks "Mark <status>". */
+function setStatus(name: string, status: string): void {
+  fireEvent.click(screen.getByRole('button', { name: `Actions for ${name}` }));
+  fireEvent.click(screen.getByRole('menuitem', { name: `Mark ${status}` }));
+}
+
+function statusLabel(name: string): string {
+  return rowOf(name).querySelector('.cam-status__label')!.textContent!;
 }
 
 function cardValue(label: string): string {
@@ -64,11 +70,13 @@ function acknowledge(): void {
 }
 
 function submitButton(): HTMLButtonElement {
-  return screen.getByRole('button', { name: 'Add camera' }) as HTMLButtonElement;
+  // The page header also has an "Add camera" button (it opens the tab); the form's submit is the one inside the form.
+  return within(screen.getByRole('tabpanel', { name: 'Add new camera' })).getByRole('button', { name: 'Add camera' }) as HTMLButtonElement;
 }
 
 function openDeleteDialog(name: string): HTMLElement {
-  fireEvent.click(screen.getByRole('button', { name: `Delete ${name}` }));
+  fireEvent.click(screen.getByRole('button', { name: `Actions for ${name}` }));
+  fireEvent.click(screen.getByRole('menuitem', { name: `Delete ${name}` }));
   return screen.getByRole('dialog');
 }
 
@@ -141,40 +149,39 @@ describe('Cameras page: summary cards and table', () => {
     expect(cardValue('Total cameras')).toBe('3');
     expect(cardValue('Online')).toBe('1');
     expect(cardValue('Standby')).toBe('1');
-    expect(cardValue('Offline/Error')).toBe('1');
+    expect(cardValue('Offline')).toBe('1');
   });
 
   it('updates the cards after a status change', async () => {
     await openCameras();
-    fireEvent.change(statusSelect('Front gate'), { target: { value: 'offline' } });
+    setStatus('Front gate', 'offline');
     await screen.findByText('Front gate is now Offline.');
     expect(cardValue('Total cameras')).toBe('3');
     expect(cardValue('Online')).toBe('1');
     expect(cardValue('Standby')).toBe('0');
-    expect(cardValue('Offline/Error')).toBe('2');
+    expect(cardValue('Offline')).toBe('2');
   });
 
-  it('has the columns ID, Name, Location, Zone, Department, Status and Actions', async () => {
+  it('has the columns ID, Name, Location, Department, Status and Actions (the reference has no Zone column)', async () => {
     await openCameras();
     const headers = within(table()).getAllByRole('columnheader');
     expect(headers.map((header) => header.textContent)).toEqual([
       'ID',
       'Name',
       'Location',
-      'Zone',
       'Department',
       'Status',
       'Actions',
     ]);
   });
 
-  it('lists each camera with its zone count, and "Not set" for a missing location or department', async () => {
+  it('lists each camera, and "Not set" for a missing location or department', async () => {
     await openCameras();
-    const rows = bodyRows().map((row) => cellTexts(row).slice(0, 5));
+    const rows = bodyRows().map((row) => cellTexts(row).slice(0, 4));
     expect(rows).toEqual([
-      ['CAM-001', 'Loading dock', 'Warehouse, north side', '2 zones', 'Logistics'],
-      ['CAM-002', 'Front gate', 'Main entrance', '1 zone', 'Security'],
-      ['CAM-003', 'Back door', 'Not set', 'No zones', 'Facilities'],
+      ['CAM-001', 'Loading dock', 'Warehouse, north side', 'Logistics'],
+      ['CAM-002', 'Front gate', 'Main entrance', 'Security'],
+      ['CAM-003', 'Back door', 'Not set', 'Facilities'],
     ]);
   });
 
@@ -183,7 +190,7 @@ describe('Cameras page: summary cards and table', () => {
     const real = client.listCameras.bind(client);
     client.listCameras = async () => (await real()).map((camera) => ({ ...camera, department: null }));
     await openCameras(client);
-    expect(cellTexts(bodyRows()[0])[4]).toBe('Not set');
+    expect(cellTexts(bodyRows()[0])[3]).toBe('Not set');
   });
 
   it('shows the status as a dot with a text label, never the dot alone', async () => {
@@ -194,7 +201,7 @@ describe('Cameras page: summary cards and table', () => {
       ['Back door', 'Offline', 'offline'],
     ];
     for (const [name, label, tone] of cases) {
-      const cell = within(rowOf(name)).getAllByRole('cell')[5];
+      const cell = within(rowOf(name)).getAllByRole('cell')[4];
       const text = cell.querySelector('.cam-status__label')!;
       expect(text.textContent).toBe(label);
       const dot = cell.querySelector('.cam-dot')!;
@@ -231,13 +238,15 @@ describe('Cameras page: status dropdown', () => {
   it('changes the status through the API and says so', async () => {
     const { client } = await openCameras();
     const update = vi.spyOn(client, 'updateCamera');
-    expect(statusSelect('Front gate').value).toBe('standby');
-    expect(within(statusSelect('Front gate')).getAllByRole('option').map((option) => option.textContent)).toEqual([
-      'Online',
-      'Standby',
-      'Offline',
+    expect(statusLabel('Front gate')).toBe('Standby');
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Front gate' }));
+    expect(within(screen.getByRole('menu')).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Mark online',
+      'Mark offline',
+      'Delete Front gate',
     ]);
-    fireEvent.change(statusSelect('Front gate'), { target: { value: 'online' } });
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    setStatus('Front gate', 'online');
     expect(update).toHaveBeenCalledWith('CAM-002', { status: 'online' });
     expect(await screen.findByText('Front gate is now Online.')).toBeTruthy();
     expect(within(rowOf('Front gate')).getByText('Online', { selector: '.cam-status__label' })).toBeTruthy();
@@ -248,15 +257,15 @@ describe('Cameras page: status dropdown', () => {
     const { client } = await openCameras();
     const held = deferred<Camera>();
     client.updateCamera = () => held.promise;
-    fireEvent.change(statusSelect('Front gate'), { target: { value: 'offline' } });
+    setStatus('Front gate', 'offline');
     // Optimistic: the label and the dropdown already say Offline.
-    expect(statusSelect('Front gate').value).toBe('offline');
+    expect(statusLabel('Front gate')).toBe('Offline');
     expect(within(rowOf('Front gate')).getByText('Offline', { selector: '.cam-status__label' })).toBeTruthy();
     held.reject(new ApiError(500, 'internal_error', 'The server could not answer. Try again.'));
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('Could not change the status of Front gate.');
     expect(alert.textContent).toContain('The server could not answer. Try again.');
-    expect(statusSelect('Front gate').value).toBe('standby');
+    expect(statusLabel('Front gate')).toBe('Standby');
     expect(within(rowOf('Front gate')).getByText('Standby', { selector: '.cam-status__label' })).toBeTruthy();
     expect(cardValue('Standby')).toBe('1');
   });
@@ -290,7 +299,7 @@ describe('Cameras page: Recordings action', () => {
 
   it('becomes available again when the camera is brought back online', async () => {
     await openCameras();
-    fireEvent.change(statusSelect('Back door'), { target: { value: 'online' } });
+    setStatus('Back door', 'online');
     await screen.findByText('Back door is now Online.');
     const link = within(rowOf('Back door')).getByRole('link', { name: 'Recordings' });
     expect(link.getAttribute('href')).toBe('/cameras/CAM-003/recordings');
@@ -302,7 +311,7 @@ describe('Cameras page: delete', () => {
   it('asks first, in a dialog that takes focus, and Cancel keeps the camera', async () => {
     const { client } = await openCameras();
     const del = vi.spyOn(client, 'deleteCamera');
-    const trigger = screen.getByRole('button', { name: 'Delete Loading dock' });
+    const trigger = screen.getByRole('button', { name: 'Actions for Loading dock' });
     trigger.focus();
     const dialog = openDeleteDialog('Loading dock');
     expect(dialog.getAttribute('aria-modal')).toBe('true');
@@ -317,7 +326,7 @@ describe('Cameras page: delete', () => {
 
   it('Escape closes the dialog and gives focus back to the trash button', async () => {
     await openCameras();
-    const trigger = screen.getByRole('button', { name: 'Delete Front gate' });
+    const trigger = screen.getByRole('button', { name: 'Actions for Front gate' });
     trigger.focus();
     const dialog = openDeleteDialog('Front gate');
     fireEvent.keyDown(dialog, { key: 'Escape' });
@@ -531,7 +540,7 @@ describe('Cameras page: Add new camera form', () => {
     });
     expect(await screen.findByText('Added Yard.')).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Camera registry' }).getAttribute('aria-selected')).toBe('true');
-    expect(cellTexts(rowOf('Yard')).slice(0, 5)).toEqual(['CAM-004', 'Yard', 'Yard east', 'No zones', 'Not set']);
+    expect(cellTexts(rowOf('Yard')).slice(0, 4)).toEqual(['CAM-004', 'Yard', 'Yard east', 'Not set']);
     expect(cardValue('Total cameras')).toBe('4');
 
     openAddTab();
@@ -700,10 +709,10 @@ describe('Cameras page: refresh every 4 seconds', () => {
     await openWithFakeInterval(client);
     const before = await real();
     await advance(4000); // refresh number 2 is now in flight
-    fireEvent.change(statusSelect('Front gate'), { target: { value: 'online' } });
+    setStatus('Front gate', 'online');
     await advance(0);
     staleAnswer.resolve(before); // it still says Standby
     await advance(0);
-    expect(statusSelect('Front gate').value).toBe('online');
+    expect(statusLabel('Front gate')).toBe('Online');
   });
 });

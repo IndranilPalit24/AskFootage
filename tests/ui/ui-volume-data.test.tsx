@@ -42,7 +42,7 @@ describe('a recording without footage', () => {
     renderApp('/cameras/CAM-001/recordings', clientWith(list));
     await screen.findAllByText(FOOTAGE_NOT_INCLUDED_NOTE);
     expect(screen.getAllByText('Footage not included in this demo build')).toHaveLength(2);
-    expect(screen.getAllByRole('link', { name: 'Open' })).toHaveLength(1); // only the one with footage
+    expect(screen.getAllByRole('link', { name: /^Open( clip)?$/ })).toHaveLength(1); // only the one with footage
     expect(screen.getAllByRole('link', { name: /Watch the recording/ })).toHaveLength(1);
     const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
     expect(within(rows[0]).getByText('Ready')).toBeTruthy(); // the row is shown normally
@@ -134,7 +134,7 @@ describe('long lists are paged', () => {
     vi.spyOn(client, 'listCameras').mockResolvedValue(eighteen);
     renderApp('/', client);
     await waitForBoot();
-    const select = await screen.findByLabelText<HTMLSelectElement>('Cameras:');
+    const select = await screen.findByLabelText<HTMLSelectElement>('Camera:');
     expect(select.options).toHaveLength(19);
   });
 });
